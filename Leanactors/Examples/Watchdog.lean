@@ -5,7 +5,9 @@ import Leanactors.Gen.Watchdog
 
 A watchdog, translated from `elixir/src/watchdog.ex`: it pings a linked
 worker, arms a GenServer timeout, and on `:timeout` kills the worker with
-`Process.exit/2` and restarts it on the resulting `EXIT`.
+`Process.exit(w, :kill)` and restarts it on the resulting `EXIT`. The kill
+is `.signal w .kill`: untrappable, so the worker dies whatever it traps,
+and the `EXIT` the watchdog then receives carries `.error` (`:killed`).
 
 Timers are untimed in the model, so a `:timeout` may fire even though a
 `:pong` arrived first: the watchdog may kill a healthy worker. That is a
@@ -27,7 +29,7 @@ def beh : EBehavior St Msg
   | me, fresh, .watchdog none _, .start =>
       (.watchdog (some fresh) true, [.spawnLink (.worker false 0), .send fresh .ping, .sendAfter me .timeout])
   | me, _, .watchdog (some w) true, .pong => (.watchdog (some w) true, [.send w .ping, .sendAfter me .timeout])
-  | _, _, .watchdog (some w) true, .timeout => (.watchdog (some w) false, [.signal w .error])
+  | _, _, .watchdog (some w) true, .timeout => (.watchdog (some w) false, [.signal w .kill])
   | me, fresh, .watchdog (some w) b, .EXIT who _ =>
       if who = w then
         (.watchdog (some fresh) true, [.spawnLink (.worker false 0), .send fresh .ping, .sendAfter me .timeout])
@@ -67,8 +69,8 @@ def checkInv (s : Sys St Msg) : Bool :=
   | some (.watchdog none _) => true
   | some (.watchdog (some w) _) =>
     ((s.cfg.get w).isSome && s.links.contains (0, w)) ||
-    [Reason.normal, .error].any (fun r => s.signals.contains (0, w, r)) ||
-    [Reason.normal, .error].any (fun r => 0 < s.cfg.mcount 0 (.EXIT w r))
+    [Reason.normal, .error, .kill].any (fun r => s.signals.contains (0, w, r)) ||
+    [Reason.normal, .error, .kill].any (fun r => 0 < s.cfg.mcount 0 (.EXIT w r))
   | _ => false
 
 partial def explore (b : EBehavior St Msg) (sg : Signals St Msg) (s : Sys St Msg)

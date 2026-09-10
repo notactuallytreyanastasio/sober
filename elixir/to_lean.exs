@@ -46,6 +46,10 @@
 #   A body whose last statement is `raise ...` or `throw ...` (any
 #   arguments) exits the process with reason error, keeping the current
 #   state, like `exit/1`; a raise or throw anywhere else is an error.
+#   Exit reasons (`{:stop, r, s}`, `exit(r)`, `Process.exit(p, r)`): :normal
+#   is `.normal`, :kill is `.kill` (untrappable: `Process.exit(p, :kill)`
+#   kills p even if it traps, and p's links see error), anything else is
+#   `.error`.
 #
 # Registered names: `send(Mod, m)`, `GenServer.cast(Mod, m)` and
 #   `GenServer.call(Mod, m)` need a constant pid for Mod. With `--pid`
@@ -1233,7 +1237,10 @@ defmodule ToLean do
     env |> Map.put(:__fresh__, k + 1) |> Map.put({:alias, Atom.to_string(v)}, pid) |> Map.put(lean_ident(Atom.to_string(v)), "Pid")
   end
 
+  # exit reasons: :normal and :kill are their own constructors (a kill signal
+  # is untrappable in the model too), anything else is error
   defp reason_str(:normal), do: ".normal"
+  defp reason_str(:kill), do: ".kill"
   defp reason_str(_), do: ".error"
 
   defp plain_body(ctx, mod, env, stmts) do
