@@ -1,4 +1,4 @@
-import Leanactors.Sys
+import Leanactors.Explore
 import Leanactors.Gen.Task
 /-!
 # Leanactors.Examples.Task
@@ -57,9 +57,6 @@ structure Inv (s : Sys St Msg) : Prop where
 
 /-! ## Bounded model check -/
 
-def livePids (s : Sys St Msg) : List Pid :=
-  (List.range s.next).filter fun p => (s.cfg.get p).isSome
-
 def checkInv (s : Sys St Msg) : Bool :=
   s.links.isEmpty && s.signals.isEmpty &&
   match s.cfg.stateOf 0 with
@@ -82,27 +79,8 @@ def jobNotLost (s : Sys St Msg) : Bool :=
     [Reason.normal, .error].any (fun rs => 0 < s.cfg.mcount 0 (.DOWN w rs))
   | _ => true
 
-partial def explore (b : EBehavior St Msg) (sg : Signals St Msg) (s : Sys St Msg)
-    (depth env : Nat) (check : Sys St Msg → Bool := checkInv) (path : List String := []) :
-    Nat × Option (List String) :=
-  if !check s then (1, some path.reverse)
-  else if depth = 0 then (1, none)
-  else
-    let runs := (livePids s).filterMap fun p => (runE b s p).map fun s' => (s', env, s!"run {p}")
-    let sigs := (signalE sg s).map (fun s' => [(s', env, "signal")]) |>.getD []
-    let downs := (downE sg s).map (fun s' => [(s', env, "down")]) |>.getD []
-    let envs := if env = 0 then [] else
-      (livePids s).flatMap fun p =>
-        [(.go : Msg), .compute, .crash].map fun m =>
-          ({ s with cfg := s.cfg.deliver p m }, env - 1, s!"env {repr m} -> {p}")
-    (runs ++ sigs ++ downs ++ envs).foldl (fun (n, bad) (s', e, lbl) =>
-      match bad with
-      | some _ => (n, bad)
-      | none =>
-        let (n', bad') := explore b sg s' (depth - 1) e check (lbl :: path)
-        (n + n', bad')) (1, none)
-
-#eval explore beh sig init 9 4
+-- The environment may send `go`/`compute`/`crash` to any live pid.
+#eval explore beh sig checkInv [.go, .compute, .crash] init 9 4
 
 /-- **Mutant**: the caller forgets `Process.monitor`. A crash is silent and
 the job is lost: the caller waits forever. -/
@@ -115,9 +93,9 @@ def behNoMonitor : EBehavior St Msg
   | _, _, .worker p n, .crash => (.worker p n, [.exit .error])
   | _, _, s, _ => (s, [])
 
-#eval explore behNoMonitor sig init 9 4
+#eval explore behNoMonitor sig checkInv [.go, .compute, .crash] init 9 4
 -- and against the property alone: the job is lost the moment the unmonitored worker crashes
-#eval explore behNoMonitor sig init 9 4 jobNotLost
+#eval explore behNoMonitor sig jobNotLost [.go, .compute, .crash] init 9 4
 
 /-- Concrete traces: a completed job, and a crashed one. -/
 def done : Sys St Msg :=
