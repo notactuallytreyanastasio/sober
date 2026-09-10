@@ -57,12 +57,13 @@ def beh : Behavior St Msg
   | me, .client_await0,   m          => (.client_await0, [(me, m)])
   | _,  s, _ => (s, [])
 
-/-- The translated Elixir is extensionally the same behaviour. -/
-theorem beh_eq_gen : Gen.Lock.beh = beh := by
-  funext p s m
+/-- The translated Elixir is extensionally the same behaviour: the generated
+`EBehavior` is the hand-written `Behavior` lifted to send-only effects. -/
+theorem beh_eq_gen : Gen.Lock.beh = lift beh := by
+  funext p f s m
   cases s with
-  | lock h q => cases h <;> cases q <;> cases m <;> first | rfl | simp [Gen.Lock.beh, beh]
-  | client ph => cases ph <;> cases m <;> first | rfl | simp [Gen.Lock.beh, beh]
+  | lock h q => cases h <;> cases q <;> cases m <;> first | rfl | (simp only [Gen.Lock.beh, beh, lift]; split <;> rfl) | simp [Gen.Lock.beh, beh, lift]
+  | client ph => cases ph <;> cases m <;> first | rfl | (simp only [Gen.Lock.beh, beh, lift]; split <;> rfl) | simp [Gen.Lock.beh, beh, lift]
   | client_await0 =>
     cases m with
     | reply r => cases r; rfl
