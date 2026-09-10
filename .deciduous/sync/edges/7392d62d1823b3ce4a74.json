@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T14:51:12.248479-04:00",
+  "edge_id": "7392d62d1823b3ce4a74",
+  "edge_type": "leads_to",
+  "from_change_id": "3f7c6ad5-04fe-425b-bf50-d6df56e8597c",
+  "rationale": "rejected: merge hell in one file",
+  "to_change_id": "ab5a596c-b3c7-4f22-8a14-f36df6e1358e",
+  "weight": 1.0
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "ab5a596c-b3c7-4f22-8a14-f36df6e1358e",
+  "created_at": "2026-09-10T14:51:12.197228-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 75
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Four builders, shared-graph protocol, integrator + verifier as before; :kill and exceptions-with-rescue deferred",
+  "updated_at": "2026-09-10T14:51:12.197228-04:00"
+}

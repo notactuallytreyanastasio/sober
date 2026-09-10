@@ -2353,6 +2353,61 @@
       "created_at": "2026-09-10T14:07:14.476994-04:00",
       "updated_at": "2026-09-10T14:07:14.476994-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":85}"
+    },
+    {
+      "id": 215,
+      "change_id": "8f4e698c-7f24-480d-8838-9d4b4aa9ab70",
+      "node_type": "goal",
+      "title": "Round 2: receive-after, automatic name registration, raise as crash, uniform EBehavior output with lift equivalence, translator regression fixtures, Sys proofs on SysProps",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T14:51:11.989867-04:00",
+      "updated_at": "2026-09-10T14:51:11.989867-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":65,\"prompt\":\"keep going\"}"
+    },
+    {
+      "id": 216,
+      "change_id": "3f7c6ad5-04fe-425b-bf50-d6df56e8597c",
+      "node_type": "option",
+      "title": "One agent per translator feature (5 concurrent translator editors)",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T14:51:12.065742-04:00",
+      "updated_at": "2026-09-10T14:51:12.065742-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":25}"
+    },
+    {
+      "id": 217,
+      "change_id": "a8ad2b46-3ed6-4d52-87e9-4cae722c35e7",
+      "node_type": "option",
+      "title": "Two translator builders (features; uniform EBehavior), one fixtures builder, one Lean refactor builder; builders write directly into the shared graph under a root node; integrator reads the tree",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T14:51:12.108881-04:00",
+      "updated_at": "2026-09-10T14:51:12.108881-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":75}"
+    },
+    {
+      "id": 218,
+      "change_id": "ab5a596c-b3c7-4f22-8a14-f36df6e1358e",
+      "node_type": "decision",
+      "title": "Four builders, shared-graph protocol, integrator + verifier as before; :kill and exceptions-with-rescue deferred",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T14:51:12.197228-04:00",
+      "updated_at": "2026-09-10T14:51:12.197228-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":75}"
+    },
+    {
+      "id": 219,
+      "change_id": "381f1e24-15ac-4212-8347-aa0c526b4d31",
+      "node_type": "action",
+      "title": "Workflow round 2 root",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T14:51:12.291176-04:00",
+      "updated_at": "2026-09-10T14:51:12.291176-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":70}"
     }
   ],
   "edges": [
@@ -5149,6 +5204,72 @@
       "weight": 1.0,
       "rationale": "what the protocol showed",
       "created_at": "2026-09-10T14:07:14.501360-04:00"
+    },
+    {
+      "id": 255,
+      "from_node_id": 213,
+      "to_node_id": 215,
+      "from_change_id": "3ffcca25-0fea-412c-b875-ff44639a7a09",
+      "to_change_id": "8f4e698c-7f24-480d-8838-9d4b4aa9ab70",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "next round after the first workflow",
+      "created_at": "2026-09-10T14:51:12.018299-04:00"
+    },
+    {
+      "id": 256,
+      "from_node_id": 215,
+      "to_node_id": 216,
+      "from_change_id": "8f4e698c-7f24-480d-8838-9d4b4aa9ab70",
+      "to_change_id": "3f7c6ad5-04fe-425b-bf50-d6df56e8597c",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T14:51:12.134646-04:00"
+    },
+    {
+      "id": 257,
+      "from_node_id": 215,
+      "to_node_id": 217,
+      "from_change_id": "8f4e698c-7f24-480d-8838-9d4b4aa9ab70",
+      "to_change_id": "a8ad2b46-3ed6-4d52-87e9-4cae722c35e7",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T14:51:12.159305-04:00"
+    },
+    {
+      "id": 258,
+      "from_node_id": 217,
+      "to_node_id": 218,
+      "from_change_id": "a8ad2b46-3ed6-4d52-87e9-4cae722c35e7",
+      "to_change_id": "ab5a596c-b3c7-4f22-8a14-f36df6e1358e",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "chosen: fewer concurrent edits to to_lean.exs",
+      "created_at": "2026-09-10T14:51:12.223172-04:00"
+    },
+    {
+      "id": 259,
+      "from_node_id": 216,
+      "to_node_id": 218,
+      "from_change_id": "3f7c6ad5-04fe-425b-bf50-d6df56e8597c",
+      "to_change_id": "ab5a596c-b3c7-4f22-8a14-f36df6e1358e",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "rejected: merge hell in one file",
+      "created_at": "2026-09-10T14:51:12.248479-04:00"
+    },
+    {
+      "id": 260,
+      "from_node_id": 218,
+      "to_node_id": 219,
+      "from_change_id": "ab5a596c-b3c7-4f22-8a14-f36df6e1358e",
+      "to_change_id": "381f1e24-15ac-4212-8347-aa0c526b4d31",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "launched",
+      "created_at": "2026-09-10T14:51:12.315628-04:00"
     }
   ]
 }

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "3f7c6ad5-04fe-425b-bf50-d6df56e8597c",
+  "created_at": "2026-09-10T14:51:12.065742-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 25
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "One agent per translator feature (5 concurrent translator editors)",
+  "updated_at": "2026-09-10T14:51:12.065742-04:00"
+}
