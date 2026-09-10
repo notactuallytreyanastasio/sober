@@ -115,9 +115,9 @@ def sigNoTrap : Signals St Msg := { sig with traps := fun _ => false }
 
 /-- A concrete trace: start, one job, a crash, the signal, the restart. -/
 def trace : Sys St Msg :=
-  let s1 := runSys beh sig init [some 0]                         -- spawns worker 1
+  let s1 := runSys beh sig init [.run 0]                              -- spawns worker 1
   let s2 := { s1 with cfg := (s1.cfg.deliver 1 .job).deliver 1 .crash }
-  runSys beh sig s2 [some 1, some 1, none, some 0]               -- job, crash, signal, restart
+  runSys beh sig s2 [.run 1, .run 1, .signal, .run 0]                 -- job, crash, signal, restart
 
 #eval (trace.cfg.stateOf 0, trace.cfg.stateOf 1, trace.cfg.stateOf 2, trace.next, trace.links, trace.signals)
 

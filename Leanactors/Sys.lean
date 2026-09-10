@@ -15,6 +15,9 @@ Spawn, links and exits, as a layer over `Config`.
   the codec `Signals.exitMsg`; a non-trapping target ignores `normal` and
   is itself terminated by `error`, queueing more signals. No recursion, so
   every step is a plain function.
+* Monitors are one-directional and never cascade: terminating `p` queues a
+  DOWN notification for every watcher, delivered as a message via
+  `Signals.downMsg` by the `downE` step (dropped if no codec is declared).
 * `lift` embeds a message-only `Behavior`; `runE_lift` shows the old `step`
   is exactly the new one on systems with no links and no signals, so every
   earlier theorem still applies.
@@ -30,6 +33,8 @@ inductive Effect (σ μ : Type)
   | spawn (init : σ)
   | spawnLink (init : σ)
   | link (p : Pid)
+  | monitor (p : Pid)
+  | spawnMonitor (init : σ)
   | exit (r : Reason)
   deriving Repr
 
@@ -41,6 +46,8 @@ abbrev EBehavior (σ μ : Type) := Pid → Pid → σ → μ → σ × List (Eff
 structure Signals (σ μ : Type) where
   traps : σ → Bool
   exitMsg : Pid → Reason → μ
+  /-- `{:DOWN, ref, :process, pid, reason}`; `none` if the program never monitors. -/
+  downMsg : Option (Pid → Reason → μ) := none
 
 structure Sys (σ μ : Type) where
   cfg : Config σ μ
@@ -48,6 +55,10 @@ structure Sys (σ μ : Type) where
   links : List (Pid × Pid)
   /-- `(target, source, reason)`, oldest first. -/
   signals : List (Pid × Pid × Reason)
+  /-- `(watcher, target)` monitors. -/
+  monitors : List (Pid × Pid) := []
+  /-- Pending DOWN notifications `(watcher, target, reason)`, oldest first. -/
+  downs : List (Pid × Pid × Reason) := []
 
 namespace Config
 
@@ -96,6 +107,14 @@ theorem mem_linkedTo_of_mem {links : List (Pid × Pid)} {q p : Pid} (h : (q, p) 
   · subst hq; simp
   · simp [hq]
 
+/-- Everyone watching `p`. -/
+def watchers (monitors : List (Pid × Pid)) (p : Pid) : List Pid :=
+  monitors.filterMap fun wt => if wt.2 = p then some wt.1 else none
+
+/-- Drop every monitor involving `p`. -/
+def unmonitor (monitors : List (Pid × Pid)) (p : Pid) : List (Pid × Pid) :=
+  monitors.filter fun wt => wt.1 != p && wt.2 != p
+
 theorem mem_unlink {links : List (Pid × Pid)} {a b p : Pid} (h : (a, b) ∈ links)
     (ha : a ≠ p) (hb : b ≠ p) : (a, b) ∈ unlink links p := by
   unfold unlink
@@ -111,7 +130,9 @@ def terminate (s : Sys σ μ) (p : Pid) (r : Reason) : Sys σ μ :=
   { cfg := s.cfg.remove p
     next := s.next
     links := unlink s.links p
-    signals := s.signals ++ (linkedTo s.links p).map fun q => (q, p, r) }
+    signals := s.signals ++ (linkedTo s.links p).map fun q => (q, p, r)
+    monitors := unmonitor s.monitors p
+    downs := s.downs ++ (watchers s.monitors p).map fun w => (w, p, r) }
 
 /-- One effect on behalf of `p`; the `Option Reason` records a pending self-exit. -/
 def applyEffect (p : Pid) : Sys σ μ × Option Reason → Effect σ μ → Sys σ μ × Option Reason
@@ -124,6 +145,12 @@ def applyEffect (p : Pid) : Sys σ μ × Option Reason → Effect σ μ → Sys 
   | (s, d), .link q =>
       if (s.cfg.get q).isSome then ({ s with links := (p, q) :: s.links }, d)
       else ({ s with signals := s.signals ++ [(p, q, .error)] }, d)  -- noproc
+  | (s, d), .monitor q =>
+      if (s.cfg.get q).isSome then ({ s with monitors := (p, q) :: s.monitors }, d)
+      else ({ s with downs := s.downs ++ [(p, q, .error)] }, d)  -- noproc
+  | (s, d), .spawnMonitor init =>
+      ({ s with cfg := s.cfg.set s.next ⟨init, []⟩, next := s.next + 1,
+                monitors := (p, s.next) :: s.monitors }, d)
   | (s, _), .exit r => (s, some r)
 
 def applyEffects (p : Pid) (s : Sys σ μ) (effs : List (Effect σ μ)) : Sys σ μ × Option Reason :=
@@ -154,6 +181,17 @@ def signalE (sig : Signals σ μ) (s : Sys σ μ) : Option (Sys σ μ) :=
           | .normal => s'
           | .error => s'.terminate q r)
 
+/-- Deliver the oldest pending DOWN notification (dropped without a codec
+or if the watcher is gone). -/
+def downE (sig : Signals σ μ) (s : Sys σ μ) : Option (Sys σ μ) :=
+  match s.downs with
+  | [] => none
+  | (w, t, r) :: rest =>
+    let s' : Sys σ μ := { s with downs := rest }
+    some (match sig.downMsg, s.cfg.get w with
+      | some codec, some _ => { s' with cfg := s'.cfg.deliver w (codec t r) }
+      | _, _ => s')
+
 end Sys
 
 /-- Relational semantics: any actor with a message may run, or the oldest
@@ -161,19 +199,30 @@ signal may be delivered. -/
 inductive SysStep {σ μ : Type} (beh : EBehavior σ μ) (sig : Signals σ μ) : Sys σ μ → Sys σ μ → Prop
   | run (s : Sys σ μ) (p : Pid) (s' : Sys σ μ) (h : Sys.runE beh s p = some s') : SysStep beh sig s s'
   | signal (s s' : Sys σ μ) (h : Sys.signalE sig s = some s') : SysStep beh sig s s'
+  | down (s s' : Sys σ μ) (h : Sys.downE sig s = some s') : SysStep beh sig s s'
 
 inductive SysReach {σ μ : Type} (beh : EBehavior σ μ) (sig : Signals σ μ) : Sys σ μ → Sys σ μ → Prop
   | refl (s) : SysReach beh sig s s
   | step {a b c} : SysStep beh sig a b → SysReach beh sig b c → SysReach beh sig a c
 
-/-- Executable schedule: `some p` runs `p`, `none` delivers a signal. -/
+/-- A scheduler choice for `Sys` (the core's `Choice` is just a pid). -/
+inductive SysChoice
+  | run (p : Pid)
+  | signal
+  | down
+  deriving Repr, DecidableEq
+
+/-- Executable schedule. Stops at the first choice that is not enabled. -/
 def runSys {σ μ : Type} (beh : EBehavior σ μ) (sig : Signals σ μ) :
-    Sys σ μ → List (Option Pid) → Sys σ μ
+    Sys σ μ → List SysChoice → Sys σ μ
   | s, [] => s
-  | s, some p :: ch => match Sys.runE beh s p with
+  | s, .run p :: ch => match Sys.runE beh s p with
     | some s' => runSys beh sig s' ch
     | none => s
-  | s, none :: ch => match Sys.signalE sig s with
+  | s, .signal :: ch => match Sys.signalE sig s with
+    | some s' => runSys beh sig s' ch
+    | none => s
+  | s, .down :: ch => match Sys.downE sig s with
     | some s' => runSys beh sig s' ch
     | none => s
 
@@ -185,21 +234,26 @@ theorem SysReach.inv {σ μ : Type} {beh : EBehavior σ μ} {sig : Signals σ μ
   | step hst _ ih => exact ih (hstep hst hs)
 
 theorem runSys_sound {σ μ : Type} (beh : EBehavior σ μ) (sig : Signals σ μ)
-    (s : Sys σ μ) (ch : List (Option Pid)) : SysReach beh sig s (runSys beh sig s ch) := by
+    (s : Sys σ μ) (ch : List SysChoice) : SysReach beh sig s (runSys beh sig s ch) := by
   induction ch generalizing s with
   | nil => exact .refl s
   | cons c ch ih =>
     cases c with
-    | some p =>
+    | run p =>
       simp only [runSys]
       cases h : Sys.runE beh s p with
       | none => exact .refl s
       | some s' => exact .step (.run s p s' h) (ih s')
-    | none =>
+    | signal =>
       simp only [runSys]
       cases h : Sys.signalE sig s with
       | none => exact .refl s
       | some s' => exact .step (.signal s s' h) (ih s')
+    | down =>
+      simp only [runSys]
+      cases h : Sys.downE sig s with
+      | none => exact .refl s
+      | some s' => exact .step (.down s s' h) (ih s')
 
 /-! ## Conservativity: message-only behaviours -/
 
@@ -219,7 +273,7 @@ theorem Sys.applyEffects_sends {σ μ : Type} (p : Pid) (s : Sys σ μ) (l : Lis
 
 /-- On a system with no links and no signals, the old `step` is the new `runE`. -/
 theorem runE_lift {σ μ : Type} (beh : Behavior σ μ) (c : Config σ μ) (n : Pid) (p : Pid) :
-    Sys.runE (lift beh) ⟨c, n, [], []⟩ p = (step beh c p).map fun c' => ⟨c', n, [], []⟩ := by
+    Sys.runE (lift beh) ⟨c, n, [], [], [], []⟩ p = (step beh c p).map fun c' => ⟨c', n, [], [], [], []⟩ := by
   unfold Sys.runE step
   cases hg : c.get p with
   | none => rfl

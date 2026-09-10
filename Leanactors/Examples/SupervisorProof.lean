@@ -153,7 +153,8 @@ theorem Inv.step {a b : Sys St Msg} (h : SysStep beh sig a b) (hi : Inv a) : Inv
           -- the spawn shape, for `start` on a childless sup and for a restart
           have spawn_case : ∀ k'' (rest' : List Msg),
               Inv { cfg := (a.cfg.set p ⟨.sup (some a.next) k'', rest'⟩).set a.next ⟨.worker 0, []⟩,
-                    next := a.next + 1, links := (p, a.next) :: a.links, signals := a.signals } := by
+                    next := a.next + 1, links := (p, a.next) :: a.links, signals := a.signals,
+                    monitors := a.monitors, downs := a.downs } := by
             intro k'' rest'
             by_cases hp : p = 0
             · subst hp
@@ -325,8 +326,27 @@ theorem Inv.step {a b : Sys St Msg} (h : SysStep beh sig a b) (hi : Inv a) : Inv
               · cases h; exact absurd rfl hq0
               · exact h
             · intro _ _; exact Nat.le_refl _
+  | down _ hdown =>
+    -- this program declares no DOWN codec, so notifications are dropped
+    unfold downE at hdown
+    cases hd : a.downs with
+    | nil => simp [hd] at hdown
+    | cons head rest =>
+      obtain ⟨w, t, r⟩ := head
+      simp only [hd] at hdown
+      have hcodec : sig.downMsg = none := rfl
+      simp only [hcodec] at hdown
+      obtain rfl := Option.some.inj hdown
+      apply Inv.frame hi
+      · exact Nat.le_refl _
+      · rfl
+      · intro _ h; exact h
+      · intro _ h; exact h
+      · intro _ _ h; exact Or.inl h
+      · intro _ _ _ _; exact Nat.le_refl _
 
 /-! ### From the initial system -/
+
 
 theorem init_inv : Inv init := by
   refine ⟨by decide, ⟨none, 0, by simp [init, stateOf, Config.get]⟩, ?_⟩
