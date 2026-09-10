@@ -23,12 +23,19 @@ send(c2, :tick)
 seen2 = :sys.get_state(c2)
 final_bank = :sys.get_state(bank)
 
+# Nested blocking calls: `Bank.audited` in Lean. Deposit 7 on a zero balance,
+# then :audit makes two calls and stores their sum.
+GenServer.cast(bank, {:deposit, 7})
+send(c1, :audit)
+audited = :sys.get_state(c1)
+
 IO.puts("bank    = #{final_bank}")
 IO.puts("client1 = #{inspect(seen1)}")
 IO.puts("client2 = #{inspect(seen2)}")
+IO.puts("audited = #{inspect(audited)}")
 
-expected = {0, 9, 0}
-actual = {final_bank, seen1, seen2}
+expected = {0, 9, 0, 14}
+actual = {final_bank, seen1, seen2, audited}
 
 if actual == expected do
   IO.puts("MATCH: Elixir trace agrees with Lean `#eval snapshot final 3`")

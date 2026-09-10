@@ -37,10 +37,15 @@ def beh : Behavior St Msg
   | _,  .bank b, .deposit n      => (.bank (b + n), [])
   | _,  .bank b, .withdraw n     => if (n : Int) ≤ b then (.bank (b - n), []) else (.bank b, [])
   | _,  .bank b, .balance to     => (.bank b, [(to, .reply b)])
-  | me, .client _, .tick         => (.client_await0, [(bank, .balance me)])
-  | _,  .client_await0, .reply v => (.client (some v), [])
-  | me, .client_await0, m        => (.client_await0, [(me, m)])
-  | _,  s, _                     => (s, [])
+  | me, .client _, .tick           => (.client_await0, [(bank, .balance me)])
+  | me, .client _, .audit          => (.client_await1, [(bank, .balance me)])
+  | _,  .client_await0, .reply v   => (.client (some v), [])
+  | me, .client_await0, m          => (.client_await0, [(me, m)])
+  | _,  .client_await2 a, .reply b => (.client (some (a + b)), [])
+  | me, .client_await2 a, m        => (.client_await2 a, [(me, m)])
+  | me, .client_await1, .reply a   => (.client_await2 a, [(bank, .balance me)])
+  | me, .client_await1, m          => (.client_await1, [(me, m)])
+  | _,  s, _                       => (s, [])
 
 /-- The translated Elixir is extensionally the same behaviour. -/
 theorem beh_eq_gen : Gen.Bank.beh = beh := by
@@ -52,6 +57,8 @@ def Ok : St → Prop
   | .bank b => 0 ≤ b
   | .client _ => True
   | .client_await0 => True
+  | .client_await1 => True
+  | .client_await2 _ => True
 
 /-- Each handler clause preserves `Ok`. This is the only proof that touches
 the business logic. -/
@@ -60,6 +67,8 @@ theorem beh_preserves : Preserves beh Ok := by
   cases s with
   | client seen => cases m <;> simp [beh, Ok]
   | client_await0 => cases m <;> simp [beh, Ok]
+  | client_await1 => cases m <;> simp [beh, Ok]
+  | client_await2 a => cases m <;> simp [beh, Ok]
   | bank b =>
     simp [Ok] at hs
     cases m with
@@ -70,6 +79,7 @@ theorem beh_preserves : Preserves beh Ok := by
     | balance to => simpa [beh, Ok] using hs
     | reply v => simpa [beh, Ok] using hs
     | tick => simpa [beh, Ok] using hs
+    | audit => simpa [beh, Ok] using hs
 
 /-- Initial configuration: the bank with 10, clients at pids 1 and 2. -/
 def init : Config St Msg :=
@@ -115,6 +125,14 @@ def deferred : Config St Msg :=
   run beh (d1.deliverAll [(bank, .deposit 5)]) [0, 1, 0, 1]
 
 #eval snapshot deferred 2
+
+/-- **Nested calls.** `:audit` makes two blocking calls in one handler; the
+second await state carries the first result. After a deposit of 7 on a
+zero balance the client ends at `some 14`. -/
+def audited : Config St Msg :=
+  run beh (final.deliverAll [(bank, .deposit 7), (1, .audit)]) [0, 1, 0, 1, 0, 1]
+
+#eval snapshot audited 2
 
 theorem final_ok : AllStates Ok final :=
   (run_sound _ _).preserves beh_preserves

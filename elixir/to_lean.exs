@@ -121,9 +121,11 @@ defmodule ToLean do
 
   # Elixir type AST -> Lean type (string)
   defp lean_type(_ctx, _mod, {:pid, _, []}), do: "Pid"
+  defp lean_type(_ctx, _mod, {{:., _, [{:__aliases__, _, [:GenServer]}, :from]}, _, []}), do: "Pid"
   defp lean_type(_ctx, _mod, {:integer, _, []}), do: "Int"
   defp lean_type(_ctx, _mod, {:non_neg_integer, _, []}), do: "Nat"
   defp lean_type(_ctx, _mod, {:boolean, _, []}), do: "Bool"
+  defp lean_type(ctx, mod, a) when is_atom(a) and a not in [nil, true, false], do: enum_name(ctx, mod, [a])
   defp lean_type(ctx, mod, [t]), do: "List " <> paren(lean_type(ctx, mod, t))
   defp lean_type(ctx, mod, {:|, _, _} = u) do
     alts = union(u)
@@ -408,6 +410,11 @@ defmodule ToLean do
 
   # pattern -> {lean_pattern, env, guards}; type-directed
   defp pat(_ctx, {:_, _, nil}, _t, env, gs), do: {"_", env, gs}
+  # a GenServer.from() value {pid, ref} matched at a Pid position: keep the pid
+  defp pat(ctx, {x, {r, _, nil}}, t, env, gs) when t in ["Pid", "Option Pid"] and is_atom(r) do
+    String.starts_with?(Atom.to_string(r), "_") || fail("ref in from-pattern must be a wildcard")
+    pat(ctx, x, t, env, gs)
+  end
   defp pat(_ctx, nil, "Option " <> _, env, gs), do: {"none", env, gs}
   defp pat(_ctx, [], "List " <> _, env, gs), do: {"[]", env, gs}
   defp pat(ctx, [{:|, _, [h, t]}], "List " <> inner = lt, env, gs) do
@@ -481,8 +488,9 @@ defmodule ToLean do
       end)
     {"(match #{expr(env, scrut, nil)} with " <> Enum.join(arm_strs, " ") <> ")", ctx}
   end
-  defp body(ctx, mod, env, b) do
-    stmts = stmts(b)
+  defp body(ctx, mod, env, b), do: body_stmts(ctx, mod, env, stmts(b))
+
+  defp body_stmts(ctx, mod, env, stmts) do
     case Enum.split_while(stmts, fn s -> not blocking_call?(s) end) do
       {before, [call | rest]} when rest != [] -> cps_split(ctx, mod, env, before, call, rest)
       {_, [_]} -> fail("a blocking call must be followed by the rest of the body")
@@ -490,21 +498,27 @@ defmodule ToLean do
     end
   end
 
-  defp blocking_call?({:=, _, [{v, _, nil}, {{:., _, [{:__aliases__, _, [:GenServer]}, :call]}, _, _}]}) when is_atom(v), do: true
+  # `lhs = GenServer.call(Mod, m[, timeout])` where lhs is a variable or a pattern
+  defp blocking_call?({:=, _, [_lhs, {{:., _, [{:__aliases__, _, [:GenServer]}, :call]}, _, [_, _ | _]}]}), do: true
   defp blocking_call?(_), do: false
 
   # v = GenServer.call(Target, m); rest   ==>
   #   this clause: sends-so-far ++ [(target, m me)], state := <mod>_await<i> captured
   #   extra:       | _, .<mod>_await<i> captured, .reply v => rest
   #                | me, .<mod>_await<i> captured, m => (.<mod>_await<i> captured, [(me, m)])
-  defp cps_split(ctx, mod, env, before, {:=, _, [{v, _, nil}, {_, _, [{:__aliases__, _, [target]}, m]}]}, rest) do
+  defp cps_split(ctx, mod, env, before, {:=, _, [lhs, {_, _, [{:__aliases__, _, [target]}, m | _timeout]}]}, rest) do
     ctx.reply_type || fail("GenServer.call used but no module declares @type reply")
     const = Map.get(ctx.pids, Atom.to_string(target)) || fail("no --pid mapping for #{target}")
     i = Map.get(ctx.awaits, mod, 0)
     ctx = %{ctx | awaits: Map.put(ctx.awaits, mod, i + 1)}
     await = "#{ctor_name(mod)}_await#{i}"
     # variables the continuation needs, with their types
-    rest_vars = free_vars({:__block__, [], rest}) |> Enum.reject(&(&1 == Atom.to_string(v)))
+    {lhs_pat, lhs_var} =
+      case lhs do
+        {v, _, nil} when is_atom(v) -> {lean_ident(Atom.to_string(v)), lean_ident(Atom.to_string(v))}
+        p -> {elem(pat(ctx, p, ctx.reply_type, %{}, []), 0), nil}
+      end
+    rest_vars = free_vars({:__block__, [], rest}) |> Enum.reject(&(&1 == lhs_var))
     captured = Enum.filter(rest_vars, &Map.has_key?(env, &1)) |> Enum.map(&{&1, env[&1]})
     ctx = %{ctx | st_ctors: ctx.st_ctors ++ [{await, captured}]}
     cap_str = Enum.map_join(captured, "", fn {n, _} -> " " <> n end)
@@ -516,11 +530,13 @@ defmodule ToLean do
     {send_strs, ctx} = sends(ctx, env, before)
     this = "(.#{await}#{cap_str}, [#{Enum.join(send_strs ++ [req], ", ")}])"
     # the continuation, in an environment with the captured vars, v : reply, and me
-    env2 = Map.new(captured) |> Map.put(Atom.to_string(v), ctx.reply_type) |> Map.put(:__self__, true)
-    {cont, ctx} = plain_body(ctx, mod, env2, rest)
+    env2 = Map.new(captured) |> Map.put(:__self__, true)
+    env2 = if lhs_var, do: Map.put(env2, lhs_var, ctx.reply_type), else: env2
+    # the continuation may itself block: recurse through the splitter
+    {cont, ctx} = body_stmts(ctx, mod, env2, rest)
     cont_self = if uses_self?(%{body: {:__block__, [], rest}}), do: "me", else: "_"
     extra = [
-      "  | #{cont_self}, .#{await}#{cap_str}, .reply #{v} => #{cont}",
+      "  | #{cont_self}, .#{await}#{cap_str}, .reply #{lhs_pat} => #{cont}",
       "  | me, .#{await}#{cap_str}, m => (.#{await}#{cap_str}, [(me, m)])"
     ]
     {this, %{ctx | extra: ctx.extra ++ extra}}
@@ -541,6 +557,9 @@ defmodule ToLean do
         {{:., _, [{:__aliases__, _, [:GenServer]}, :cast]}, _, [{:__aliases__, _, [target]}, m]} ->
           const = Map.get(c.pids, Atom.to_string(target)) || fail("no --pid mapping for #{target}")
           {"(#{const}, #{msg_expr(c, env, m)})", c}
+        {{:., _, [{:__aliases__, _, [:GenServer]}, :reply]}, _, [to, r]} ->
+          c.reply_type || fail("GenServer.reply used but no @type reply")
+          {"(#{expr(env, to, "Pid")}, .reply #{paren_or(expr(env, r, c.reply_type))})", c}
         other -> fail("unsupported statement #{Macro.to_string(other)}")
       end
     end)

@@ -32,7 +32,7 @@ end
 defmodule Client do
   use GenServer
 
-  @type msg :: :tick
+  @type msg :: :tick | :audit
   @type state :: integer() | nil
 
   def start_link, do: GenServer.start_link(__MODULE__, nil)
@@ -45,5 +45,12 @@ defmodule Client do
   def handle_info(:tick, _) do
     v = GenServer.call(Bank, :balance)
     {:noreply, v}
+  end
+
+  # Two blocking calls in one handler: the second await state captures `a`.
+  def handle_info(:audit, _) do
+    a = GenServer.call(Bank, :balance)
+    b = GenServer.call(Bank, :balance)
+    {:noreply, a + b}
   end
 end

@@ -12,12 +12,15 @@ inductive Msg
   | balance (caller : Pid)
   | reply (a0 : Int)
   | tick
+  | audit
   deriving Repr, DecidableEq
 
 inductive St
   | bank (s : Int)
   | client (s : Option Int)
   | client_await0
+  | client_await1
+  | client_await2 (a : Int)
   deriving Repr, DecidableEq
 
 /-- Registered name `Bank`. -/
@@ -28,8 +31,13 @@ def beh : Behavior St Msg
   | _, .bank b, .withdraw n => if (n ≤ b) then (.bank (b - n), []) else (.bank b, [])
   | _, .bank b, .balance from_ => (.bank b, [(from_, .reply b)])
   | me, .client _, .tick => (.client_await0, [(bank, .balance me)])
+  | me, .client _, .audit => (.client_await1, [(bank, .balance me)])
   | _, .client_await0, .reply v => (.client (some v), [])
   | me, .client_await0, m => (.client_await0, [(me, m)])
+  | _, .client_await2 a, .reply b => (.client (some (a + b)), [])
+  | me, .client_await2 a, m => (.client_await2 a, [(me, m)])
+  | me, .client_await1, .reply a => (.client_await2 a, [(bank, .balance me)])
+  | me, .client_await1, m => (.client_await1, [(me, m)])
   -- Unmatched message: GenServer would crash (cast) or ignore (info). Modelled as ignore.
   | _, s, _ => (s, [])
 
