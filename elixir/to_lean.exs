@@ -70,11 +70,16 @@
 #
 # Unhandled messages: a GenServer with no matching handle_cast/handle_call
 #   clause dies with FunctionClauseError, so for every cast or call tag of a
-#   module that has no clause whose Lean pattern is total (all message
-#   arguments and all state fields plain variables) a crash clause
+#   module whose clauses do not cover it exhaustively a crash clause
 #   `| _, _, .<mod> s_0 .., .<tag> _ .. => (state, [.exit .error])` is
 #   emitted; a guarded cast/call clause whose guard fails with nothing to
-#   fall through to crashes the same way. Unmatched handle_info messages are
+#   fall through to crashes the same way. Coverage is a usefulness check
+#   over the rendered Lean patterns (a pid-narrowed variable renders as
+#   `(some w)` and leaves `none` uncovered; `true`/`false`, `none`/`some`,
+#   `[]`/`::` and the alternatives of a generated enum together cover a
+#   field; integer literals never do), and a module all of whose tags are
+#   covered or crash gets no defer clause and does not need the global
+#   catch-all, which Lean would reject as redundant. Unmatched handle_info messages are
 #   ignored, as on the BEAM. Assumption: each message tag of a module is
 #   handled by one kind of callback (cast, call or info); a tag seen in two
 #   kinds is an error. Clauses are emitted per module in source order except
