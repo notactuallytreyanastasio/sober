@@ -4,11 +4,17 @@
 # ../to_lean.exs.
 #
 # Translator conventions for after, registration and raise:
-#   receive do ... after t -> body end   -> a model-only message :after_run
-#                                           armed as an untimed self-timer on
-#                                           every re-entry of the receive; the
-#                                           after body handles it (a stale
-#                                           timer may fire late in the model)
+#   receive do ... after t -> body end   -> a model-only message {:after_run, g}
+#                                           carrying a generation, and a hidden
+#                                           trailing `gen` field in the state;
+#                                           the spawn arms generation 0, every
+#                                           re-entry of the receive moves to
+#                                           gen + 1 and arms it as an untimed
+#                                           self-timer, and the after body runs
+#                                           only for the current generation (a
+#                                           stale timer is consumed and ignored,
+#                                           as the BEAM cancels the timeout when
+#                                           a message is processed)
 #   Process.register(pid, __MODULE__)    -> Cache is the constant pid `cache`
 #                                           (no --pid flag needed)
 #   raise ... as the last statement      -> the process exits with reason error,

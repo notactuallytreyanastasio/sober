@@ -9,13 +9,13 @@ open Leanactors
 inductive Msg
   | put (a0 : Nat)
   | get (a0 : Pid)
-  | after_run
+  | after_run (a0 : Nat)
   | ask
   | value (a0 : Option Nat)
   deriving Repr, DecidableEq
 
 inductive St
-  | cache (s : Option Nat)
+  | cache (s : Option Nat) (gen : Nat)
   | reader (s : Nat)
   deriving Repr, DecidableEq
 
@@ -25,17 +25,17 @@ def cache : Pid := 0
 /-- Who traps exits (from `Process.flag(:trap_exit, true)`), the EXIT message, the DOWN message. -/
 def sig : Signals St Msg where
   traps := fun
-    | .cache _ => false
+    | .cache _ _ => false
     | .reader _ => false
   -- no module declares {:EXIT, ...}; nobody traps, so this codec is never used
-  exitMsg := fun _ _ => .after_run
+  exitMsg := fun _ _ => .ask
 
 def beh : EBehavior St Msg
-  | _, _, .cache v, .put 0 => (.cache v, [.exit .error])
-  | me, _, .cache _, .put x => (.cache (some x), [.sendAfter me .after_run])
-  | me, _, .cache v, .get from_ => (.cache v, [.send from_ (.value v), .sendAfter me .after_run])
-  | me, _, .cache _, .after_run => (.cache none, [.sendAfter me .after_run])
-  | me, _, .cache s_0, m => (.cache s_0, [.send me m, .sendAfter me .after_run])
+  | _, _, .cache v gen, .put 0 => (.cache v gen, [.exit .error])
+  | me, _, .cache _ gen, .put x => (.cache (some x) (gen + 1), [.sendAfter me (.after_run (gen + 1))])
+  | me, _, .cache v gen, .get from_ => (.cache v (gen + 1), [.send from_ (.value v), .sendAfter me (.after_run (gen + 1))])
+  | me, _, .cache v gen, .after_run gen' => if gen' = gen then (.cache none (gen + 1), [.sendAfter me (.after_run (gen + 1))]) else (.cache v gen, [])
+  | me, _, .cache s_0 gen, m => (.cache s_0 (gen + 1), [.send me m, .sendAfter me (.after_run (gen + 1))])
   | me, _, .reader n, .ask => (.reader n, [.send cache (.get me)])
   | _, _, .reader n, .value _w0 => (.reader (n + 1), [])
   | me, _, .reader s_0, m => (.reader s_0, [.send me m])

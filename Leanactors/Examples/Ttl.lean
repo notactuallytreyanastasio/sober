@@ -19,18 +19,24 @@ end
 ```
 
 Three translator features meet here. The `after` clause becomes a
-model-only message `after_run` that the cache sends itself as an untimed
-timer every time it re-enters the receive; the after body is the clause
-for that message. `Process.register(pid, __MODULE__)` in `Cache.start`
-makes `cache` the constant pid 0 without a `--pid` flag. The `raise` is
-an `.exit .error` with the state unchanged.
-
-Timers are untimed, so a stale `after_run` may fire right after a `put`
-and expire the value early. That over-approximates the BEAM (where any
-message resets the TTL) and is sound for the safety property below.
+model-only message `after_run g` carrying a generation. The cache's state
+has a hidden trailing field `gen`, the generation of the timer armed by
+the current receive: the spawn starts at generation 0 and arms
+`after_run 0`, every re-entry of the receive moves to `gen + 1` and arms
+`after_run (gen + 1)`, and the after body runs only for a message of the
+current generation. A timer armed before a later message was handled is
+therefore stale, and the cache consumes and ignores it when it fires.
+That is the BEAM's rule (each receive starts a fresh timeout, a processed
+message cancels it) written with untimed timers: any pending timer may
+still fire at any step, but only the live one does anything.
+`Process.register(pid, __MODULE__)` in `Cache.start` makes `cache` the
+constant pid 0 without a `--pid` flag. The `raise` is an `.exit .error`
+with the state unchanged.
 
 **Property.** The cache never holds the value 0, and no `value (some 0)`
 reply is ever in flight to the reader: a `put 0` kills the cache instead.
+`TtlProof.lean` proves it for every reachable configuration; the checker
+below validates it first.
 -/
 
 namespace Leanactors.Examples.Ttl
@@ -41,11 +47,14 @@ export Leanactors.Gen.Ttl (Msg St cache sig)
 
 /-- The behaviour, hand-written. -/
 def beh : EBehavior St Msg
-  | _, _, .cache v, .put 0 => (.cache v, [.exit .error])
-  | me, _, .cache _, .put x => (.cache (some x), [.sendAfter me .after_run])
-  | me, _, .cache v, .get r => (.cache v, [.send r (.value v), .sendAfter me .after_run])
-  | me, _, .cache _, .after_run => (.cache none, [.sendAfter me .after_run])
-  | me, _, .cache v, m => (.cache v, [.send me m, .sendAfter me .after_run])
+  | _, _, .cache v gen, .put 0 => (.cache v gen, [.exit .error])
+  | me, _, .cache _ gen, .put x => (.cache (some x) (gen + 1), [.sendAfter me (.after_run (gen + 1))])
+  | me, _, .cache v gen, .get r =>
+      (.cache v (gen + 1), [.send r (.value v), .sendAfter me (.after_run (gen + 1))])
+  | me, _, .cache v gen, .after_run g =>
+      if g = gen then (.cache none (gen + 1), [.sendAfter me (.after_run (gen + 1))])
+      else (.cache v gen, [])
+  | me, _, .cache v gen, m => (.cache v (gen + 1), [.send me m, .sendAfter me (.after_run (gen + 1))])
   | me, _, .reader n, .ask => (.reader n, [.send cache (.get me)])
   | _, _, .reader n, .value _ => (.reader (n + 1), [])
   | me, _, .reader n, m => (.reader n, [.send me m])
@@ -54,21 +63,21 @@ def beh : EBehavior St Msg
 theorem beh_eq_gen : Gen.Ttl.beh = beh := by
   funext me fresh s m
   cases s with
-  | cache v =>
+  | cache v gen =>
     cases m with
     | put x => cases x <;> rfl
     | get _ => rfl
-    | after_run => rfl
+    | after_run _ => rfl
     | ask => rfl
     | value _ => rfl
   | reader n => cases m <;> rfl
 
-/-- The cache at pid 0 (empty, its first receive has armed the timer) and
-a reader at pid 1. -/
+/-- The cache at pid 0 (empty, at generation 0, its first receive has armed
+the generation-0 timer) and a reader at pid 1. -/
 def init : Sys St Msg :=
-  { cfg := ⟨fun p => if p = 0 then some ⟨.cache none, []⟩
+  { cfg := ⟨fun p => if p = 0 then some ⟨.cache none 0, []⟩
                      else if p = 1 then some ⟨.reader 0, []⟩ else none⟩
-    next := 2, links := [], signals := [], timers := [(0, .after_run)] }
+    next := 2, links := [], signals := [], timers := [(0, .after_run 0)] }
 
 /-! ## Bounded model check -/
 
@@ -78,7 +87,7 @@ def livePids (s : Sys St Msg) : List Pid :=
 /-- The cache never holds 0 and never has a `value (some 0)` in flight. -/
 def checkInv (s : Sys St Msg) : Bool :=
   (match s.cfg.stateOf 0 with
-   | some (.cache (some 0)) => false
+   | some (.cache (some 0) _) => false
    | _ => true) &&
   s.cfg.mcount 1 (.value (some 0)) = 0
 
@@ -108,24 +117,33 @@ partial def explore (b : EBehavior St Msg) (sg : Signals St Msg) (s : Sys St Msg
 
 /-- **Mutant**: the cache stores 0 instead of raising. The checker reports
 the first violating path in its search order (runs and timers before
-environment stimulus): two stale timer expiries, then `env put 0 -> 0`,
-`run 0`. -/
+environment stimulus): the live timer expires the cache twice (each
+firing is of the current generation, so each runs the after body and
+arms the next), then `env put 0 -> 0`, `run 0`. -/
 def behNoRaise : EBehavior St Msg
-  | me, _, .cache _, .put x => (.cache (some x), [.sendAfter me .after_run])
+  | me, _, .cache _ gen, .put x => (.cache (some x) (gen + 1), [.sendAfter me (.after_run (gen + 1))])
   | me, fresh, s, m => beh me fresh s m
 
 #eval explore behNoRaise sig init 7 3
 
-/-- A concrete trace: put 5, the reader asks and is answered, the timer
-expires the value, the reader asks again and gets `none`. -/
-def trace : Sys St Msg :=
+/-- put 5 (generation 1), the reader asks and is answered (generation 2),
+the reader counts. Three timers are pending: generations 0, 1 and 2. -/
+def served : Sys St Msg :=
   let s1 := { init with cfg := (init.cfg.deliver 0 (.put 5)).deliver 1 .ask }
-  -- put; ask -> get; get -> value 5; reader counts; the (stale) initial timer expires
-  let s2 := runSys beh sig s1 [.run 0, .run 1, .run 0, .run 1, .timer 0]
-  let s3 := { s2 with cfg := s2.cfg.deliver 1 .ask }
-  -- ask -> get; the cache handles the expiry, then the get (value none); reader counts
-  runSys beh sig s3 [.run 1, .run 0, .run 0, .run 1]
+  runSys beh sig s1 [.run 0, .run 1, .run 0, .run 1]
 
-#eval (trace.cfg.stateOf 0, trace.cfg.stateOf 1, trace.timers.length)
+/-- The stale generation-0 timer fires: the cache ignores it and keeps 5. -/
+def afterStale : Sys St Msg := runSys beh sig served [.timer 0, .run 0]
+
+#eval (afterStale.cfg.stateOf 0, afterStale.timers)
+
+/-- Then the live generation-2 timer (now at index 1) fires and expires the
+value; the reader asks again and gets `none`. -/
+def trace : Sys St Msg :=
+  let s2 := runSys beh sig afterStale [.timer 1, .run 0]
+  let s3 := { s2 with cfg := s2.cfg.deliver 1 .ask }
+  runSys beh sig s3 [.run 1, .run 0, .run 1]
+
+#eval (trace.cfg.stateOf 0, trace.cfg.stateOf 1, trace.timers)
 
 end Leanactors.Examples.Ttl
