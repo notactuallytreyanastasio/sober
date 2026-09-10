@@ -32,6 +32,9 @@ state this; it is a property of the *configuration*, including messages in
 flight. We prove it via a numeric token invariant over mailbox counts.
 -/
 
+-- Lemma sets below are shared across branches that need different subsets.
+set_option linter.unusedSimpArgs false
+
 namespace Leanactors.Examples.Lock
 
 open Leanactors Config
@@ -108,9 +111,83 @@ def r (c : Config St Msg) (p : Pid) : Nat := c.mcount server (.release p)
 /-- Grants in flight: `reply ok` messages in `p`'s mailbox. -/
 def g (c : Config St Msg) (p : Pid) : Nat := c.mcount p (.reply .ok)
 
+/-- `relBeforeAcq h mb`: no `acquire h` precedes a `release h` in `mb`.
+
+This is where mailbox FIFO is load-bearing. Client `h` sends `release`
+while holding and can only send its next `acquire` after that, so under
+per-pair FIFO the server never sees `acquire h` ahead of a pending
+`release h`. Without it the server could enqueue the current holder,
+and rank accounting (FCFS) would break. -/
+def relBeforeAcq (h : Pid) : List Msg → Bool
+  | [] => true
+  | .acquire h' :: rest => (h' != h || rest.count (.release h) == 0) && relBeforeAcq h rest
+  | _ :: rest => relBeforeAcq h rest
+
+theorem relBeforeAcq_tail {h : Pid} {m : Msg} {l : List Msg}
+    (hl : relBeforeAcq h (m :: l) = true) : relBeforeAcq h l = true := by
+  cases m <;> simp [relBeforeAcq] at hl <;> simp_all
+
+theorem relBeforeAcq_head {h : Pid} {l : List Msg}
+    (hl : relBeforeAcq h (.acquire h :: l) = true) : l.count (.release h) = 0 := by
+  simp [relBeforeAcq] at hl
+  exact hl.1
+
+/-- Appending is safe unless the new message is `release h` while an
+`acquire h` is already pending. -/
+theorem relBeforeAcq_append {h : Pid} {l : List Msg} (m : Msg)
+    (hl : relBeforeAcq h l = true) (hm : m = .release h → l.count (.acquire h) = 0) :
+    relBeforeAcq h (l ++ [m]) = true := by
+  induction l with
+  | nil =>
+    cases m with
+    | acquire x => simp [relBeforeAcq]
+    | release x => simp [relBeforeAcq]
+    | reply r => simp [relBeforeAcq]
+    | tick => simp [relBeforeAcq]
+  | cons x rest ih =>
+    cases x with
+    | acquire x' =>
+      simp [relBeforeAcq] at hl
+      obtain ⟨h1, h2⟩ := hl
+      have hm' : m = .release h → rest.count (.acquire h) = 0 := by
+        intro e; have := hm e; simp [List.count_cons] at this; exact this.1
+      have ih' := ih h2 hm'
+      simp only [List.cons_append, relBeforeAcq, ih', Bool.and_true]
+      by_cases hx : x' = h
+      · subst hx
+        simp at h1 ⊢
+        cases m with
+        | release y =>
+          by_cases hy : y = x'
+          · subst hy; have := hm rfl; simp at this
+          · simp [List.count_append, List.count_cons, h1, hy]
+        | acquire y => simp [List.count_append, List.count_cons, h1]
+        | reply r => simp [List.count_append, List.count_cons, h1]
+        | tick => simp [List.count_append, List.count_cons, h1]
+      · simp [hx]
+    | release x' =>
+      simp [relBeforeAcq] at hl
+      have hm' : m = .release h → rest.count (.acquire h) = 0 := by
+        intro e; have := hm e; simp [List.count_cons] at this; exact this
+      simpa [relBeforeAcq] using ih hl hm'
+    | reply r =>
+      simp [relBeforeAcq] at hl
+      have hm' : m = .release h → rest.count (.acquire h) = 0 := by
+        intro e; have := hm e; simp [List.count_cons] at this; exact this
+      simpa [relBeforeAcq] using ih hl hm'
+    | tick =>
+      simp [relBeforeAcq] at hl
+      have hm' : m = .release h → rest.count (.acquire h) = 0 := by
+        intro e; have := hm e; simp [List.count_cons] at this; exact this
+      simpa [relBeforeAcq] using ih hl hm'
+
 structure Inv (c : Config St Msg) : Prop where
   hasServer : ∃ h q, c.stateOf server = some (.lock h q)
   queue_empty : ∀ q, c.stateOf server = some (.lock none q) → q = []
+  /-- FIFO consequence: `release h` is never behind an `acquire h`. -/
+  ordered : ∀ h mb, c.mboxOf server = some mb → relBeforeAcq h mb = true
+  /-- The holder is never also queued (needs `ordered`). -/
+  holder_not_queued : ∀ h q, c.stateOf server = some (.lock (some h) q) → q.count h = 0
   only_srv : ∀ p h q, c.stateOf p = some (.lock h q) → p = server
   nonholder : ∀ h q, c.stateOf server = some (.lock h q) → ∀ p, h ≠ some p →
     g c p = 0 ∧ hd c p = 0 ∧ r c p = 0 ∧ a c p + q.count p = w c p
@@ -164,6 +241,8 @@ def checkInv (c : Config St Msg) (pids : List Pid) : Bool :=
   match c.stateOf server with
   | some (.lock h q) =>
     (h != none || q.isEmpty) &&
+    (match h with | some hh => q.count hh == 0 | none => true) &&
+    (match c.mboxOf server with | some mb => pids.all (relBeforeAcq · mb) | none => false) &&
     pids.all fun p =>
       (match c.stateOf p with
        | some (.client _) => true

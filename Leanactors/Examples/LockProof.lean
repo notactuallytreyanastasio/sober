@@ -103,20 +103,59 @@ theorem beh_srv (p : Pid) (h1 : Option Pid) (q1 : List Pid) (m : Msg) :
   | reply r => cases r; cases h1 <;> exact ⟨_, _, rfl⟩
   | tick => cases h1 <;> exact ⟨_, _, rfl⟩
 
+/-! ### The ordering field -/
+
+/-- The server's mailbox did not change. -/
+theorem ordered_unchanged {c c' : Config St Msg} (hi : Inv c)
+    (h : c'.mboxOf server = c.mboxOf server) :
+    ∀ h mb, c'.mboxOf server = some mb → relBeforeAcq h mb = true := by
+  intro hh mb hmb
+  rw [h] at hmb
+  exact hi.ordered hh mb hmb
+
+/-- The server's mailbox grew by one message. -/
+theorem ordered_append {c c' : Config St Msg} (hi : Inv c) (m : Msg)
+    (h : c'.mboxOf server = (c.mboxOf server).map (· ++ [m]))
+    (hm : ∀ x, m = .release x → c.mcount server (.acquire x) = 0) :
+    ∀ h mb, c'.mboxOf server = some mb → relBeforeAcq h mb = true := by
+  intro hh mb hmb
+  rw [h] at hmb
+  cases hc : c.mboxOf server with
+  | none => rw [hc] at hmb; simp at hmb
+  | some mb₀ =>
+    rw [hc] at hmb
+    simp at hmb
+    subst hmb
+    apply relBeforeAcq_append m (hi.ordered hh mb₀ hc)
+    intro e
+    rw [← mcount_eq_of_mboxOf hc]
+    exact hm hh e
+
+/-- The server popped its head and sent nothing to itself. -/
+theorem ordered_pop {c c' : Config St Msg} (hi : Inv c) {m : Msg} {rest : List Msg}
+    (hold : c.mboxOf server = some (m :: rest)) (h : c'.mboxOf server = some rest) :
+    ∀ h mb, c'.mboxOf server = some mb → relBeforeAcq h mb = true := by
+  intro hh mb hmb
+  rw [h] at hmb
+  cases hmb
+  exact relBeforeAcq_tail (hi.ordered hh _ hold)
+
 /-! ### Frame: a step that changes nothing the invariant looks at -/
 
 theorem Inv.frame {c c' : Config St Msg} (hi : Inv c)
     (hsrv : c'.stateOf server = c.stateOf server)
+    (hord : ∀ h mb, c'.mboxOf server = some mb → relBeforeAcq h mb = true)
     (honly : ∀ y h q, c'.stateOf y = some (.lock h q) → y = server)
     (hph : ∀ y, locOf c' y = locOf c y)
     (hg : ∀ y, g c' y = g c y) (ha : ∀ y, a c' y = a c y) (hr : ∀ y, r c' y = r c y) :
     Inv c' := by
   have hw : ∀ y, w c' y = w c y := fun y => by simp [w, hph]
   have hhd : ∀ y, hd c' y = hd c y := fun y => by simp [hd, hph]
-  refine ⟨?_, ?_, honly, ?_, ?_⟩
+  refine ⟨?_, ?_, hord, ?_, honly, ?_, ?_⟩
   · obtain ⟨h, q, hs⟩ := hi.hasServer
     exact ⟨h, q, by rw [hsrv]; exact hs⟩
   · intro q hq; rw [hsrv] at hq; exact hi.queue_empty q hq
+  · intro h q hq; rw [hsrv] at hq; exact hi.holder_not_queued h q hq
   · intro h q hs y hne
     rw [hsrv] at hs
     rw [hg, hhd, hr, ha, hw]
@@ -134,7 +173,9 @@ a tick that only moves the client between phases without sends, or a
 message deferred by re-enqueue while blocked. Expects the client-case
 context of `Inv.step`. -/
 macro "client_frame" : tactic => `(tactic| (
-  apply Inv.frame hi hsrv' honly'
+  apply Inv.frame hi hsrv'
+    (ordered_unchanged hi (by rw [hmbox]; simp [beh, sendsTo_cons, sendsTo_nil, Ne.symm hps, hps]))
+    honly'
   · intro z
     by_cases hz : z = me
     · subst hz; simp [locOf, hstate, beh, hsp]
@@ -179,8 +220,12 @@ macro "client_setup" s:term : tactic => `(tactic| (
 set_option hygiene false in
 /-- The two invariant fields for a real client transition, given the new
 location counters `hw_me'` for `me`. -/
-macro "client_fields" : tactic => `(tactic| (
-  refine ⟨⟨h0, q0, by rw [hsrv']; exact hsrv⟩, (by intro q hq; rw [hsrv'] at hq; exact hi.queue_empty q hq), honly', ?_, ?_⟩
+macro "client_fields" ord:term : tactic => `(tactic| (
+  refine ⟨⟨h0, q0, by rw [hsrv']; exact hsrv⟩,
+    (by intro q hq; rw [hsrv'] at hq; exact hi.queue_empty q hq),
+    $ord,
+    (by intro h q hq; rw [hsrv'] at hq; exact hi.holder_not_queued h q hq),
+    honly', ?_, ?_⟩
   · intro h q hs y hne
     rw [hsrv'] at hs
     have old := hi.nonholder h q hs y hne
@@ -211,7 +256,7 @@ macro "client_fields" : tactic => `(tactic| (
 
 set_option maxHeartbeats 1000000 in
 theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c' := by
-  obtain ⟨me, s, m, rest, hget, hstate, hcount⟩ := h.chars
+  obtain ⟨me, s, m, rest, hget, hstate, hcount, hmbox⟩ := h.chars
   obtain ⟨h0, q0, hsrv⟩ := hi.hasServer
   have hsrv_some : (c.get server).isSome = true := isSome_of_stateOf hsrv
   have hsp : c.stateOf me = some s := by simp [stateOf, hget]
@@ -242,7 +287,8 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
         simp only [beh] at hstate ha' hr' hg'
         have hw_me' : w c' me = 1 ∧ hd c' me = 0 := by simp [w, hd, locOf, hstate]
         simp at hg_pop
-        client_fields
+        client_fields (ordered_append hi (.acquire me)
+          (by rw [hmbox]; simp [beh, sendsTo_cons, sendsTo_nil, Ne.symm hps]) (by intro x e; cases e))
       | reply rr => cases rr; client_grant_absurd
       | acquire y => client_frame
       | release y => client_frame
@@ -253,7 +299,16 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
         simp only [beh] at hstate ha' hr' hg'
         have hw_me' : w c' me = 0 ∧ hd c' me = 0 := by simp [w, hd, locOf, hstate]
         simp at hg_pop
-        client_fields
+        -- me is holding, hence the holder, hence has no pending acquire
+        have hno_acq : a c me = 0 := by
+          by_cases hh : h0 = some me
+          · subst hh
+            exact ((hi.holder me q0 hsrv).2.2.1 (by simpa using hhd_me)).1
+          · have := (hi.nonholder h0 q0 hsrv me hh).2.1
+            simp [hhd_me] at this
+        client_fields (ordered_append hi (.release me)
+          (by rw [hmbox]; simp [beh, sendsTo_cons, sendsTo_nil, Ne.symm hps])
+          (by intro x e; cases e; exact hno_acq))
       | reply rr => cases rr; client_grant_absurd
       | acquire y => client_frame
       | release y => client_frame
@@ -282,7 +337,7 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
       simp only [beh] at hstate ha' hr' hg'
       have hw_me' : w c' me = 0 ∧ hd c' me = 1 := by simp [w, hd, locOf, hstate]
       simp at hg_pop
-      client_fields
+      client_fields (ordered_unchanged hi (by rw [hmbox]; simp [beh, sendsTo_nil, Ne.symm hps]))
     | tick => client_frame
     | acquire y => client_frame
     | release y => client_frame
@@ -291,6 +346,7 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
     have hp : me = server := hi.only_srv me h1 q1 hsp
     subst hp
     clear hsrv h0 q0
+    have hold : c.mboxOf server = some (m :: rest) := by simp [mboxOf, hget]
     have hsrv_some' : (c.get server).isSome = true := isSome_of_stateOf hsp
     -- popped-message accounting at the server
     have ha_pop : ∀ y, a c y = rest.count (.acquire y) + (if m = .acquire y then 1 else 0) :=
@@ -325,7 +381,8 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
     obtain ⟨hw_p, hhd_p⟩ := w_hd_of_srv hsp
     cases m with
     | tick =>
-      apply Inv.frame hi (by rw [hstate, hsp]; simp [beh]) honly' hph'
+      apply Inv.frame hi (by rw [hstate, hsp]; simp [beh])
+        (ordered_pop hi hold (by rw [hmbox]; simp [beh, sendsTo_nil])) honly' hph'
       · intro z; have := hg' z; simp [beh] at this
         by_cases hz : z = server
         · subst hz; simp at hg_pop; rw [this, hg_pop]; simp
@@ -359,7 +416,11 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
         have hx_state := w_eq_one hwx
         have hx_some : (c.get x).isSome = true := isSome_of_stateOf hx_state
         have hxp : x ≠ server := ne_server_of_await hi hx_state
-        refine ⟨⟨some x, q1, hsrv'⟩, (by intro q hq; rw [hsrv'] at hq; simp at hq; try (first | exact hq.symm | exact hq)), honly', ?_, ?_⟩
+        refine ⟨⟨some x, q1, hsrv'⟩, (by intro q hq; rw [hsrv'] at hq; simp at hq; try (first | exact hq.symm | exact hq)),
+          (ordered_pop hi hold (by rw [hmbox]; simp [beh, sendsTo_cons, sendsTo_nil, hxp])),
+          (by intro h q hq; rw [hsrv'] at hq; simp at hq; obtain ⟨rfl, rfl⟩ := hq
+              have := hi.queue_empty q1 hsp; subst this; simp),
+          honly', ?_, ?_⟩
         · intro h q hs y hne
           rw [hsrv'] at hs
           simp at hs
@@ -389,7 +450,24 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
         -- lock held: enqueue x
         simp only [beh] at hstate ha' hr' hg'
         have hsrv' : c'.stateOf server = some (.lock (some hh) (q1 ++ [x])) := by rw [hstate]; simp
-        refine ⟨⟨some hh, q1 ++ [x], hsrv'⟩, (by intro q hq; rw [hsrv'] at hq; simp at hq; try (first | exact hq.symm | exact hq)), honly', ?_, ?_⟩
+        -- x is not the holder: otherwise its release would be behind this acquire (FIFO)
+        have hxh : x ≠ hh := by
+          intro hx
+          subst hx
+          have old := hi.holder x q1 hsp
+          have hax := ha_pop x; simp at hax
+          have hrx := hr_pop x; simp at hrx
+          have hord := relBeforeAcq_head (hi.ordered x _ hold)
+          by_cases hg1 : g c x = 1
+          · have := (old.2.1 hg1).2.1; omega
+          · by_cases hd1 : hd c x = 1
+            · have := (old.2.2.1 hd1).1; omega
+            · omega
+        refine ⟨⟨some hh, q1 ++ [x], hsrv'⟩, (by intro q hq; rw [hsrv'] at hq; simp at hq; try (first | exact hq.symm | exact hq)),
+          (ordered_pop hi hold (by rw [hmbox]; simp [beh, sendsTo_nil])),
+          (by intro h q hq; rw [hsrv'] at hq; simp at hq; obtain ⟨rfl, rfl⟩ := hq
+              simp [List.count_append, List.count_cons, hi.holder_not_queued hh q1 hsp, hxh]),
+          honly', ?_, ?_⟩
         · intro h q hs y hne
           rw [hsrv'] at hs
           simp at hs
@@ -439,7 +517,10 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
             have old_x := hi.holder x [] hsp
             have hrx := hr_pop x
             simp at hrx
-            refine ⟨⟨none, [], hsrv'⟩, (by intro q hq; rw [hsrv'] at hq; simp at hq; try (first | exact hq.symm | exact hq)), honly', ?_, ?_⟩
+            refine ⟨⟨none, [], hsrv'⟩, (by intro q hq; rw [hsrv'] at hq; simp at hq; try (first | exact hq.symm | exact hq)),
+              (ordered_pop hi hold (by rw [hmbox]; simp [beh, sendsTo_nil])),
+              (by intro h q hq; rw [hsrv'] at hq; simp at hq),
+              honly', ?_, ?_⟩
             · intro h q hs y _
               rw [hsrv'] at hs
               simp at hs
@@ -485,7 +566,18 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
             have hn_state := w_eq_one hwn
             have hn_some : (c.get n).isSome = true := isSome_of_stateOf hn_state
             have hnp : n ≠ server := ne_server_of_await hi hn_state
-            refine ⟨⟨some n, rest', hsrv'⟩, (by intro q hq; rw [hsrv'] at hq; simp at hq; try (first | exact hq.symm | exact hq)), honly', ?_, ?_⟩
+            refine ⟨⟨some n, rest', hsrv'⟩, (by intro q hq; rw [hsrv'] at hq; simp at hq; try (first | exact hq.symm | exact hq)),
+              (ordered_pop hi hold (by rw [hmbox]; simp [beh, sendsTo_cons, sendsTo_nil, hnp])),
+              (by intro h q hq; rw [hsrv'] at hq; simp at hq; obtain ⟨rfl, rfl⟩ := hq
+                  by_cases hnx : n = x
+                  · subst hnx
+                    have := hi.holder_not_queued n (n :: rest') hsp
+                    simp [List.count_cons] at this
+                  · have old := hi.nonholder (some x) (n :: rest') hsp n (by simp [Ne.symm hnx])
+                    have := w_le c n
+                    simp [List.count_cons] at old
+                    omega),
+              honly', ?_, ?_⟩
             · intro h q hs y hne
               rw [hsrv'] at hs
               simp at hs
@@ -541,7 +633,11 @@ theorem Inv.env {c c' : Config St Msg} (h : EnvStep c c') (hi : Inv c) : Inv c' 
       intro y m hm
       rw [mcount_deliver]
       simp [Ne.symm hm]
-    apply Inv.frame hi (hst server)
+    have hord : ∀ h mb, (c.deliver p .tick).mboxOf server = some mb → relBeforeAcq h mb = true := by
+      by_cases hp : server = p
+      · exact ordered_append hi .tick (by rw [mboxOf_deliver_eq]; simp [hp]) (by intro x e; cases e)
+      · exact ordered_unchanged hi (by rw [mboxOf_deliver_eq]; simp [hp])
+    apply Inv.frame hi (hst server) hord
     · intro y h q hy; rw [hst] at hy; exact hi.only_srv y h q hy
     · intro y; simp [locOf, hst]
     · intro y; exact hcnt y (.reply .ok) (by simp)
@@ -576,8 +672,12 @@ theorem initCfg_inv (n : Nat) : Inv (initCfg n) := by
     by_cases h0 : p = server
     · simp [h0]
     · by_cases hn : p ≤ n <;> simp [h0, hn]
-  refine ⟨⟨none, [], hs⟩, ?_, ?_, ?_, ?_⟩
+  have hmb : (initCfg n).mboxOf server = some [] := by
+    simp [mboxOf, Config.get, initCfg]
+  refine ⟨⟨none, [], hs⟩, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro q hq; rw [hs] at hq; simp at hq; first | exact hq.symm | exact hq
+  · intro h mb hmb'; rw [hmb] at hmb'; cases hmb'; rfl
+  · intro h q hq; rw [hs] at hq; simp at hq
   · intro p h q hpq
     rw [initCfg_stateOf] at hpq
     by_cases h0 : p = server
