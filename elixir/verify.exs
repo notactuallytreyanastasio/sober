@@ -391,12 +391,22 @@ defmodule V.Run do
     end
   end
 
+  # System.cmd only captures one stream at a time, and stdout here has to
+  # stay pure Lean source (it's diffed byte-for-byte against Gen/), so
+  # stderr can't just be merged in. Redirect it to a temp file instead,
+  # the same trick elixir/test/run_fixtures.exs uses.
   defp translate(src, ns, flags) do
-    {out, status} = System.cmd("elixir", ["elixir/to_lean.exs", src, ns | flags], cd: @root, stderr_to_stdout: false)
-    {out, "", status}
+    errfile = Path.join(System.tmp_dir!(), "verify-translate-stderr-#{:erlang.unique_integer([:positive])}")
+    cmd = Enum.map_join(["elixir", "elixir/to_lean.exs", src, ns | flags], " ", &shell_quote/1) <> " 2>" <> shell_quote(errfile)
+    {out, status} = System.cmd("sh", ["-c", cmd], cd: @root)
+    err = File.read!(errfile)
+    File.rm(errfile)
+    {out, err, status}
   rescue
     _ -> {"", "", 1}
   end
+
+  defp shell_quote(s), do: "'" <> String.replace(s, "'", "'\\''") <> "'"
 
   # ── fixture failure extraction (for pretty sub-frames) ──────────────
 
