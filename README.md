@@ -1,7 +1,9 @@
 # leanactors
 
 A shallow embedding of the actor model in Lean 4, used as a semantic target
-for a pure subset of Elixir/BEAM programs. No Mathlib.
+for a pure subset of Elixir/BEAM programs. No Mathlib. This file is the
+reference; `NOTES.md` is the narrative (what was built, why, what was
+learned).
 
 ## Layout
 
@@ -11,6 +13,8 @@ for a pure subset of Elixir/BEAM programs. No Mathlib.
 | `Leanactors/Props.lean` | Frame rule, domain preservation, mailbox-queue lemma, per-actor invariant induction, `run_sound` |
 | `Leanactors/Count.lean` | Message counting, `Step.chars` (a step as arithmetic over counts), config-level invariant induction, FIFO corollary |
 | `Leanactors/Sys.lean` | Spawn, links, monitors, exits, timers, remote exit signals: effects, fresh-pid counter, link and monitor lists, asynchronous exit signals and DOWN notifications, untimed timers; `runE_lift` shows message-only behaviours are unchanged |
+| `Leanactors/SysProps.lean` | Reusable `Sys` metatheory: `Grows`/`Frame` relations, `applyEffects` projections, `terminate` lemmas, `runE`/`signalE`/`downE`/`timerE` case and frame lemmas, `SysStep.stateOf_cases`, the `Fresh` predicate |
+| `Leanactors/Examples/SysPropsDemo.lean` | The supervisor's timer, DOWN and no-exit-worker cases re-proved in one line each from `SysProps` |
 | `Leanactors/Examples/Supervisor.lean` | One-for-one supervisor translated from `elixir/src/supervisor.ex`; bounded checker; the no-`trap_exit` mutant |
 | `Leanactors/Examples/SupervisorProof.lean` | The supervisor never dies and a missing child always has its restart in flight |
 | `Leanactors/Examples/Task.lean` | Async task translated from `elixir/src/task.ex`: caller spawns and monitors a worker; checker; the no-monitor mutant |
@@ -23,13 +27,14 @@ for a pure subset of Elixir/BEAM programs. No Mathlib.
 | `Leanactors/Examples/LockFcfs.lean` | Bounded waiting: rank drops by exactly one per handover while queued; `fcfs` in reachable configurations |
 | `Leanactors/Examples/LockMutants.lean` | Three protocol bugs: two caught with witness traces, one shown unreachable |
 | `Leanactors/Gen/*.lean` | Generated from `elixir/src/*.ex` by the translator; do not edit |
-| `elixir/src/bank.ex`, `elixir/src/lock.ex` | The Elixir source of truth: executed on the BEAM and translated to Lean |
+| `elixir/src/*.ex` | The Elixir source of truth (bank, lock, supervisor, task, watchdog): executed on the BEAM and translated to Lean |
 | `elixir/to_lean.exs` | The translator: `@type`-directed, small subset, unverified |
 | `elixir/bank.exs` | Driver: casts plus two clients blocking in `GenServer.call`; checks the trace matches Lean |
 | `elixir/lock.exs` | Driver: clients block in `GenServer.call` under chaos ticks; event log checked for overlapping critical sections |
 | `elixir/supervisor.exs` | Driver: crashes the worker on the BEAM and checks the supervisor survived and restarted it |
 | `elixir/task.exs` | Driver: one job completes, one worker crashes; the caller clears both |
 | `elixir/watchdog.exs` | Driver: hangs the worker, lets the timeout kill it, checks the replacement is running |
+| `NOTES.md` | Design narrative: the thesis, the layers, the translator, the proof recipe, findings, approximations and their direction |
 
 ## Pipeline: Elixir source to Lean theorem
 
@@ -59,7 +64,7 @@ the shapes, Lean proves the interleavings.
 `{:ok, pid} = GenServer.start_link(Mod, arg)`, `{:stop, reason, state}` or
 `exit/1`, the translator switches to effects mode: it emits an `EBehavior`
 whose clauses bind `fresh`, turns `start_link` into `spawnLink` with the
-child's state constructor (so `Mod.init` must be the identity), binds the
+child's initial state (see below), binds the
 pid variable to `fresh`, maps any non-`:normal` reason to `error`, types
 `{:EXIT, pid(), term()}` as `EXIT (Pid) (Reason)`, and generates the
 `Signals` record from which modules trap. Files without effects keep
@@ -101,6 +106,70 @@ the server replies immediately or queues the caller and answers later with
 `GenServer.reply/2`, and the mutual-exclusion and deadlock-freedom proofs go
 through against that translation with the await state playing `waiting`.
 
+**Initial state.** `def init(p), do: {:ok, e}` (or the block form whose
+other statements are all `Process.flag(:trap_exit, true)`) is read as a
+pure state expression of its parameter. At `{:ok, pid} =
+GenServer.start[_link](Mod, arg)` the child is spawned in `e` with `p`
+bound to `arg`, positionally when both are tuples, and rendered in the
+parent's environment by the same type-directed `state_expr` as any other
+state. A module without `init/1` keeps the `use GenServer` default, the
+identity, so the older sources translate byte for byte. `task.ex` uses it:
+`Worker.init(parent)` returns `{:ok, {parent, 0}}` and the caller spawns
+`GenServer.start(Worker, self())`.
+
+**Unhandled messages.** On the BEAM an unmatched `handle_cast` or
+`handle_call` raises `FunctionClauseError` and the process exits with an
+error reason; an unmatched `handle_info` is ignored. In effects mode the
+translator classifies every message tag by the callback that handles it
+and emits, for each cast or call tag with no clause whose Lean pattern is
+total (every message argument and state field a plain variable), a crash
+clause `| _, _, .mod s_0 .., .tag _ .. => (state, [.exit .error])`; a
+guarded cast/call clause whose guard fails with nothing to fall through to
+crashes the same way. Totality is judged on the rendered Lean pattern, not
+the Elixir one, because a pid-narrowed variable renders as `(some w)`.
+Clauses are emitted per module with `handle_info` clauses after the
+cast/call clauses and the crash clauses, so an info catch-all cannot
+shadow a crash. The watchdog example found a real bug this way: with
+`:pong` handled only while a pong is expected, a late pong after a timeout
+crashed the watchdog after 742 explored configurations; the fix is one
+`handle_cast(:pong, s)` ignore clause. In message mode (plain `Behavior`,
+no exit effect) an uncovered cast or call tag only produces a warning on
+stderr and stays modelled as ignored.
+
+**Raw processes and selective receive.** A module whose body is exactly
+one `def run(state) do receive do ... end end` is a raw process, not a
+GenServer. Each receive arm is translated as an info clause with the
+parameter as the state pattern; a body ending in `run(e)` continues with
+state `e`, `exit(r)` exits, and any other last expression means the loop
+returns (`exit :normal`). If the receive has no catch-all arm, a defer
+clause `| me, _, .mod s_0 .., m => (.mod s_0 .., [.send me m])` is added
+after the module's last clause and re-enqueues any other message to self;
+a receive arm whose guard fails re-enqueues the same way. That is the
+BEAM's selective receive (the message stays in the mailbox) in the same
+encoding the call-reply await states use. `pid = spawn(Mod, :run, [a])`,
+`spawn_link` and `{pid, _ref} = spawn_monitor(Mod, :run, [a])` map to
+`spawn`/`spawnLink`/`spawnMonitor` with `Mod`'s state constructor applied
+to `a`. The supervisor's worker is such a loop
+(`:job -> run(n + 1)`, `:crash -> exit(:boom)`, `:stop -> :ok`), and the
+supervisor proof frames the defer clause with `mcount_deliver`.
+
+**`Sys` metatheory.** `Leanactors/SysProps.lean` collects what every
+`Sys`-level proof needs and the example proofs used to re-derive by hand:
+`Grows a b` (everything monotone) and `Frame p a b` (the same with `p`
+exempt: `p` may change state, die, or lose its links and monitors),
+reflexive and transitive; `applyEffects_grows` with per-field projections;
+the `terminate` lemmas (`terminate_frame`, exactly which signals and DOWNs
+are queued); `runE_frame`, `runE_of_no_exit`, `signalE_frame`,
+`downE_grows`, `timerE_grows` and their `_cases` unpackings;
+`SysStep.stateOf_cases` (a step changes at most one actor's state) and the
+`Fresh` predicate (every live pid is below `next`, preserved by every
+step). `SysPropsDemo.lean` re-proves three supervisor cases in one line
+each. Writing it found a core bug: `Sys.terminate` never set `timers`, so
+the structure default dropped every pending timer whenever any actor died
+(a worker crash silently disarmed the watchdog's timeout). It now keeps
+them; the watchdog checker grew from 10,365 to 10,411 configurations and
+every proof still goes through.
+
 The translator is unverified and supports a small subset (see its header).
 The equivalence theorem is what makes that acceptable: if the translation
 is wrong, `beh_eq_gen` fails to typecheck.
@@ -108,7 +177,7 @@ is wrong, `beh_eq_gen` fails to typecheck.
 ## Build
 
 ```sh
-./check.sh              # regenerate Gen/, verify it is unchanged, lake build, run both drivers
+./check.sh              # regenerate Gen/, verify it is unchanged, lake build, run the five drivers
 ```
 
 or piecewise:
@@ -179,7 +248,9 @@ termination lemma for the two places an actor dies.
 
 ## Not modelled yet
 
-Selective `receive` beyond the call-reply encoding, real time (timers are
-untimed), multi-node delivery, unhandled `handle_cast` messages crashing
-the process (modelled as ignored), and `GenServer.start`/`start_link`
-children whose `init` is not the identity.
+Real time (timers are untimed and cannot be cancelled), multi-node
+delivery, `receive` with `after`, registration races (registered names are
+constant pids), `:kill` as untrappable, and exceptions inside handler
+bodies (the translator rejects anything outside its subset rather than
+approximating it). In message mode an unhandled cast or call is still
+modelled as ignored, with a warning; only effects mode has the crash.

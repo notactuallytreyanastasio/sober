@@ -4,8 +4,11 @@ These notes are for someone who knows Elixir and Lean 4 but has not opened
 this repository. They explain what was built, why it has the shape it has,
 and what was learned along the way. The README is the reference; this is
 the narrative. Node ids in parentheses refer to the decision graph exported
-in `docs/graph-data.json` (127 nodes, types goal/option/decision/action/
-outcome/observation), which was kept in real time as the work was done.
+in `docs/graph-data.json` (127 nodes when these notes were written; the
+workflow that merged the pieces described below added its own subtree
+under node 138; types goal/option/decision/action/outcome/observation),
+which was kept in real time as the work was done. Line counts and spans
+were measured at commit dacf642 and have drifted by a few lines since.
 
 ## 1. The question and the thesis
 
@@ -95,7 +98,7 @@ and then reason with `simp` and `omega`. `Reach.inv` is the configuration-
 level induction principle. The mailbox clause was added later (node 77),
 when the FCFS proof needed the list and not just its counts.
 
-### Sys (`Leanactors/Sys.lean`, 327 lines)
+### Sys (`Leanactors/Sys.lean`, about 328 lines)
 
 Spawning, links, monitors, exits and timers are a layer over `Config`, not
 a rewrite of it (decision at node 86; the in-place rewrite was rejected as
@@ -122,9 +125,34 @@ links, signals, monitors, downs or timers, running the lifted message-only
 behaviour is exactly the old `step`. The bank and lock results never had to
 be touched when `Sys` arrived (node 88).
 
+### SysProps (`Leanactors/SysProps.lean`, about 985 lines)
+
+The example proofs each re-derived the same `Sys`-level facts by hand:
+steps that only add preserve everything, a termination touches only the
+dead pid's row plus the link and monitor lists, a step changes at most one
+actor's state. `SysProps.lean` states them once, over any `EBehavior`:
+`Grows a b` (every field monotone, pids below `a.next` keep their state)
+and `Frame p a b` (the same with `p` exempt), both reflexive and
+transitive with `Grows.frame` embedding; `applyEffects_grows` and its
+projections; `terminate_frame` and the exact contents of the signal and
+DOWN queues after a death; `runE_frame`, `runE_of_no_exit`,
+`signalE_frame`, `downE_grows`, `timerE_grows` with `_cases` unpackings;
+`SysStep.stateOf_cases`; and `Sys.Fresh` (every live pid is below `next`),
+preserved by every step, which turns the `q < next` side conditions of a
+frame into "q is alive". `Examples/SysPropsDemo.lean` re-proves three
+supervisor cases in one line each (nodes 151-161). Writing it exposed a
+core bug (node 159): `Sys.terminate` never set `timers`, so the structure
+default `[]` dropped every pending timer whenever any actor died; a worker
+crash silently disarmed the watchdog's timeout. `terminate` now keeps
+them, `Frame` has a `timers` clause, and the watchdog checker grew from
+10,365 to 10,411 configurations (nodes 206-208). One toolchain note from
+that file: `omega` does not see through `abbrev Pid := Nat` on Lean
+v4.33.1, so pid arithmetic there uses `Nat.lt_of_lt_of_le` and
+`Nat.le_trans` explicitly (node 160).
+
 ## 3. The translator
 
-`elixir/to_lean.exs` (799 lines, one module `ToLean`) reads a file of
+`elixir/to_lean.exs` (about 1104 lines, one module `ToLean`) reads a file of
 `GenServer` modules and emits one Lean file per source into
 `Leanactors/Gen/`. The invocation is fixed by `check.sh`, for example
 
@@ -152,8 +180,18 @@ committed, and `check.sh` regenerates all five and fails if any differs.
   order, become the arms of `def beh`. Guards become `if ... then ... else`
   with fallthrough to the next clause that subsumes the pattern; subsumed
   clauses are dropped because Lean rejects redundant alternatives (node 47).
-* Each module gets a catch-all arm and `beh` ends with `| _, s, _ => (s, [])`,
-  annotated "GenServer would crash (cast) or ignore (info). Modelled as ignore."
+* `beh` ends with a global catch-all `| _, s, _ => (s, [])`, annotated
+  "GenServer would crash (cast) or ignore (info). Modelled as ignore.",
+  unless every module is already covered. Since the workflow merge (node
+  138) three things narrow it: in effects mode a cast or call tag with no
+  total clause gets a crash arm `(state, [.exit .error])` and a module's
+  `handle_info` clauses are emitted after its cast/call and crash arms
+  (nodes 173-187); a raw `receive` loop without a catch-all arm gets a
+  defer arm `| me, _, .mod s_0 .., m => (.mod s_0 .., [.send me m])` as its
+  last clause, so the global catch-all no longer covers it (nodes 188-199);
+  and `def init(p), do: {:ok, e}` is translated at spawn sites (nodes
+  162-172). See the README paragraphs on initial state, unhandled messages
+  and raw processes.
 
 ### The type-directed decisions
 
@@ -225,7 +263,7 @@ Lean `#eval` trace; the others check the proven property on a real run.
 | `elixir/src/task.ex` | effects | `GenServer.start` as `spawn`, `Process.monitor`, `DOWN` typing and the `downMsg` codec, a send before `{:stop, :normal, _}` |
 | `elixir/src/watchdog.ex` | effects | `{:noreply, s, t}` as a self-timer, `Process.exit(w, :kill)` as `signal`, send to a registered name, booleans, named wildcards, pid-narrowed `Option` patterns |
 
-The generated files are 43 to 47 lines each; the sources are 54 to 73.
+The generated files are 42 to 47 lines each; the sources are 54 to 73.
 
 ## 4. The proof recipe
 
@@ -280,7 +318,7 @@ Node 96 counts 20 of 22 supervisor cases as `apply frame` or
 
 **Closing.** `init_inv`, `reach_inv := hr.inv Inv.step init_inv`, and the
 named property as a projection: `supervisor_alive` and `restart_in_flight`
-(`SupervisorProof.lean` 376-392), `job_never_lost` (`TaskProof.lean` 383),
+(`SupervisorProof.lean` 380-396), `job_never_lost` (`TaskProof.lean` 383),
 `watchdog_alive` and `restart_in_flight` (`WatchdogProof.lean` 418-431),
 `mutex_forever` (`LockProof.lean` 706) and `progress_forever` (775).
 
@@ -355,6 +393,16 @@ or covered by an explicit `handle_info(_, s)` catch-all, and messages
 outside `@type msg` are outside the model altogether. But a sixth source
 could hit it, and the direction is the unsound one (section 6).
 
+Closed since: the crash piece of the workflow (nodes 173-187) emits a
+crash arm per uncovered cast/call tag in effects mode, and the watchdog
+promptly demonstrated why it matters. With `:pong` accepted only while a
+pong is expected, `explore` found after 742 configurations a late pong
+(sent after the timeout had already fired the kill) that crashed the
+watchdog; the fix is one `handle_cast(:pong, s)` ignore clause (nodes
+179-181). The init piece (nodes 162-172) and the receive piece (nodes
+188-199) closed non-identity `init` and selective receive beyond
+call/reply. Real time and multi-node remain.
+
 ## 6. Known approximations and their direction
 
 Over-approximations admit behaviours the BEAM does not have. A safety
@@ -380,16 +428,23 @@ modelled behaviours); liveness is where they hurt.
 Under-approximations omit behaviours the BEAM has. A safety proof over the
 model says nothing about the omitted paths.
 
-* Unhandled casts do not crash (section 5). Direction: the BEAM has a
-  crash-and-propagate path the model lacks.
+* In message mode (a plain `Behavior`, no exit effect) unhandled casts and
+  calls still do not crash: the translator warns on stderr and models them
+  as ignored. Effects mode has the crash arm (section 5). Direction: the
+  BEAM has a crash-and-propagate path the message-mode model lacks.
 * Closed message world: only `@type msg` alternatives exist. `:sys` messages,
   stray sends and typos are not modelled.
 * Handler bodies are pure and total. No exceptions, no `raise`, no side
   effects beyond the recognised calls. The translator rejects anything
   outside its subset with a hard error rather than approximating.
-* `init` must be the identity (`{:ok, pid} = GenServer.start_link(Mod, arg)`
-  becomes `spawnLink (.mod arg)`); `Process.flag(:trap_exit, true)` in
-  `init` is read as a static property of the module.
+* `init/1` must be a pure expression of its parameter (`{:ok, e}`, with
+  `Process.flag(:trap_exit, true)` the only other statement allowed);
+  `{:ok, pid} = GenServer.start_link(Mod, arg)` becomes `spawnLink` of `e`
+  with the parameter bound to `arg`. `trap_exit` in `init` is read as a
+  static property of the module.
+* Raw processes: exactly one `receive` loop per module, one parameter, no
+  `after`; a guard that fails re-enqueues the message to self, which adds
+  self-message steps the BEAM does not take (same as the call deferral).
 * Registered names are constant pids fixed by `--pid` (no registry, no
   registration races); monitor refs are dropped (no `demonitor`, `DOWN`
   matched on pid); timers cannot be cancelled; single node.
