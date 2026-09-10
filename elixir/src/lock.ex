@@ -1,15 +1,19 @@
 # The lock protocol as ordinary Elixir. This file is BOTH executed on the
 # BEAM (by ../lock.exs) AND translated to Lean (by ../to_lean.exs).
 #
-# The translator reads the @type declarations to build the Lean inductives.
-# `pid() | nil` becomes `Option Pid`, `[pid()]` becomes `List Pid`, and a
-# union of atoms becomes an enum.
+# Clients acquire with a *blocking* GenServer.call. The server replies
+# immediately when the lock is free, otherwise it queues the caller and
+# replies later with GenServer.reply/2 when the lock is released. The
+# translator turns the blocking call into an await state on the client.
 
 defmodule Lock do
   use GenServer
 
-  @type msg :: {:acquire, pid()} | {:release, pid()}
-  @type state :: {pid() | nil, [pid()]}
+  @type msg :: {:release, pid()}
+  @type call :: :acquire
+  @type reply :: :ok
+  # holder and queue entries are callers (GenServer.from(), modelled as pids)
+  @type state :: {GenServer.from() | nil, [GenServer.from()]}
 
   def start_link, do: GenServer.start_link(__MODULE__, {nil, []}, name: __MODULE__)
 
@@ -17,18 +21,16 @@ defmodule Lock do
   def init(s), do: {:ok, s}
 
   @impl true
+  @spec handle_call(call(), GenServer.from(), state()) :: {:reply, reply(), state()} | {:noreply, state()}
+  def handle_call(:acquire, from, {nil, q}), do: {:reply, :ok, {from, q}}
+  def handle_call(:acquire, from, {h, q}), do: {:noreply, {h, q ++ [from]}}
+
+  @impl true
   @spec handle_cast(msg(), state()) :: {:noreply, state()}
-  def handle_cast({:acquire, p}, {nil, q}) do
-    send(p, :grant)
-    {:noreply, {p, q}}
-  end
+  def handle_cast({:release, p}, {{p, _}, []}), do: {:noreply, {nil, []}}
 
-  def handle_cast({:acquire, p}, {h, q}), do: {:noreply, {h, q ++ [p]}}
-
-  def handle_cast({:release, p}, {p, []}), do: {:noreply, {nil, []}}
-
-  def handle_cast({:release, p}, {p, [n | rest]}) do
-    send(n, :grant)
+  def handle_cast({:release, p}, {{p, _}, [n | rest]}) do
+    GenServer.reply(n, :ok)
     {:noreply, {n, rest}}
   end
 
@@ -38,8 +40,8 @@ end
 defmodule Client do
   use GenServer
 
-  @type phase :: :idle | :waiting | :holding
-  @type msg :: :tick | :grant
+  @type phase :: :idle | :holding
+  @type msg :: :tick
   @type state :: phase()
 
   def start_link, do: GenServer.start_link(__MODULE__, :idle)
@@ -50,16 +52,12 @@ defmodule Client do
   @impl true
   @spec handle_info(msg(), state()) :: {:noreply, state()}
   def handle_info(:tick, :idle) do
-    GenServer.cast(Lock, {:acquire, self()})
-    {:noreply, :waiting}
+    :ok = GenServer.call(Lock, :acquire, :infinity)
+    {:noreply, :holding}
   end
-
-  def handle_info(:grant, :waiting), do: {:noreply, :holding}
 
   def handle_info(:tick, :holding) do
     GenServer.cast(Lock, {:release, self()})
     {:noreply, :idle}
   end
-
-  def handle_info(_, s), do: {:noreply, s}
 end

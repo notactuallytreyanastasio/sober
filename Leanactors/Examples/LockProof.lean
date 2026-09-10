@@ -8,6 +8,9 @@ and `Reach.inv` this gives mutual exclusion under every scheduler.
 The proof is a case split on (state, message) of the stepping actor. Each
 case reduces, via `Step.chars`, to linear arithmetic over the six
 per-pid counters, discharged by `omega`.
+
+Clients block in `GenServer.call`, so a client has three shapes:
+`client .idle`, `client .holding`, and the generated `client_await0`.
 -/
 
 -- The proofs below pass lemma sets that are needed in some branches and not others.
@@ -19,30 +22,28 @@ open Leanactors Config
 
 /-! ### Small facts about the counters -/
 
-theorem phaseOf_cli {c : Config St Msg} {x : Pid} {ph : Phase}
-    (h : phaseOf c x = some ph) : c.stateOf x = some (.client ph) := by
-  cases hs : c.stateOf x with
-  | none => simp [phaseOf, hs] at h
-  | some s =>
-    cases s with
-    | lock _ _ => simp [phaseOf, hs] at h
-    | client ph' =>
-      simp only [phaseOf, hs, Option.some.injEq] at h
-      subst h
-      rfl
+theorem locOf_waiting {c : Config St Msg} {x : Pid} (h : locOf c x = some .waiting) :
+    c.stateOf x = some .client_await0 := by
+  unfold locOf at h
+  split at h <;> simp_all
+
+theorem locOf_holding {c : Config St Msg} {x : Pid} (h : locOf c x = some .holding) :
+    c.stateOf x = some (.client .holding) := by
+  unfold locOf at h
+  split at h <;> simp_all
 
 theorem w_eq_one {c : Config St Msg} {x : Pid} (h : w c x = 1) :
-    c.stateOf x = some (.client .waiting) := by
+    c.stateOf x = some .client_await0 := by
   unfold w at h
   split at h
-  · exact phaseOf_cli ‹_›
+  · exact locOf_waiting ‹_›
   · omega
 
 theorem hd_eq_one {c : Config St Msg} {x : Pid} (h : hd c x = 1) :
     c.stateOf x = some (.client .holding) := by
   unfold hd at h
   split at h
-  · exact phaseOf_cli ‹_›
+  · exact locOf_holding ‹_›
   · omega
 
 theorem w_le (c : Config St Msg) (x : Pid) : w c x ≤ 1 := by
@@ -59,15 +60,27 @@ theorem ne_server_of_cli {c : Config St Msg} (hi : Inv c) {x : Pid} {ph : Phase}
   rw [hs] at h
   cases h
 
-/-- Phase counters from a known client state. -/
+theorem ne_server_of_await {c : Config St Msg} (hi : Inv c) {x : Pid}
+    (h : c.stateOf x = some .client_await0) : x ≠ server := by
+  intro e
+  subst e
+  obtain ⟨h0, q0, hs⟩ := hi.hasServer
+  rw [hs] at h
+  cases h
+
+/-- Location counters from a known client state. -/
 theorem w_hd_of_state {c : Config St Msg} {x : Pid} {ph : Phase}
     (h : c.stateOf x = some (.client ph)) :
-    w c x = (if ph = .waiting then 1 else 0) ∧ hd c x = (if ph = .holding then 1 else 0) := by
-  simp [w, hd, phaseOf, h]
+    w c x = 0 ∧ hd c x = (if ph = .holding then 1 else 0) := by
+  cases ph <;> simp [w, hd, locOf, h]
+
+theorem w_hd_of_await {c : Config St Msg} {x : Pid}
+    (h : c.stateOf x = some .client_await0) : w c x = 1 ∧ hd c x = 0 := by
+  simp [w, hd, locOf, h]
 
 theorem w_hd_of_srv {c : Config St Msg} {x : Pid} {h0 : Option Pid} {q0 : List Pid}
     (h : c.stateOf x = some (.lock h0 q0)) : w c x = 0 ∧ hd c x = 0 := by
-  simp [w, hd, phaseOf, h]
+  simp [w, hd, locOf, h]
 
 /-- A server step always yields a server state. -/
 theorem beh_srv (p : Pid) (h1 : Option Pid) (q1 : List Pid) (m : Msg) :
@@ -87,7 +100,7 @@ theorem beh_srv (p : Pid) (h1 : Option Pid) (q1 : List Pid) (m : Msg) :
         | nil => exact ⟨_, _, rfl⟩
         | cons n r => exact ⟨_, _, rfl⟩
       · exact ⟨_, _, rfl⟩
-  | grant => cases h1 <;> exact ⟨_, _, rfl⟩
+  | reply r => cases r; cases h1 <;> exact ⟨_, _, rfl⟩
   | tick => cases h1 <;> exact ⟨_, _, rfl⟩
 
 /-! ### Frame: a step that changes nothing the invariant looks at -/
@@ -95,7 +108,7 @@ theorem beh_srv (p : Pid) (h1 : Option Pid) (q1 : List Pid) (m : Msg) :
 theorem Inv.frame {c c' : Config St Msg} (hi : Inv c)
     (hsrv : c'.stateOf server = c.stateOf server)
     (honly : ∀ y h q, c'.stateOf y = some (.lock h q) → y = server)
-    (hph : ∀ y, phaseOf c' y = phaseOf c y)
+    (hph : ∀ y, locOf c' y = locOf c y)
     (hg : ∀ y, g c' y = g c y) (ha : ∀ y, a c' y = a c y) (hr : ∀ y, r c' y = r c y) :
     Inv c' := by
   have hw : ∀ y, w c' y = w c y := fun y => by simp [w, hph]
@@ -116,26 +129,27 @@ theorem Inv.frame {c c' : Config St Msg} (hi : Inv c)
 /-! ### The main preservation theorem -/
 
 set_option hygiene false in
-/-- A client step whose message is ignored, or a tick that only moves the
-client between phases without sends: everything the invariant sees is
-unchanged. Expects the client-case context of `Inv.step`. -/
+/-- A client step that changes nothing the invariant sees: a message ignored,
+a tick that only moves the client between phases without sends, or a
+message deferred by re-enqueue while blocked. Expects the client-case
+context of `Inv.step`. -/
 macro "client_frame" : tactic => `(tactic| (
   apply Inv.frame hi hsrv' honly'
   · intro z
     by_cases hz : z = me
-    · subst hz; simp [phaseOf, hstate, beh, hsp]
+    · subst hz; simp [locOf, hstate, beh, hsp]
     · exact hph_ne z hz
   · intro z
     have := hg' z
-    simp [beh] at this
+    simp [beh, List.count_cons] at this
     by_cases hz : z = me
     · subst hz; simp at hg_pop; rw [this, hg_pop]; simp
     · rw [this]; simp [hz]
-  · intro z; have := ha' z; simp [beh] at this; exact this
-  · intro z; have := hr' z; simp [beh] at this; exact this))
+  · intro z; have := ha' z; simp [beh, List.count_cons, hps, Ne.symm hps] at this; exact this
+  · intro z; have := hr' z; simp [beh, List.count_cons, hps, Ne.symm hps] at this; exact this))
 
 set_option hygiene false in
-/-- A client in the wrong phase pops a `grant`: contradicts the invariant. -/
+/-- A client in the wrong phase pops a `reply ok`: contradicts the invariant. -/
 macro "client_grant_absurd" : tactic => `(tactic| (
   exfalso
   simp at hg_pop
@@ -147,6 +161,54 @@ macro "client_grant_absurd" : tactic => `(tactic| (
   · have old := hi.nonholder h0 q0 hsrv me hh
     omega))
 
+set_option hygiene false in
+/-- Shared setup for the two client shapes. -/
+macro "client_setup" s:term : tactic => `(tactic| (
+  have hsrv' : c'.stateOf server = c.stateOf server := hst_ne server (Ne.symm hps)
+  have hg_pop : g c me = rest.count (.reply .ok) + (if m = .reply .ok then 1 else 0) := hpop _
+  have ha' : ∀ y, a c' y = a c y + (beh me $s m).2.count (server, .acquire y) := fun y => by
+    simp only [a, hcount, Ne.symm hps, if_false, hsrv_some, if_true]
+  have hr' : ∀ y, r c' y = r c y + (beh me $s m).2.count (server, .release y) := fun y => by
+    simp only [r, hcount, Ne.symm hps, if_false, hsrv_some, if_true]
+  have hg' : ∀ y, g c' y = (if y = me then rest.count (.reply .ok) else g c y)
+      + if (c.get y).isSome then (beh me $s m).2.count (y, .reply .ok) else 0 := fun y => by
+    simp only [g, hcount]
+  have hph' : ∀ y, y ≠ me → w c' y = w c y ∧ hd c' y = hd c y := fun y hy => by
+    simp [w, hd, hph_ne y hy]))
+
+set_option hygiene false in
+/-- The two invariant fields for a real client transition, given the new
+location counters `hw_me'` for `me`. -/
+macro "client_fields" : tactic => `(tactic| (
+  refine ⟨⟨h0, q0, by rw [hsrv']; exact hsrv⟩, (by intro q hq; rw [hsrv'] at hq; exact hi.queue_empty q hq), honly', ?_, ?_⟩
+  · intro h q hs y hne
+    rw [hsrv'] at hs
+    have old := hi.nonholder h q hs y hne
+    have ha := ha' y; have hr := hr' y; have hg := hg' y
+    by_cases hy : y = me
+    · subst hy
+      simp [List.count_cons] at ha hr hg
+      simp [hw_me, hhd_me] at old
+      all_goals (have := hw_me'.1; have := hw_me'.2; omega)
+    · simp [List.count_cons, hy, Ne.symm hy] at ha hr hg
+      obtain ⟨hw, hhd⟩ := hph' y hy
+      rw [hw, hhd, hg, hr, ha]
+      exact old
+  · intro h q hs
+    rw [hsrv'] at hs
+    have old := hi.holder h q hs
+    have ha := ha' h; have hr := hr' h; have hg := hg' h
+    by_cases hy : h = me
+    · subst hy
+      simp [List.count_cons] at ha hr hg
+      simp [hw_me, hhd_me] at old
+      have := hw_me'.1; have := hw_me'.2
+      omega
+    · simp [List.count_cons, hy, Ne.symm hy] at ha hr hg
+      obtain ⟨hw, hhd⟩ := hph' h hy
+      rw [hw, hhd, hg, hr, ha]
+      exact old))
+
 set_option maxHeartbeats 1000000 in
 theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c' := by
   obtain ⟨me, s, m, rest, hget, hstate, hcount⟩ := h.chars
@@ -155,21 +217,13 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
   have hsp : c.stateOf me = some s := by simp [stateOf, hget]
   have hpop := mcount_of_get hget
   have hst_ne : ∀ y, y ≠ me → c'.stateOf y = c.stateOf y := fun y hy => by rw [hstate]; simp [hy]
-  have hph_ne : ∀ y, y ≠ me → phaseOf c' y = phaseOf c y := fun y hy => by
-    simp [phaseOf, hst_ne y hy]
+  have hph_ne : ∀ y, y ≠ me → locOf c' y = locOf c y := fun y hy => by
+    simp [locOf, hst_ne y hy]
   cases s with
   | client ph =>
-    -- ===================== a client steps =====================
+    -- ===================== an idle or holding client steps =====================
     have hps : me ≠ server := ne_server_of_cli hi hsp
-    have hsrv' : c'.stateOf server = c.stateOf server := hst_ne server (Ne.symm hps)
-    have hg_pop : g c me = rest.count .grant + (if m = .grant then 1 else 0) := hpop .grant
-    have ha' : ∀ y, a c' y = a c y + (beh me (.client ph) m).2.count (server, .acquire y) := fun y => by
-      simp only [a, hcount, Ne.symm hps, if_false, hsrv_some, if_true]
-    have hr' : ∀ y, r c' y = r c y + (beh me (.client ph) m).2.count (server, .release y) := fun y => by
-      simp only [r, hcount, Ne.symm hps, if_false, hsrv_some, if_true]
-    have hg' : ∀ y, g c' y = (if y = me then rest.count .grant else g c y)
-        + if (c.get y).isSome then (beh me (.client ph) m).2.count (y, .grant) else 0 := fun y => by
-      simp only [g, hcount]
+    client_setup (.client ph)
     have honly' : ∀ y h q, c'.stateOf y = some (.lock h q) → y = server := by
       intro y h q hy
       by_cases hy' : y = me
@@ -180,83 +234,16 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
       · rw [hst_ne y hy'] at hy
         exact hi.only_srv y h q hy
     obtain ⟨hw_me, hhd_me⟩ := w_hd_of_state hsp
-    have hph' : ∀ y, y ≠ me → w c' y = w c y ∧ hd c' y = hd c y := fun y hy => by
-      simp [w, hd, hph_ne y hy]
     cases ph with
     | idle =>
       cases m with
       | tick =>
-        -- idle --tick--> waiting, sends (acquire me) to server
+        -- idle --tick--> blocked, sends (acquire me) to server
         simp only [beh] at hstate ha' hr' hg'
-        have hw_me' : w c' me = 1 ∧ hd c' me = 0 := by simp [w, hd, phaseOf, hstate]
+        have hw_me' : w c' me = 1 ∧ hd c' me = 0 := by simp [w, hd, locOf, hstate]
         simp at hg_pop
-        refine ⟨⟨h0, q0, by rw [hsrv']; exact hsrv⟩, (by intro q hq; rw [hsrv'] at hq; exact hi.queue_empty q hq), honly', ?_, ?_⟩
-        · intro h q hs y hne
-          rw [hsrv'] at hs
-          have old := hi.nonholder h q hs y hne
-          have ha := ha' y; have hr := hr' y; have hg := hg' y
-          by_cases hy : y = me
-          · subst hy
-            simp [List.count_cons] at ha hr hg
-            simp [hw_me, hhd_me] at old
-            have := hw_me'.1; have := hw_me'.2
-            omega
-          · simp [List.count_cons, hy, Ne.symm hy] at ha hr hg
-            obtain ⟨hw, hhd⟩ := hph' y hy
-            rw [hw, hhd, hg, hr, ha]
-            exact old
-        · intro h q hs
-          rw [hsrv'] at hs
-          have old := hi.holder h q hs
-          have ha := ha' h; have hr := hr' h; have hg := hg' h
-          by_cases hy : h = me
-          · subst hy
-            simp [List.count_cons] at ha hr hg
-            simp [hw_me, hhd_me] at old
-            have := hw_me'.1; have := hw_me'.2
-            omega
-          · simp [List.count_cons, hy, Ne.symm hy] at ha hr hg
-            obtain ⟨hw, hhd⟩ := hph' h hy
-            rw [hw, hhd, hg, hr, ha]
-            exact old
-      | grant => client_grant_absurd
-      | acquire y => client_frame
-      | release y => client_frame
-    | waiting =>
-      cases m with
-      | grant =>
-        -- waiting --grant--> holding
-        simp only [beh] at hstate ha' hr' hg'
-        have hw_me' : w c' me = 0 ∧ hd c' me = 1 := by simp [w, hd, phaseOf, hstate]
-        simp at hg_pop
-        refine ⟨⟨h0, q0, by rw [hsrv']; exact hsrv⟩, (by intro q hq; rw [hsrv'] at hq; exact hi.queue_empty q hq), honly', ?_, ?_⟩
-        · intro h q hs y hne
-          rw [hsrv'] at hs
-          have old := hi.nonholder h q hs y hne
-          have ha := ha' y; have hr := hr' y; have hg := hg' y
-          by_cases hy : y = me
-          · subst hy
-            -- a non-holder with a grant in its mailbox: contradiction
-            exfalso; omega
-          · simp [List.count_cons, hy, Ne.symm hy] at ha hr hg
-            obtain ⟨hw, hhd⟩ := hph' y hy
-            rw [hw, hhd, hg, hr, ha]
-            exact old
-        · intro h q hs
-          rw [hsrv'] at hs
-          have old := hi.holder h q hs
-          have ha := ha' h; have hr := hr' h; have hg := hg' h
-          by_cases hy : h = me
-          · subst hy
-            simp [List.count_cons] at ha hr hg
-            simp [hw_me, hhd_me] at old
-            have := hw_me'.1; have := hw_me'.2
-            omega
-          · simp [List.count_cons, hy, Ne.symm hy] at ha hr hg
-            obtain ⟨hw, hhd⟩ := hph' h hy
-            rw [hw, hhd, hg, hr, ha]
-            exact old
-      | tick => client_frame
+        client_fields
+      | reply rr => cases rr; client_grant_absurd
       | acquire y => client_frame
       | release y => client_frame
     | holding =>
@@ -264,39 +251,41 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
       | tick =>
         -- holding --tick--> idle, sends (release me) to server
         simp only [beh] at hstate ha' hr' hg'
-        have hw_me' : w c' me = 0 ∧ hd c' me = 0 := by simp [w, hd, phaseOf, hstate]
+        have hw_me' : w c' me = 0 ∧ hd c' me = 0 := by simp [w, hd, locOf, hstate]
         simp at hg_pop
-        refine ⟨⟨h0, q0, by rw [hsrv']; exact hsrv⟩, (by intro q hq; rw [hsrv'] at hq; exact hi.queue_empty q hq), honly', ?_, ?_⟩
-        · intro h q hs y hne
-          rw [hsrv'] at hs
-          have old := hi.nonholder h q hs y hne
-          have ha := ha' y; have hr := hr' y; have hg := hg' y
-          by_cases hy : y = me
-          · subst hy
-            -- holding but not the holder: contradiction
-            exfalso
-            simp [hw_me, hhd_me] at old
-          · simp [List.count_cons, hy, Ne.symm hy] at ha hr hg
-            obtain ⟨hw, hhd⟩ := hph' y hy
-            rw [hw, hhd, hg, hr, ha]
-            exact old
-        · intro h q hs
-          rw [hsrv'] at hs
-          have old := hi.holder h q hs
-          have ha := ha' h; have hr := hr' h; have hg := hg' h
-          by_cases hy : h = me
-          · subst hy
-            simp [List.count_cons] at ha hr hg
-            simp [hw_me, hhd_me] at old
-            have := hw_me'.1; have := hw_me'.2
-            omega
-          · simp [List.count_cons, hy, Ne.symm hy] at ha hr hg
-            obtain ⟨hw, hhd⟩ := hph' h hy
-            rw [hw, hhd, hg, hr, ha]
-            exact old
-      | grant => client_grant_absurd
+        client_fields
+      | reply rr => cases rr; client_grant_absurd
       | acquire y => client_frame
       | release y => client_frame
+  | client_await0 =>
+    -- ===================== a blocked client steps =====================
+    have hps : me ≠ server := ne_server_of_await hi hsp
+    client_setup .client_await0
+    have honly' : ∀ y h q, c'.stateOf y = some (.lock h q) → y = server := by
+      intro y h q hy
+      by_cases hy' : y = me
+      · subst hy'
+        rw [hstate] at hy
+        simp only [if_true] at hy
+        cases m with
+        | reply rr => cases rr; simp [beh] at hy
+        | tick => simp [beh] at hy
+        | acquire _ => simp [beh] at hy
+        | release _ => simp [beh] at hy
+      · rw [hst_ne y hy'] at hy
+        exact hi.only_srv y h q hy
+    obtain ⟨hw_me, hhd_me⟩ := w_hd_of_await hsp
+    cases m with
+    | reply rr =>
+      -- blocked --reply ok--> holding
+      cases rr
+      simp only [beh] at hstate ha' hr' hg'
+      have hw_me' : w c' me = 0 ∧ hd c' me = 1 := by simp [w, hd, locOf, hstate]
+      simp at hg_pop
+      client_fields
+    | tick => client_frame
+    | acquire y => client_frame
+    | release y => client_frame
   | lock h1 q1 =>
     -- ===================== the server steps =====================
     have hp : me = server := hi.only_srv me h1 q1 hsp
@@ -308,22 +297,22 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
       fun y => hpop _
     have hr_pop : ∀ y, r c y = rest.count (.release y) + (if m = .release y then 1 else 0) :=
       fun y => hpop _
-    have hg_pop : g c server = rest.count .grant + (if m = .grant then 1 else 0) := hpop _
+    have hg_pop : g c server = rest.count (.reply .ok) + (if m = (.reply .ok) then 1 else 0) := hpop _
     -- new counters
     have ha' : ∀ y, a c' y = rest.count (.acquire y) + (beh server (.lock h1 q1) m).2.count (server, .acquire y) :=
       fun y => by simp only [a, hcount, if_true, hsrv_some']
     have hr' : ∀ y, r c' y = rest.count (.release y) + (beh server (.lock h1 q1) m).2.count (server, .release y) :=
       fun y => by simp only [r, hcount, if_true, hsrv_some']
-    have hg' : ∀ y, g c' y = (if y = server then rest.count .grant else g c y)
-        + if (c.get y).isSome then (beh server (.lock h1 q1) m).2.count (y, .grant) else 0 := fun y => by
+    have hg' : ∀ y, g c' y = (if y = server then rest.count (.reply .ok) else g c y)
+        + if (c.get y).isSome then (beh server (.lock h1 q1) m).2.count (y, (.reply .ok)) else 0 := fun y => by
       simp only [g, hcount]
     -- phases never change on a server step
-    have hph' : ∀ y, phaseOf c' y = phaseOf c y := by
+    have hph' : ∀ y, locOf c' y = locOf c y := by
       intro y
       by_cases hy : y = server
       · subst hy
         obtain ⟨h', q', e⟩ := beh_srv server h1 q1 m
-        simp only [phaseOf, hstate, if_true, hsp, e]
+        simp only [locOf, hstate, if_true, hsp, e]
       · exact hph_ne y hy
     have hw : ∀ y, w c' y = w c y := fun y => by simp [w, hph']
     have hhd : ∀ y, hd c' y = hd c y := fun y => by simp [hd, hph']
@@ -343,8 +332,9 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
         · rw [this]; simp [hz]
       · intro z; have := ha' z; simp [beh] at this; rw [this, ha_pop]; simp
       · intro z; have := hr' z; simp [beh] at this; rw [this, hr_pop]; simp
-    | grant =>
+    | reply rr =>
       -- a grant to the server: contradiction, the server never holds a grant
+      cases rr
       exfalso
       simp at hg_pop
       by_cases hh : h1 = some server
@@ -368,7 +358,7 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
         have hwx : w c x = 1 := by have := w_le c x; omega
         have hx_state := w_eq_one hwx
         have hx_some : (c.get x).isSome = true := isSome_of_stateOf hx_state
-        have hxp : x ≠ server := ne_server_of_cli hi hx_state
+        have hxp : x ≠ server := ne_server_of_await hi hx_state
         refine ⟨⟨some x, q1, hsrv'⟩, (by intro q hq; rw [hsrv'] at hq; simp at hq; try (first | exact hq.symm | exact hq)), honly', ?_, ?_⟩
         · intro h q hs y hne
           rw [hsrv'] at hs
@@ -494,7 +484,7 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
                 omega
             have hn_state := w_eq_one hwn
             have hn_some : (c.get n).isSome = true := isSome_of_stateOf hn_state
-            have hnp : n ≠ server := ne_server_of_cli hi hn_state
+            have hnp : n ≠ server := ne_server_of_await hi hn_state
             refine ⟨⟨some n, rest', hsrv'⟩, (by intro q hq; rw [hsrv'] at hq; simp at hq; try (first | exact hq.symm | exact hq)), honly', ?_, ?_⟩
             · intro h q hs y hne
               rw [hsrv'] at hs
@@ -553,8 +543,8 @@ theorem Inv.env {c c' : Config St Msg} (h : EnvStep c c') (hi : Inv c) : Inv c' 
       simp [Ne.symm hm]
     apply Inv.frame hi (hst server)
     · intro y h q hy; rw [hst] at hy; exact hi.only_srv y h q hy
-    · intro y; simp [phaseOf, hst]
-    · intro y; exact hcnt y .grant (by simp)
+    · intro y; simp [locOf, hst]
+    · intro y; exact hcnt y (.reply .ok) (by simp)
     · intro y; exact hcnt server (.acquire y) (by simp)
     · intro y; exact hcnt server (.release y) (by simp)
 
@@ -577,12 +567,12 @@ theorem initCfg_mcount (n p : Pid) (m : Msg) : (initCfg n).mcount p m = 0 := by
 theorem initCfg_inv (n : Nat) : Inv (initCfg n) := by
   have hs : (initCfg n).stateOf server = some (.lock none []) := by simp [initCfg_stateOf]
   have hw : ∀ p, w (initCfg n) p = 0 := by
-    intro p; unfold w phaseOf; rw [initCfg_stateOf]
+    intro p; unfold w locOf; rw [initCfg_stateOf]
     by_cases h0 : p = server
     · simp [h0]
     · by_cases hn : p ≤ n <;> simp [h0, hn]
   have hhd : ∀ p, hd (initCfg n) p = 0 := by
-    intro p; unfold hd phaseOf; rw [initCfg_stateOf]
+    intro p; unfold hd locOf; rw [initCfg_stateOf]
     by_cases h0 : p = server
     · simp [h0]
     · by_cases hn : p ≤ n <;> simp [h0, hn]
@@ -656,9 +646,9 @@ theorem progress {c : Config St Msg} (hi : Inv c) {x : Pid} (hx : w c x = 1) :
     subst hhx
     have old := (hi.holder x q0 hs).1
     have hhd : hd c x = 0 := by
-      have := (w_hd_of_state (w_eq_one hx)).2; simpa using this
+      exact (w_hd_of_await (w_eq_one hx)).2
     by_cases hg : g c x = 1
-    · exact Or.inl (step_of_mcount_pos (p := x) (m := .grant) (by unfold g at hg; omega))
+    · exact Or.inl (step_of_mcount_pos (p := x) (m := .reply .ok) (by unfold g at hg; omega))
     · have hr : r c x = 1 := by omega
       exact Or.inl (step_of_mcount_pos (p := server) (m := .release x) (by unfold r at hr; omega))
   · have old := hi.nonholder h0 q0 hs x hhx
@@ -675,7 +665,7 @@ theorem progress {c : Config St Msg} (hi : Inv c) {x : Pid} (hx : w c x = 1) :
         have oldh := (hi.holder h q0 hs).1
         have := hd_le c h
         by_cases hg : g c h = 1
-        · exact Or.inl (step_of_mcount_pos (p := h) (m := .grant) (by unfold g at hg; omega))
+        · exact Or.inl (step_of_mcount_pos (p := h) (m := .reply .ok) (by unfold g at hg; omega))
         · by_cases hhd : hd c h = 1
           · exact Or.inr ⟨h, hhd⟩
           · have hr : r c h = 1 := by omega
@@ -683,10 +673,10 @@ theorem progress {c : Config St Msg} (hi : Inv c) {x : Pid} (hx : w c x = 1) :
 
 /-- Corollary in reachable configurations. -/
 theorem progress_forever (n : Nat) {c : Config St Msg} (hr : ReachEnv (initCfg n) c) {x : Pid}
-    (hx : c.stateOf x = some (.client .waiting)) :
+    (hx : c.stateOf x = some .client_await0) :
     (∃ c', Step beh c c') ∨ ∃ h, c.stateOf h = some (.client .holding) := by
   have hi := hr.inv (initCfg_inv n)
-  have hw : w c x = 1 := by have := (w_hd_of_state hx).1; simpa using this
+  have hw : w c x = 1 := (w_hd_of_await hx).1
   rcases progress hi hw with h | ⟨h, hh⟩
   · exact Or.inl h
   · exact Or.inr ⟨h, hd_eq_one hh⟩

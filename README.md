@@ -11,14 +11,14 @@ for a pure subset of Elixir/BEAM programs. No Mathlib.
 | `Leanactors/Props.lean` | Frame rule, domain preservation, mailbox-queue lemma, per-actor invariant induction, `run_sound` |
 | `Leanactors/Count.lean` | Message counting, `Step.chars` (a step as arithmetic over counts), config-level invariant induction, FIFO corollary |
 | `Leanactors/Examples/Bank.lean` | Per-actor invariant: a bank's balance never goes negative under any scheduler |
-| `Leanactors/Examples/Lock.lean` | Cross-actor invariant: lock server + clients, token invariant, bounded model checker |
+| `Leanactors/Examples/Lock.lean` | Cross-actor invariant: lock server + clients blocking in `GenServer.call`, token invariant, bounded model checker |
 | `Leanactors/Examples/LockProof.lean` | The invariant is inductive; `mutex_forever` and `progress_forever` under any scheduler and any environment ticks |
 | `Leanactors/Examples/LockMutants.lean` | Three protocol bugs: two caught with witness traces, one shown unreachable |
 | `Leanactors/Gen/*.lean` | Generated from `elixir/src/*.ex` by the translator; do not edit |
 | `elixir/src/bank.ex`, `elixir/src/lock.ex` | The Elixir source of truth: executed on the BEAM and translated to Lean |
 | `elixir/to_lean.exs` | The translator: `@type`-directed, small subset, unverified |
 | `elixir/bank.exs` | Driver: casts plus two clients blocking in `GenServer.call`; checks the trace matches Lean |
-| `elixir/lock.exs` | Driver: runs the lock under chaos ticks; event log checked for overlapping critical sections |
+| `elixir/lock.exs` | Driver: clients block in `GenServer.call` under chaos ticks; event log checked for overlapping critical sections |
 
 ## Pipeline: Elixir source to Lean theorem
 
@@ -54,7 +54,12 @@ second clause resumes on `reply v`, and any other message arriving in the
 await state is re-enqueued to self. That re-enqueue is the standard encoding
 of selective receive in a FIFO mailbox model and keeps the core untouched.
 `Bank.deferred` in the Lean example shows a tick arriving mid-call being
-processed after the call, not lost.
+processed after the call, not lost. Awaits nest: `Bank.audited` makes two
+calls in one handler and the second await state carries the first result.
+The lock uses this for real: clients block in `GenServer.call(Lock, :acquire)`,
+the server replies immediately or queues the caller and answers later with
+`GenServer.reply/2`, and the mutual-exclusion and deadlock-freedom proofs go
+through against that translation with the await state playing `waiting`.
 
 The translator is unverified and supports a small subset (see its header).
 The equivalence theorem is what makes that acceptable: if the translation

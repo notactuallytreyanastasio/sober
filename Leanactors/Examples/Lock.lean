@@ -8,22 +8,24 @@ A lock server and any number of clients. The Elixir we are modelling:
 ```elixir
 defmodule Lock do
   use GenServer
-  # state: {holder :: pid() | nil, queue :: [pid()]}
-  def handle_cast({:acquire, p}, {nil, q}), do: send(p, :grant); {:noreply, {p, q}}
-  def handle_cast({:acquire, p}, {h, q}),   do: {:noreply, {h, q ++ [p]}}
-  def handle_cast({:release, p}, {p, []}),  do: {:noreply, {nil, []}}
-  def handle_cast({:release, p}, {p, [n | rest]}), do: send(n, :grant); {:noreply, {n, rest}}
+  # state: {holder :: from | nil, queue :: [from]}
+  def handle_call(:acquire, from, {nil, q}), do: {:reply, :ok, {from, q}}
+  def handle_call(:acquire, from, {h, q}),   do: {:noreply, {h, q ++ [from]}}
+  def handle_cast({:release, p}, {{p, _}, []}), do: {:noreply, {nil, []}}
+  def handle_cast({:release, p}, {{p, _}, [n | rest]}), do: GenServer.reply(n, :ok); {:noreply, {n, rest}}
   def handle_cast({:release, _}, s), do: {:noreply, s}
 end
 
 defmodule Client do
-  # phase :: :idle | :waiting | :holding ; driven by external :tick
-  def handle_info(:tick, :idle),   do: GenServer.cast(Lock, {:acquire, self()}); {:noreply, :waiting}
-  def handle_info(:grant, :waiting), do: {:noreply, :holding}
+  # phase :: :idle | :holding ; driven by external :tick
+  def handle_info(:tick, :idle),    do: :ok = GenServer.call(Lock, :acquire); {:noreply, :holding}
   def handle_info(:tick, :holding), do: GenServer.cast(Lock, {:release, self()}); {:noreply, :idle}
-  def handle_info(_, s), do: {:noreply, s}
 end
 ```
+
+Clients *block* in `GenServer.call`. The translator turns that into the
+await state `St.client_await0`: the client sends `acquire`, waits for
+`reply ok`, and re-enqueues anything else that arrives meanwhile.
 
 **Safety**: no two clients are `:holding` at once. No type system can
 state this; it is a property of the *configuration*, including messages in
@@ -35,20 +37,21 @@ namespace Leanactors.Examples.Lock
 open Leanactors Config
 
 -- `Msg`, `Phase`, `St` and `server` come from the translation of `elixir/src/lock.ex`.
-export Leanactors.Gen.Lock (Msg Phase St server)
+export Leanactors.Gen.Lock (Msg Phase Reply St server)
 
 def beh : Behavior St Msg
-  | _,  .lock none q,     .acquire p => (.lock (some p) q, [(p, .grant)])
+  | _,  .lock none q,     .acquire p => (.lock (some p) q, [(p, .reply .ok)])
   | _,  .lock (some h) q, .acquire p => (.lock (some h) (q ++ [p]), [])
   | _,  .lock (some h) q, .release p =>
       if p = h then
         match q with
         | []        => (.lock none [], [])
-        | n :: rest => (.lock (some n) rest, [(n, .grant)])
+        | n :: rest => (.lock (some n) rest, [(n, .reply .ok)])
       else (.lock (some h) q, [])
-  | me, .client .idle,    .tick  => (.client .waiting, [(server, .acquire me)])
-  | _,  .client .waiting, .grant => (.client .holding, [])
-  | me, .client .holding, .tick  => (.client .idle, [(server, .release me)])
+  | me, .client .idle,    .tick      => (.client_await0, [(server, .acquire me)])
+  | me, .client .holding, .tick      => (.client .idle, [(server, .release me)])
+  | _,  .client_await0,   .reply .ok => (.client .holding, [])
+  | me, .client_await0,   m          => (.client_await0, [(me, m)])
   | _,  s, _ => (s, [])
 
 /-- The translated Elixir is extensionally the same behaviour. -/
@@ -56,7 +59,13 @@ theorem beh_eq_gen : Gen.Lock.beh = beh := by
   funext p s m
   cases s with
   | lock h q => cases h <;> cases q <;> cases m <;> first | rfl | simp [Gen.Lock.beh, beh]
-  | client ph => cases ph <;> cases m <;> rfl
+  | client ph => cases ph <;> cases m <;> first | rfl | simp [Gen.Lock.beh, beh]
+  | client_await0 =>
+    cases m with
+    | reply r => cases r; rfl
+    | tick => rfl
+    | acquire _ => rfl
+    | release _ => rfl
 
 /-! ## The invariant
 
@@ -64,7 +73,7 @@ For each pid `p` we track six numbers:
 
 * `a p` = copies of `acquire p` in the server's mailbox
 * `qn p` = occurrences of `p` in the server's queue
-* `g p` = copies of `grant` in `p`'s mailbox
+* `g p` = copies of `reply ok` in `p`'s mailbox
 * `r p` = copies of `release p` in the server's mailbox
 * `w p` = 1 if `p` is a client in phase `waiting`
 * `hd p` = 1 if `p` is a client in phase `holding`
@@ -80,16 +89,24 @@ Note this does *not* assume FIFO. The case "acquire h processed while h is
 still holder" (impossible under FIFO) is simply handled by `a + qn = w`.
 -/
 
-def phaseOf (c : Config St Msg) (p : Pid) : Option Phase :=
+/-- Where a client is in the protocol. The generated await state plays the
+role `waiting` had before clients blocked. -/
+inductive Loc | idle | waiting | holding
+  deriving Repr, DecidableEq
+
+def locOf (c : Config St Msg) (p : Pid) : Option Loc :=
   match c.stateOf p with
-  | some (.client ph) => some ph
+  | some (.client .idle) => some .idle
+  | some (.client .holding) => some .holding
+  | some .client_await0 => some .waiting
   | _ => none
 
-def w (c : Config St Msg) (p : Pid) : Nat := if phaseOf c p = some .waiting then 1 else 0
-def hd (c : Config St Msg) (p : Pid) : Nat := if phaseOf c p = some .holding then 1 else 0
+def w (c : Config St Msg) (p : Pid) : Nat := if locOf c p = some .waiting then 1 else 0
+def hd (c : Config St Msg) (p : Pid) : Nat := if locOf c p = some .holding then 1 else 0
 def a (c : Config St Msg) (p : Pid) : Nat := c.mcount server (.acquire p)
 def r (c : Config St Msg) (p : Pid) : Nat := c.mcount server (.release p)
-def g (c : Config St Msg) (p : Pid) : Nat := c.mcount p .grant
+/-- Grants in flight: `reply ok` messages in `p`'s mailbox. -/
+def g (c : Config St Msg) (p : Pid) : Nat := c.mcount p (.reply .ok)
 
 structure Inv (c : Config St Msg) : Prop where
   hasServer : ∃ h q, c.stateOf server = some (.lock h q)
@@ -142,7 +159,6 @@ inductive ReachEnv : Config St Msg → Config St Msg → Prop
   | step {a b c} : Step beh a b → ReachEnv b c → ReachEnv a c
   | env {a b c} : EnvStep a b → ReachEnv b c → ReachEnv a c
 
-instance : DecidableEq (Option Phase) := inferInstance
 
 def checkInv (c : Config St Msg) (pids : List Pid) : Bool :=
   match c.stateOf server with
@@ -151,6 +167,7 @@ def checkInv (c : Config St Msg) (pids : List Pid) : Bool :=
     pids.all fun p =>
       (match c.stateOf p with
        | some (.client _) => true
+       | some .client_await0 => true
        | some (.lock _ _) => decide (p = server)
        | none => true) &&
       (if h = some p then

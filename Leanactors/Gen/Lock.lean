@@ -7,35 +7,39 @@ open Leanactors
 
 inductive Phase
   | idle
-  | waiting
   | holding
   deriving Repr, DecidableEq
 
+inductive Reply
+  | ok
+  deriving Repr, DecidableEq
+
 inductive Msg
-  | acquire (a0 : Pid)
   | release (a0 : Pid)
+  | acquire (caller : Pid)
+  | reply (a0 : Reply)
   | tick
-  | grant
   deriving Repr, DecidableEq
 
 inductive St
   | lock (f0 : Option Pid) (f1 : List Pid)
   | client (s : Phase)
+  | client_await0
   deriving Repr, DecidableEq
 
 /-- Registered name `Lock`. -/
 def server : Pid := 0
 
 def beh : Behavior St Msg
-  | _, .lock none q, .acquire p => (.lock (some p) q, [(p, .grant)])
-  | _, .lock h q, .acquire p => (.lock h (q ++ [p]), [])
+  | _, .lock none q, .acquire from_ => (.lock (some from_) q, [(from_, .reply .ok)])
+  | _, .lock h q, .acquire from_ => (.lock h (q ++ [from_]), [])
   | _, .lock (some p') [], .release p => if p = p' then (.lock none [], []) else (.lock (some p') [], [])
-  | _, .lock (some p') (n :: rest), .release p => if p = p' then (.lock (some n) rest, [(n, .grant)]) else (.lock (some p') (n :: rest), [])
+  | _, .lock (some p') (n :: rest), .release p => if p = p' then (.lock (some n) rest, [(n, .reply .ok)]) else (.lock (some p') (n :: rest), [])
   | _, .lock s_0 s_1, .release _ => (.lock s_0 s_1, [])
-  | me, .client .idle, .tick => (.client .waiting, [(server, .acquire me)])
-  | _, .client .waiting, .grant => (.client .holding, [])
+  | me, .client .idle, .tick => (.client_await0, [(server, .acquire me)])
   | me, .client .holding, .tick => (.client .idle, [(server, .release me)])
-  | _, .client s, _ => (.client s, [])
+  | _, .client_await0, .reply .ok => (.client .holding, [])
+  | me, .client_await0, m => (.client_await0, [(me, m)])
   -- Unmatched message: GenServer would crash (cast) or ignore (info). Modelled as ignore.
   | _, s, _ => (s, [])
 
