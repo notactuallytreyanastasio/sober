@@ -9,10 +9,12 @@ elixir elixir/to_lean.exs elixir/src/lock.ex Leanactors.Gen.Lock --pid Lock=serv
 elixir elixir/to_lean.exs elixir/src/bank.ex Leanactors.Gen.Bank --pid Bank=bank > /tmp/Gen.Bank.lean
 elixir elixir/to_lean.exs elixir/src/supervisor.ex Leanactors.Gen.Supervisor --pid Sup=sup > /tmp/Gen.Supervisor.lean
 elixir elixir/to_lean.exs elixir/src/task.ex Leanactors.Gen.Task --pid Caller=caller > /tmp/Gen.Task.lean
+elixir elixir/to_lean.exs elixir/src/watchdog.ex Leanactors.Gen.Watchdog --pid Watchdog=watchdog > /tmp/Gen.Watchdog.lean
 diff -q /tmp/Gen.Lock.lean Leanactors/Gen/Lock.lean
 diff -q /tmp/Gen.Bank.lean Leanactors/Gen/Bank.lean
 diff -q /tmp/Gen.Supervisor.lean Leanactors/Gen/Supervisor.lean
 diff -q /tmp/Gen.Task.lean Leanactors/Gen/Task.lean
+diff -q /tmp/Gen.Watchdog.lean Leanactors/Gen/Watchdog.lean
 echo "   generated files are up to date"
 
 echo "== prove"
@@ -25,3 +27,4 @@ elixir elixir/bank.exs | tail -1
 elixir elixir/lock.exs 10 5000 | tail -1
 elixir elixir/supervisor.exs | tail -1
 elixir elixir/task.exs | tail -1
+elixir elixir/watchdog.exs | tail -1

@@ -14,3 +14,6 @@ import Leanactors.Examples.SupervisorProof
 import Leanactors.Gen.Task
 import Leanactors.Examples.Task
 import Leanactors.Examples.TaskProof
+import Leanactors.Gen.Watchdog
+import Leanactors.Examples.Watchdog
+import Leanactors.Examples.WatchdogProof
