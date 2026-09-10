@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "8be6239a-3711-452a-b05a-b9d9acda39f9",
+  "created_at": "2026-09-10T19:20:31.794414-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 65
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Five builders: task-live, watchdog-live, ttl-live (Lean, from main), diff-fuzz (Lean exe + Elixir replay), maps (translator + registry example); multi-node deferred",
+  "updated_at": "2026-09-10T19:20:31.794414-04:00"
+}
