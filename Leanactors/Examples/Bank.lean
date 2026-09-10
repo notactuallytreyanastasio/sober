@@ -1,4 +1,5 @@
 import Leanactors.Props
+import Leanactors.Gen.Bank
 /-!
 # Leanactors.Examples.Bank
 
@@ -25,18 +26,8 @@ namespace Leanactors.Examples.Bank
 
 open Leanactors
 
-inductive Msg
-  | deposit (n : Nat)
-  | withdraw (n : Nat)
-  | balance (replyTo : Pid)
-  | reply (v : Int)
-  deriving Repr, DecidableEq
-
-/-- Heterogeneous system: a bank and clients share one state type. -/
-inductive St
-  | bank (balance : Int)
-  | client (seen : Option Int)
-  deriving Repr, DecidableEq
+-- `Msg` and `St` come from the translation of `elixir/src/bank.ex`.
+export Leanactors.Gen.Bank (Msg St)
 
 /-- The behaviour. Note the bank stores an `Int`, not a `Nat`: the
 non-negativity is a *proven invariant*, not baked into the type. This
@@ -47,6 +38,11 @@ def beh : Behavior St Msg
   | _, .bank b,   .balance to    => (.bank b, [(to, .reply b)])
   | _, .client _, .reply v       => (.client (some v), [])
   | _, s,         _              => (s, [])
+
+/-- The translated Elixir is extensionally the same behaviour. -/
+theorem beh_eq_gen : Gen.Bank.beh = beh := by
+  funext p s m
+  cases s <;> cases m <;> first | rfl | simp [Gen.Bank.beh, beh]
 
 /-- The invariant: bank balances are non-negative; clients are unconstrained. -/
 def Ok : St → Prop

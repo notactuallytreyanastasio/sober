@@ -1,4 +1,5 @@
 import Leanactors.Count
+import Leanactors.Gen.Lock
 /-!
 # Leanactors.Examples.Lock
 
@@ -33,37 +34,29 @@ namespace Leanactors.Examples.Lock
 
 open Leanactors Config
 
-inductive Msg
-  | acquire (p : Pid)
-  | release (p : Pid)
-  | grant
-  | tick
-  deriving Repr, DecidableEq
-
-inductive Phase | idle | waiting | holding
-  deriving Repr, DecidableEq
-
-inductive St
-  | srv (holder : Option Pid) (queue : List Pid)
-  | cli (phase : Phase)
-  deriving Repr, DecidableEq
-
-/-- The lock server lives at pid 0. -/
-def server : Pid := 0
+-- `Msg`, `Phase`, `St` and `server` come from the translation of `elixir/src/lock.ex`.
+export Leanactors.Gen.Lock (Msg Phase St server)
 
 def beh : Behavior St Msg
-  | _,  .srv none q,     .acquire p => (.srv (some p) q, [(p, .grant)])
-  | _,  .srv (some h) q, .acquire p => (.srv (some h) (q ++ [p]), [])
-  | _,  .srv (some h) q, .release p =>
+  | _,  .lock none q,     .acquire p => (.lock (some p) q, [(p, .grant)])
+  | _,  .lock (some h) q, .acquire p => (.lock (some h) (q ++ [p]), [])
+  | _,  .lock (some h) q, .release p =>
       if p = h then
         match q with
-        | []        => (.srv none [], [])
-        | n :: rest => (.srv (some n) rest, [(n, .grant)])
-      else (.srv (some h) q, [])
-  | me, .cli .idle,    .tick  => (.cli .waiting, [(server, .acquire me)])
-  | _,  .cli .waiting, .grant => (.cli .holding, [])
-  | me, .cli .holding, .tick  => (.cli .idle, [(server, .release me)])
+        | []        => (.lock none [], [])
+        | n :: rest => (.lock (some n) rest, [(n, .grant)])
+      else (.lock (some h) q, [])
+  | me, .client .idle,    .tick  => (.client .waiting, [(server, .acquire me)])
+  | _,  .client .waiting, .grant => (.client .holding, [])
+  | me, .client .holding, .tick  => (.client .idle, [(server, .release me)])
   | _,  s, _ => (s, [])
+
+/-- The translated Elixir is extensionally the same behaviour. -/
+theorem beh_eq_gen : Gen.Lock.beh = beh := by
+  funext p s m
+  cases s with
+  | lock h q => cases h <;> cases q <;> cases m <;> first | rfl | simp [Gen.Lock.beh, beh]
+  | client ph => cases ph <;> cases m <;> rfl
 
 /-! ## The invariant
 
@@ -89,7 +82,7 @@ still holder" (impossible under FIFO) is simply handled by `a + qn = w`.
 
 def phaseOf (c : Config St Msg) (p : Pid) : Option Phase :=
   match c.stateOf p with
-  | some (.cli ph) => some ph
+  | some (.client ph) => some ph
   | _ => none
 
 def w (c : Config St Msg) (p : Pid) : Nat := if phaseOf c p = some .waiting then 1 else 0
@@ -99,11 +92,11 @@ def r (c : Config St Msg) (p : Pid) : Nat := c.mcount server (.release p)
 def g (c : Config St Msg) (p : Pid) : Nat := c.mcount p .grant
 
 structure Inv (c : Config St Msg) : Prop where
-  srv : ∃ h q, c.stateOf server = some (.srv h q)
-  only_srv : ∀ p h q, c.stateOf p = some (.srv h q) → p = server
-  nonholder : ∀ h q, c.stateOf server = some (.srv h q) → ∀ p, h ≠ some p →
+  hasServer : ∃ h q, c.stateOf server = some (.lock h q)
+  only_srv : ∀ p h q, c.stateOf p = some (.lock h q) → p = server
+  nonholder : ∀ h q, c.stateOf server = some (.lock h q) → ∀ p, h ≠ some p →
     g c p = 0 ∧ hd c p = 0 ∧ r c p = 0 ∧ a c p + q.count p = w c p
-  holder : ∀ h q, c.stateOf server = some (.srv (some h) q) →
+  holder : ∀ h q, c.stateOf server = some (.lock (some h) q) →
     g c h + hd c h + r c h = 1 ∧
     (g c h = 1 → w c h = 1 ∧ a c h = 0 ∧ q.count h = 0) ∧
     (hd c h = 1 → a c h = 0 ∧ q.count h = 0) ∧
@@ -113,7 +106,7 @@ structure Inv (c : Config St Msg) : Prop where
 theorem Inv.mutex {c : Config St Msg} (hi : Inv c) :
     ∀ p q, hd c p = 1 → hd c q = 1 → p = q := by
   intro p q hp hq
-  obtain ⟨h, qu, hs⟩ := hi.srv
+  obtain ⟨h, qu, hs⟩ := hi.hasServer
   have key : ∀ x, hd c x = 1 → h = some x := by
     intro x hx
     by_cases hne : h = some x
@@ -131,8 +124,8 @@ This is cheap insurance against an invariant that is *true* but not
 
 /-- Server at pid 0, idle clients at pids `1..n`, all mailboxes empty. -/
 def initCfg (n : Nat) : Config St Msg :=
-  ⟨fun p => if p = server then some ⟨.srv none [], []⟩
-            else if p ≤ n then some ⟨.cli .idle, []⟩ else none⟩
+  ⟨fun p => if p = server then some ⟨.lock none [], []⟩
+            else if p ≤ n then some ⟨.client .idle, []⟩ else none⟩
 
 /-! ## Environment
 
@@ -152,11 +145,11 @@ instance : DecidableEq (Option Phase) := inferInstance
 
 def checkInv (c : Config St Msg) (pids : List Pid) : Bool :=
   match c.stateOf server with
-  | some (.srv h q) =>
+  | some (.lock h q) =>
     pids.all fun p =>
       (match c.stateOf p with
-       | some (.cli _) => true
-       | some (.srv _ _) => decide (p = server)
+       | some (.client _) => true
+       | some (.lock _ _) => decide (p = server)
        | none => true) &&
       (if h = some p then
         decide (g c p + hd c p + r c p = 1) &&

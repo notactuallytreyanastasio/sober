@@ -375,8 +375,8 @@ defmodule ToLean do
         bound_t = env[name]
         fresh = name <> "'"
         cond do
-          bound_t == t -> {fresh, Map.put(env, fresh, t), gs ++ [{:eq, fresh, name}]}
-          t == "Option " <> paren_or(bound_t) -> {"(some #{fresh})", Map.put(env, fresh, bound_t), gs ++ [{:eq, fresh, name}]}
+          bound_t == t -> {fresh, Map.put(env, fresh, t), gs ++ [{:eq, name, fresh}]}
+          t == "Option " <> paren_or(bound_t) -> {"(some #{fresh})", Map.put(env, fresh, bound_t), gs ++ [{:eq, name, fresh}]}
           true -> fail("variable #{name} bound at #{bound_t} reused at #{t}")
         end
       true ->

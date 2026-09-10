@@ -29,8 +29,8 @@ def server : Pid := 0
 def beh : Behavior St Msg
   | _, .lock none q, .acquire p => (.lock (some p) q, [(p, .grant)])
   | _, .lock h q, .acquire p => (.lock h (q ++ [p]), [])
-  | _, .lock (some p') [], .release p => if p' = p then (.lock none [], []) else (.lock (some p') [], [])
-  | _, .lock (some p') (n :: rest), .release p => if p' = p then (.lock (some n) rest, [(n, .grant)]) else (.lock (some p') (n :: rest), [])
+  | _, .lock (some p') [], .release p => if p = p' then (.lock none [], []) else (.lock (some p') [], [])
+  | _, .lock (some p') (n :: rest), .release p => if p = p' then (.lock (some n) rest, [(n, .grant)]) else (.lock (some p') (n :: rest), [])
   | _, .lock s_0 s_1, .release _ => (.lock s_0 s_1, [])
   | me, .client .idle, .tick => (.client .waiting, [(server, .acquire me)])
   | _, .client .waiting, .grant => (.client .holding, [])
