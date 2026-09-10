@@ -583,8 +583,9 @@ position in the FIFO signal queue (runs only append signals, a signal
 step pops the head), then `EXIT c _` ranked by its position in the
 supervisor's mailbox (every other step only appends there; `run 0` pops
 the head and either spawns or leaves state 0 alone). Fairness of `down`
-and of timers is not needed (no monitors, no timers) and `NoKillTo 0` is
-derived, not assumed. The theorem starts from a `Good` system rather than
+and of timers is not needed (no monitors, no timers). `NoKillTo 0` is
+assumed of the start system as half of `Good` and preserved along the run;
+`reachEnv_good` discharges it for every environment-reachable start. The theorem starts from a `Good` system rather than
 from `init` for a reason worth knowing: a `SysRun` is closed (no
 environment steps), and in a closed run from `init` nobody ever sends the
 worker `:crash`, so a dead child never occurs and the `init` form
