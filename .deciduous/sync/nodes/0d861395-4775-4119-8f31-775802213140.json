@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "0d861395-4775-4119-8f31-775802213140",
+  "created_at": "2026-09-10T17:17:32.439878-04:00",
+  "description": "The verifier independently judged the fairness hypotheses to be plain weak fairness (disabled infinitely often or taken infinitely often) with enabledness = non-empty mailbox / non-empty signal queue; head position is earned by rank measures, never assumed. The lock's only extra assumption is that a holder is eventually ticked.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Integrator caught two vacuity bugs in freshly proven liveness theorems: runs had to step forever so a quiescent system had no run at all, and a closed run from init could never lose its child, so the premise was unreachable. Both fixed by strengthening (idle steps; theorem from any Good start plus a reachability witness). Lesson: a liveness theorem needs a non-vacuity witness next to it, the same way a safety invariant needs a mutant",
+  "updated_at": "2026-09-10T17:17:32.439878-04:00"
+}

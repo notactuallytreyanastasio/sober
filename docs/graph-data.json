@@ -4043,9 +4043,9 @@
       "node_type": "action",
       "title": "Workflow round 4 root",
       "description": null,
-      "status": "pending",
+      "status": "done",
       "created_at": "2026-09-10T16:16:05.370456-04:00",
-      "updated_at": "2026-09-10T16:16:05.370456-04:00",
+      "updated_at": "2026-09-10T17:17:32.486787-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":65}"
     },
     {
@@ -4707,6 +4707,28 @@
       "created_at": "2026-09-10T17:10:44.192947-04:00",
       "updated_at": "2026-09-10T17:10:44.192947-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":95}"
+    },
+    {
+      "id": 430,
+      "change_id": "ff6de62a-275f-4d46-842c-eececb4d27e9",
+      "node_type": "outcome",
+      "title": "Round 4 complete and verified: Fair.lean (1145 lines, 79 theorems) with idle-capable runs and weak fairness; restart_eventually for the supervisor from any Good start (no down/timer fairness needed); eventually_holds for the lock under run fairness plus holder-tick environment fairness, via rank induction on the FCFS rank; translator handle_continue inlining, reply-timeout, stop-with-reply, 35 fixtures; Ttl on the generic explorer; pushed to origin",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T17:17:32.377702-04:00",
+      "updated_at": "2026-09-10T17:17:32.377702-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":95}"
+    },
+    {
+      "id": 431,
+      "change_id": "0d861395-4775-4119-8f31-775802213140",
+      "node_type": "observation",
+      "title": "Integrator caught two vacuity bugs in freshly proven liveness theorems: runs had to step forever so a quiescent system had no run at all, and a closed run from init could never lose its child, so the premise was unreachable. Both fixed by strengthening (idle steps; theorem from any Good start plus a reachability witness). Lesson: a liveness theorem needs a non-vacuity witness next to it, the same way a safety invariant needs a mutant",
+      "description": "The verifier independently judged the fairness hypotheses to be plain weak fairness (disabled infinitely often or taken infinitely often) with enabledness = non-empty mailbox / non-empty signal queue; head position is earned by rank measures, never assumed. The lock's only extra assumption is that a holder is eventually ticked.",
+      "status": "pending",
+      "created_at": "2026-09-10T17:17:32.439878-04:00",
+      "updated_at": "2026-09-10T17:17:32.439878-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":90}"
     }
   ],
   "edges": [
@@ -10121,6 +10143,28 @@
       "weight": 1.0,
       "rationale": "goal reached",
       "created_at": "2026-09-10T17:10:44.246709-04:00"
+    },
+    {
+      "id": 505,
+      "from_node_id": 369,
+      "to_node_id": 430,
+      "from_change_id": "5b021674-65bf-458a-900a-a7380953f1d0",
+      "to_change_id": "ff6de62a-275f-4d46-842c-eececb4d27e9",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "workflow finished",
+      "created_at": "2026-09-10T17:17:32.403452-04:00"
+    },
+    {
+      "id": 506,
+      "from_node_id": 430,
+      "to_node_id": 431,
+      "from_change_id": "ff6de62a-275f-4d46-842c-eececb4d27e9",
+      "to_change_id": "0d861395-4775-4119-8f31-775802213140",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "what round 4 showed",
+      "created_at": "2026-09-10T17:17:32.463919-04:00"
     }
   ]
 }
