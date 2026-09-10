@@ -15,7 +15,30 @@
 #   handle_cast/2, handle_info/2, handle_call/3 clauses, optional `when`
 #   guard, body = zero or more send/2 or GenServer.cast/2 calls followed by
 #   {:noreply, e} or (handle_call only) {:reply, r, e}; `if`/`case` are
-#   allowed around whole bodies.
+#   allowed around whole bodies. The other GenServer return forms:
+#   {:noreply, e, t} and {:reply, r, e, t} with a timeout t arm the
+#   self-timer for :timeout after the reply (t = :hibernate is no timeout);
+#   {:stop, reason, e} exits; {:stop, reason, r, e} (handle_call) sends the
+#   reply and then exits.
+#   handle_continue/2: `{:noreply, e, {:continue, x}}` and `{:reply, r, e,
+#   {:continue, x}}` run `handle_continue(x, e)` before any queued message
+#   is looked at, so a continue is not a message. The clause is rewritten
+#   before translation: the first handle_continue clause whose argument
+#   pattern matches x (decided from the source: x is an atom or a tagged
+#   tuple, the pattern's literals are compared and its variables bound) is
+#   inlined after the clause's own statements and reply, with its argument
+#   and state pattern variables substituted by the parts of x and e (a
+#   state pattern is a variable, bound to e; or a tuple of variables, bound
+#   positionally to a tuple literal e or to the fields of the clause's
+#   whole-state variable); the inlined body's tail is then the clause's
+#   tail (it may time out, stop, or continue again, up to three continues
+#   deep; a deeper chain is an error). Effects keep the BEAM order: the
+#   clause's sends, the reply, the continue body's sends. Guards on
+#   handle_continue, a literal in its pattern against a non-literal in x,
+#   and a continue body variable that shadows a clause variable are errors.
+#   Pattern variables the inlined body no longer uses are renamed `_v`. An
+#   optional `@type continue` is accepted and ignored (no Msg constructor
+#   is generated: the continue never enters a mailbox).
 #   init/1: `def init(p), do: {:ok, e}` (or the block form whose other
 #   statements are all `Process.flag(:trap_exit, true)`), where p is a
 #   variable or a tuple of variables and e is a pure expression of p. At
@@ -450,9 +473,13 @@ defmodule ToLean do
       else: lean_type(ctx, mod, t)
   end
 
+  # the @type names that are never rendered as enums: the message unions and
+  # the continue union (a continue never enters a mailbox, see handle_continue)
+  @not_enums [:msg, :cast, :info, :call, :continue]
+
   defp enum_name(ctx, mod, alts) do
     # find the @type whose union is exactly these atoms (not a message union)
-    case Enum.find(ctx.types, fn {{m, n}, t} -> m == mod and n not in [:msg, :cast, :info, :call] and union(t) == alts end) do
+    case Enum.find(ctx.types, fn {{m, n}, t} -> m == mod and n not in @not_enums and union(t) == alts end) do
       {{_, name}, _} -> name |> Atom.to_string() |> String.capitalize()
       nil -> fail("anonymous atom union #{inspect(alts)}; give it a @type name")
     end
@@ -476,12 +503,13 @@ defmodule ToLean do
   defp clauses(mod, body) do
     case loop_of(body) do
       nil ->
+        conts = continues_of(mod, body)
         for {:def, _, [head, [do: b]]} <- body,
             {fname, args, guard} = head_parts(head),
             fname in [:handle_cast, :handle_info, :handle_call],
             cl = clause_of(mod, fname, args, guard, b),
             cl != nil do
-          cl
+          inline_continues(mod, conts, cl)
         end
       {fname, param, arms, after_body} ->
         atag = if after_body, do: after_tag(fname), else: nil
@@ -545,7 +573,7 @@ defmodule ToLean do
   defp loop_of(body) do
     loops = for {:def, _, [head, [do: {:receive, _, [opts]}]]} <- body, do: {head_parts(head), opts}
     handlers =
-      for {:def, _, [head, _]} <- body, {f, _, _} = head_parts(head), f in [:handle_cast, :handle_info, :handle_call], do: f
+      for {:def, _, [head, _]} <- body, {f, _, _} = head_parts(head), f in [:handle_cast, :handle_info, :handle_call, :handle_continue], do: f
     case loops do
       [] -> nil
       [_ | _] when handlers != [] -> fail("a module cannot mix GenServer callbacks with a receive loop")
@@ -599,6 +627,191 @@ defmodule ToLean do
     nil
   end
 
+  # ---------- handle_continue ----------
+
+  # `handle_continue/2` clauses of a GenServer module, in source order:
+  # {argument pattern, state pattern, body}. Guards are not supported.
+  defp continues_of(mod, body) do
+    for {:def, _, [head, [do: b]]} <- body,
+        {fname, args, guard} = head_parts(head),
+        fname == :handle_continue do
+      guard == nil || fail("#{mod}: a guard on handle_continue is not supported")
+      case args do
+        [xpat, spat] -> {xpat, spat, b}
+        _ -> fail("#{mod}: handle_continue must take two arguments")
+      end
+    end
+  end
+
+  @continue_depth 3
+
+  # On the BEAM `{:noreply, e, {:continue, x}}` and `{:reply, r, e,
+  # {:continue, x}}` run `handle_continue(x, e)` before any queued message
+  # is looked at, so the continue is not a message and a self-send would be
+  # wrong (it would queue behind the mailbox). The clause body is rewritten
+  # instead: the matching handle_continue body follows the clause's own
+  # statements (and its reply, kept as the marker statement `__reply__(r)`
+  # that `sends` renders), with x and e substituted for the continue
+  # clause's patterns. The continue body's tail may continue again, up to
+  # @continue_depth deep. Pattern variables the rewritten body no longer
+  # uses are renamed `_v`.
+  defp inline_continues(mod, conts, cl) do
+    {body, cl} = inline_tail(mod, conts, cl, cl.body, 0)
+    cl = %{cl | body: body}
+    case cl[:whole_parts] do
+      nil -> cl
+      {v, n} ->
+        # the continue destructured the clause's whole-state variable into
+        # the Lean parts v_0 .. v_{n-1}; when the rewritten body no longer
+        # uses the variable itself, the state pattern becomes that tuple
+        name = lean_ident(Atom.to_string(v))
+        if Atom.to_string(v) in free_vars(body),
+          do: prune_clause(cl),
+          else: prune_clause(%{cl | spat: {:{}, [], for(i <- 0..(n - 1), do: {:"#{name}_#{i}", [], nil})}})
+    end
+  end
+
+  # {rewritten body, clause}: the clause comes back marked `inlined` and,
+  # when a continue destructured its whole-state variable, with `whole_parts`
+  defp inline_tail(mod, conts, cl, {:if, m, [c, [do: a, else: b]]}, d) do
+    {a, cl} = inline_tail(mod, conts, cl, a, d)
+    {b, cl} = inline_tail(mod, conts, cl, b, d)
+    {{:if, m, [c, [do: a, else: b]]}, cl}
+  end
+  defp inline_tail(mod, conts, cl, {:case, m, [s, [do: arms]]}, d) do
+    {arms, cl} =
+      Enum.map_reduce(arms, cl, fn {:->, am, [p, b]}, c ->
+        {b, c} = inline_tail(mod, conts, c, b, d)
+        {{:->, am, [p, b]}, c}
+      end)
+    {{:case, m, [s, [do: arms]]}, cl}
+  end
+  defp inline_tail(mod, conts, cl, b, d) do
+    {init, [last]} = Enum.split(stmts(b), -1)
+    case last do
+      {:{}, _, [:noreply, e, {:continue, x}]} -> continue_into(mod, conts, cl, init, e, x, d)
+      {:{}, _, [:reply, r, e, {:continue, x}]} -> continue_into(mod, conts, cl, init ++ [{:__reply__, [], [r]}], e, x, d)
+      _ -> {b, cl}
+    end
+  end
+
+  defp continue_into(mod, conts, cl, pre, e, x, d) do
+    d < @continue_depth || fail("#{mod}: handle_continue nesting deeper than #{@continue_depth} (a continue loop?)")
+    {xpat, spat, cbody} =
+      Enum.find(conts, fn {xp, _, _} -> static_match?(mod, xp, x) end) ||
+        fail("#{mod}: no handle_continue clause matches {:continue, #{Macro.to_string(x)}}")
+    {sbinds, cl} = bind_continue_state(mod, cl, spat, e)
+    binds = Map.merge(bind_pat(xpat, x), sbinds)
+    # the continue body is inlined in the clause's scope: its own variables
+    # (case arms) must not shadow the clause's
+    outer = all_vars([cl.mpat, cl.spat, cl.from]) |> Enum.map(&Atom.to_string/1)
+    locals = free_vars(cbody) -- Enum.map(Map.keys(binds), &Atom.to_string/1)
+    case Enum.filter(locals, &(&1 in outer and not String.starts_with?(&1, "_"))) do
+      [] -> :ok
+      [v | _] -> fail("#{mod}: handle_continue body variable #{v} shadows a variable of the clause; rename it")
+    end
+    subst =
+      Macro.postwalk(cbody, fn
+        {v, _, nil} = n when is_atom(v) -> Map.get(binds, v, n)
+        n -> n
+      end)
+    {cont, cl} = inline_tail(mod, conts, Map.put(cl, :inlined, true), subst, d + 1)
+    {prepend_stmts(pre, cont), cl}
+  end
+
+  # does the handle_continue argument pattern match the continue value x?
+  # Decided from the source: a variable matches anything, a literal is
+  # compared with a literal, tuples positionally; a literal against a
+  # non-literal cannot be decided and is an error rather than a guess.
+  defp static_match?(_mod, {v, _, nil}, _x) when is_atom(v), do: true
+  defp static_match?(mod, p, {v, _, nil} = x) when is_atom(v),
+    do: fail("#{mod}: cannot decide from the source whether handle_continue pattern #{Macro.to_string(p)} matches #{Macro.to_string(x)}")
+  defp static_match?(mod, {:{}, _, ps}, {:{}, _, xs}) when length(ps) == length(xs),
+    do: Enum.zip(ps, xs) |> Enum.all?(fn {p, x} -> static_match?(mod, p, x) end)
+  defp static_match?(mod, {a, b}, {c, d}), do: static_match?(mod, a, c) and static_match?(mod, b, d)
+  defp static_match?(_mod, p, x) when is_atom(p) or is_integer(p), do: p == x
+  # tuples of different shapes
+  defp static_match?(_mod, {:{}, _, _}, _x), do: false
+  defp static_match?(_mod, {_, _}, _x), do: false
+  defp static_match?(mod, p, _x), do: fail("#{mod}: unsupported handle_continue pattern #{Macro.to_string(p)}")
+
+  # variable -> expression bindings of a pattern against a value of the same shape
+  defp bind_pat({:_, _, nil}, _x), do: %{}
+  defp bind_pat({v, _, nil}, x) when is_atom(v), do: %{v => x}
+  defp bind_pat({:{}, _, ps}, {:{}, _, xs}), do: Enum.zip(ps, xs) |> Enum.reduce(%{}, fn {p, x}, acc -> Map.merge(acc, bind_pat(p, x)) end)
+  defp bind_pat({a, b}, {c, d}), do: Map.merge(bind_pat(a, c), bind_pat(b, d))
+  defp bind_pat(_lit, _x), do: %{}
+
+  # The continue's state pattern against the new state e: a variable is
+  # bound to e; a tuple of variables to the parts of a tuple literal e, or,
+  # when e is the clause's own whole-state variable, to that state's fields,
+  # which are the Lean parts `s_0, s_1, ..` the whole-state pattern binds
+  # (see `pat`; `inline_continues` turns the pattern into that tuple when
+  # the variable itself is no longer used).
+  defp bind_continue_state(_mod, cl, {v, _, nil} = p, e) when is_atom(v), do: {bind_pat(p, e), cl}
+  defp bind_continue_state(mod, cl, spat, e) do
+    ps = tuple_parts(spat) || fail("#{mod}: unsupported handle_continue state pattern #{Macro.to_string(spat)}")
+    Enum.each(ps, fn
+      {v, _, nil} when is_atom(v) -> :ok
+      p -> fail("#{mod}: handle_continue state pattern must be a variable or a tuple of variables, got #{Macro.to_string(p)}")
+    end)
+    case {tuple_parts(e), e, cl.spat} do
+      {xs, _, _} when is_list(xs) and length(xs) == length(ps) ->
+        {bind_pat(spat, e), cl}
+      {nil, {v, _, nil}, {v, _, nil}} when is_atom(v) ->
+        name = lean_ident(Atom.to_string(v))
+        binds = ps |> Enum.with_index() |> Enum.reduce(%{}, fn {p, i}, acc -> Map.merge(acc, bind_pat(p, {:"#{name}_#{i}", [], nil})) end)
+        {binds, Map.put(cl, :whole_parts, {v, length(ps)})}
+      _ -> fail("#{mod}: handle_continue state pattern #{Macro.to_string(spat)} cannot be bound to #{Macro.to_string(e)}")
+    end
+  end
+
+  defp tuple_parts({:{}, _, xs}), do: xs
+  defp tuple_parts({a, b}), do: [a, b]
+  defp tuple_parts(_), do: nil
+
+  # every variable occurrence (not deduplicated), as atoms
+  defp all_vars(ast) do
+    {_, vs} = Macro.prewalk(ast, [], fn
+      {v, _, nil} = n, acc when is_atom(v) -> {n, [v | acc]}
+      n, acc -> {n, acc}
+    end)
+    Enum.reverse(vs)
+  end
+
+  # the statements before a continue go in front of the inlined body, into
+  # every branch when that body is an `if` or `case`
+  defp prepend_stmts([], body), do: body
+  defp prepend_stmts(pre, {:if, m, [c, [do: a, else: b]]}),
+    do: {:if, m, [c, [do: prepend_stmts(pre, a), else: prepend_stmts(pre, b)]]}
+  defp prepend_stmts(pre, {:case, m, [s, [do: arms]]}),
+    do: {:case, m, [s, [do: for({:->, am, [p, b]} <- arms, do: {:->, am, [p, prepend_stmts(pre, b)]})]]}
+  defp prepend_stmts(pre, b), do: {:__block__, [], pre ++ stmts(b)}
+
+  # Pattern variables the rewritten body does not use are renamed `_v`
+  # (Lean warns on unused pattern variables; on the BEAM they were used by
+  # the state the continue received). A variable that occurs twice in the
+  # patterns (an equality guard), and a clause with a guard or an
+  # exit/raise/throw (they rebuild the state from the parts) keep them.
+  defp prune_clause(%{guard: nil, inlined: true} = cl) do
+    if needs_state?(cl.body) do
+      cl
+    else
+      used = free_vars(cl.body)
+      counts = all_vars([cl.mpat, cl.spat, cl.from]) |> Enum.frequencies()
+      rename = fn pat ->
+        Macro.postwalk(pat, fn
+          {v, m, nil} = n when is_atom(v) ->
+            s = Atom.to_string(v)
+            if s in used or String.starts_with?(s, "_") or counts[v] > 1, do: n, else: {:"_#{s}", m, nil}
+          n -> n
+        end)
+      end
+      %{cl | mpat: rename.(cl.mpat), spat: rename.(cl.spat)}
+    end
+  end
+  defp prune_clause(cl), do: cl
+
   defp head_parts({:when, _, [{f, _, args}, g]}), do: {f, args, g}
   defp head_parts({f, _, args}), do: {f, args, nil}
 
@@ -609,7 +822,7 @@ defmodule ToLean do
       for {{mod, name}, t} <- ctx.types,
           alts = union(t),
           Enum.all?(alts, &is_atom/1) and not Enum.member?(alts, nil),
-          name not in [:msg, :cast, :info, :call] do
+          name not in @not_enums do
         _ = mod
         ename = name |> Atom.to_string() |> String.capitalize()
         "inductive #{ename}\n" <> Enum.map_join(alts, "\n", &"  | #{&1}") <> "\n  deriving Repr, DecidableEq\n"
@@ -949,7 +1162,8 @@ defmodule ToLean do
   defp uses_self?(cl) do
     {_, found} = Macro.prewalk(cl.body, false, fn
       {:self, _, []} = n, _ -> {n, true}
-      {:{}, _, [:noreply, _, _]} = n, _ -> {n, true}
+      {:{}, _, [:noreply, _, t]} = n, _ when t != :hibernate -> {n, true}
+      {:{}, _, [:reply, _, _, t]} = n, _ when t != :hibernate -> {n, true}
       n, acc -> {n, acc || blocking_call?(n)}
     end)
     found
@@ -1296,6 +1510,9 @@ defmodule ToLean do
           {{:., _, [{:__aliases__, _, [:GenServer]}, :reply]}, _, [to, r]} ->
             c.reply_type || fail("GenServer.reply used but no @type reply")
             {send_str(c, expr(e, to, "Pid"), ".reply #{paren_or(expr(e, r, c.reply_type))}"), {c, e}}
+          # the reply of a `{:reply, r, e, {:continue, x}}` clause, sent
+          # before the inlined continue body's effects (see `inline_tail`)
+          {:__reply__, _, [r]} -> {reply_str(c, e, r), {c, e}}
           {:=, _, [{:ok, {v, _, nil}}, {{:., _, [{:__aliases__, _, [:GenServer]}, f]}, _, [{:__aliases__, _, [child]}, arg]}]} when is_atom(v) and f in [:start_link, :start] ->
             {cctor, cfields} = List.keyfind(c.st_ctors, ctor_name(child), 0) || fail("unknown child module #{child}")
             init = child_state(c, e, child, arg, cctor, cfields)
@@ -1348,17 +1565,27 @@ defmodule ToLean do
     # a continuing state of a loop with `after` re-enters the receive at the
     # next generation (an exit, raise or throw keeps the whole state instead)
     next_state = fn e -> state_expr(env, e, ctor, visible_fields(ctx, mod, fields)) <> gen_suffix(ctx, mod) end
+    timeout = fn ->
+      List.keymember?(ctx.msg_ctors, :timeout, 0) || fail("GenServer timeout used but :timeout not in @type msg")
+      ".sendAfter me .timeout"
+    end
     {state, tail} =
       case last do
         {:noreply, e} -> {next_state.(e), []}
-        {:{}, _, [:reply, r, e]} ->
-          from = env[:__from__] || fail("{:reply, ...} outside handle_call")
-          {next_state.(e), [send_str(ctx, from, ".reply #{paren_or(expr(env, r, ctx.reply_type))}")]}
-        {:{}, _, [:noreply, e, _t]} ->
-          List.keymember?(ctx.msg_ctors, :timeout, 0) || fail("GenServer timeout used but :timeout not in @type msg")
-          {next_state.(e), [".sendAfter me .timeout"]}
+        {:{}, _, [:reply, r, e]} -> {next_state.(e), [reply_str(ctx, env, r)]}
+        {:{}, _, [:noreply, _e, {:continue, x}]} ->
+          fail("#{mod}: {:continue, #{Macro.to_string(x)}} outside a GenServer callback")
+        # :hibernate is no timeout (and no effect the model can see)
+        {:{}, _, [:noreply, e, :hibernate]} -> {next_state.(e), []}
+        {:{}, _, [:noreply, e, _t]} -> {next_state.(e), [timeout.()]}
+        {:{}, _, [:reply, r, e, :hibernate]} -> {next_state.(e), [reply_str(ctx, env, r)]}
+        # the reply goes out, then the timeout is armed
+        {:{}, _, [:reply, r, e, _t]} -> {next_state.(e), [reply_str(ctx, env, r), timeout.()]}
         {:{}, _, [:stop, r, e]} ->
           {next_state.(e), [".exit #{reason_str(r)}"]}
+        # the reply goes out, then the process exits
+        {:{}, _, [:stop, r, reply, e]} ->
+          {next_state.(e), [reply_str(ctx, env, reply), ".exit #{reason_str(r)}"]}
         {:exit, _, [r]} ->
           st = env[{:alias, "__state__"}] || whole_state(env, ctor, fields)
           {st, [".exit #{reason_str(r)}"]}
@@ -1370,6 +1597,12 @@ defmodule ToLean do
         other -> fail("last statement must be {:noreply, state}, {:reply, r, state}, {:stop, r, state}, exit/1, raise or throw, got #{Macro.to_string(other)}")
       end
     {"(#{state}, [#{Enum.join(send_strs ++ tail, ", ")}])", ctx}
+  end
+
+  # `.send <caller> (.reply r)`: the reply of a handle_call clause
+  defp reply_str(ctx, env, r) do
+    from = env[:__from__] || fail("{:reply, ...} outside handle_call")
+    send_str(ctx, from, ".reply #{paren_or(expr(env, r, ctx.reply_type))}")
   end
 
   # the current state rebuilt from the clause's state pattern (for exit/1, raise, throw)
