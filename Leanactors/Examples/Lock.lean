@@ -93,6 +93,7 @@ def g (c : Config St Msg) (p : Pid) : Nat := c.mcount p .grant
 
 structure Inv (c : Config St Msg) : Prop where
   hasServer : ∃ h q, c.stateOf server = some (.lock h q)
+  queue_empty : ∀ q, c.stateOf server = some (.lock none q) → q = []
   only_srv : ∀ p h q, c.stateOf p = some (.lock h q) → p = server
   nonholder : ∀ h q, c.stateOf server = some (.lock h q) → ∀ p, h ≠ some p →
     g c p = 0 ∧ hd c p = 0 ∧ r c p = 0 ∧ a c p + q.count p = w c p
@@ -146,6 +147,7 @@ instance : DecidableEq (Option Phase) := inferInstance
 def checkInv (c : Config St Msg) (pids : List Pid) : Bool :=
   match c.stateOf server with
   | some (.lock h q) =>
+    (h != none || q.isEmpty) &&
     pids.all fun p =>
       (match c.stateOf p with
        | some (.client _) => true

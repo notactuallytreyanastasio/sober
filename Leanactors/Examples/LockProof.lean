@@ -100,9 +100,10 @@ theorem Inv.frame {c c' : Config St Msg} (hi : Inv c)
     Inv c' := by
   have hw : ∀ y, w c' y = w c y := fun y => by simp [w, hph]
   have hhd : ∀ y, hd c' y = hd c y := fun y => by simp [hd, hph]
-  refine ⟨?_, honly, ?_, ?_⟩
+  refine ⟨?_, ?_, honly, ?_, ?_⟩
   · obtain ⟨h, q, hs⟩ := hi.hasServer
     exact ⟨h, q, by rw [hsrv]; exact hs⟩
+  · intro q hq; rw [hsrv] at hq; exact hi.queue_empty q hq
   · intro h q hs y hne
     rw [hsrv] at hs
     rw [hg, hhd, hr, ha, hw]
@@ -189,7 +190,7 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
         simp only [beh] at hstate ha' hr' hg'
         have hw_me' : w c' me = 1 ∧ hd c' me = 0 := by simp [w, hd, phaseOf, hstate]
         simp at hg_pop
-        refine ⟨⟨h0, q0, by rw [hsrv']; exact hsrv⟩, honly', ?_, ?_⟩
+        refine ⟨⟨h0, q0, by rw [hsrv']; exact hsrv⟩, (by intro q hq; rw [hsrv'] at hq; exact hi.queue_empty q hq), honly', ?_, ?_⟩
         · intro h q hs y hne
           rw [hsrv'] at hs
           have old := hi.nonholder h q hs y hne
@@ -228,7 +229,7 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
         simp only [beh] at hstate ha' hr' hg'
         have hw_me' : w c' me = 0 ∧ hd c' me = 1 := by simp [w, hd, phaseOf, hstate]
         simp at hg_pop
-        refine ⟨⟨h0, q0, by rw [hsrv']; exact hsrv⟩, honly', ?_, ?_⟩
+        refine ⟨⟨h0, q0, by rw [hsrv']; exact hsrv⟩, (by intro q hq; rw [hsrv'] at hq; exact hi.queue_empty q hq), honly', ?_, ?_⟩
         · intro h q hs y hne
           rw [hsrv'] at hs
           have old := hi.nonholder h q hs y hne
@@ -265,7 +266,7 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
         simp only [beh] at hstate ha' hr' hg'
         have hw_me' : w c' me = 0 ∧ hd c' me = 0 := by simp [w, hd, phaseOf, hstate]
         simp at hg_pop
-        refine ⟨⟨h0, q0, by rw [hsrv']; exact hsrv⟩, honly', ?_, ?_⟩
+        refine ⟨⟨h0, q0, by rw [hsrv']; exact hsrv⟩, (by intro q hq; rw [hsrv'] at hq; exact hi.queue_empty q hq), honly', ?_, ?_⟩
         · intro h q hs y hne
           rw [hsrv'] at hs
           have old := hi.nonholder h q hs y hne
@@ -368,7 +369,7 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
         have hx_state := w_eq_one hwx
         have hx_some : (c.get x).isSome = true := isSome_of_stateOf hx_state
         have hxp : x ≠ server := ne_server_of_cli hi hx_state
-        refine ⟨⟨some x, q1, hsrv'⟩, honly', ?_, ?_⟩
+        refine ⟨⟨some x, q1, hsrv'⟩, (by intro q hq; rw [hsrv'] at hq; simp at hq; try (first | exact hq.symm | exact hq)), honly', ?_, ?_⟩
         · intro h q hs y hne
           rw [hsrv'] at hs
           simp at hs
@@ -398,7 +399,7 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
         -- lock held: enqueue x
         simp only [beh] at hstate ha' hr' hg'
         have hsrv' : c'.stateOf server = some (.lock (some hh) (q1 ++ [x])) := by rw [hstate]; simp
-        refine ⟨⟨some hh, q1 ++ [x], hsrv'⟩, honly', ?_, ?_⟩
+        refine ⟨⟨some hh, q1 ++ [x], hsrv'⟩, (by intro q hq; rw [hsrv'] at hq; simp at hq; try (first | exact hq.symm | exact hq)), honly', ?_, ?_⟩
         · intro h q hs y hne
           rw [hsrv'] at hs
           simp at hs
@@ -448,7 +449,7 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
             have old_x := hi.holder x [] hsp
             have hrx := hr_pop x
             simp at hrx
-            refine ⟨⟨none, [], hsrv'⟩, honly', ?_, ?_⟩
+            refine ⟨⟨none, [], hsrv'⟩, (by intro q hq; rw [hsrv'] at hq; simp at hq; try (first | exact hq.symm | exact hq)), honly', ?_, ?_⟩
             · intro h q hs y _
               rw [hsrv'] at hs
               simp at hs
@@ -494,7 +495,7 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
             have hn_state := w_eq_one hwn
             have hn_some : (c.get n).isSome = true := isSome_of_stateOf hn_state
             have hnp : n ≠ server := ne_server_of_cli hi hn_state
-            refine ⟨⟨some n, rest', hsrv'⟩, honly', ?_, ?_⟩
+            refine ⟨⟨some n, rest', hsrv'⟩, (by intro q hq; rw [hsrv'] at hq; simp at hq; try (first | exact hq.symm | exact hq)), honly', ?_, ?_⟩
             · intro h q hs y hne
               rw [hsrv'] at hs
               simp at hs
@@ -585,7 +586,8 @@ theorem initCfg_inv (n : Nat) : Inv (initCfg n) := by
     by_cases h0 : p = server
     · simp [h0]
     · by_cases hn : p ≤ n <;> simp [h0, hn]
-  refine ⟨⟨none, [], hs⟩, ?_, ?_, ?_⟩
+  refine ⟨⟨none, [], hs⟩, ?_, ?_, ?_, ?_⟩
+  · intro q hq; rw [hs] at hq; simp at hq; first | exact hq.symm | exact hq
   · intro p h q hpq
     rw [initCfg_stateOf] at hpq
     by_cases h0 : p = server
@@ -619,5 +621,74 @@ theorem mutex_forever (n : Nat) {c : Config St Msg} (hr : ReachEnv (initCfg n) c
   have hq' := (w_hd_of_state hq).2
   simp at hp' hq'
   exact hi.mutex p q hp' hq'
+
+
+/-! ### Progress
+
+Mutual exclusion is vacuous if the system can deadlock. Here is the
+complementary property: a waiting client is never stuck. Either some actor
+has a message to process, or some client is in the critical section and
+the *environment* owes it a tick. The proof only uses `Inv`; in particular
+it never uses FIFO. -/
+
+/-- A non-empty mailbox means a step exists. -/
+theorem step_of_mcount_pos {c : Config St Msg} {p : Pid} {m : Msg}
+    (h : 0 < c.mcount p m) : ∃ c', Step beh c c' := by
+  unfold mcount at h
+  cases hg : c.get p with
+  | none => rw [hg] at h; simp at h
+  | some a =>
+    rw [hg] at h
+    obtain ⟨s, mb⟩ := a
+    cases hm : mb with
+    | nil => rw [hm] at h; simp at h
+    | cons x rest =>
+      rw [hm] at hg
+      exact ⟨_, Step.run c p s x rest hg⟩
+
+/-- **Deadlock freedom.** If any client is waiting, either an actor can
+step or a client is holding (and only the environment can move it). -/
+theorem progress {c : Config St Msg} (hi : Inv c) {x : Pid} (hx : w c x = 1) :
+    (∃ c', Step beh c c') ∨ ∃ h, hd c h = 1 := by
+  obtain ⟨h0, q0, hs⟩ := hi.hasServer
+  by_cases hhx : h0 = some x
+  · -- x is the holder but still waiting: its grant or its release is in flight
+    subst hhx
+    have old := (hi.holder x q0 hs).1
+    have hhd : hd c x = 0 := by
+      have := (w_hd_of_state (w_eq_one hx)).2; simpa using this
+    by_cases hg : g c x = 1
+    · exact Or.inl (step_of_mcount_pos (p := x) (m := .grant) (by unfold g at hg; omega))
+    · have hr : r c x = 1 := by omega
+      exact Or.inl (step_of_mcount_pos (p := server) (m := .release x) (by unfold r at hr; omega))
+  · have old := hi.nonholder h0 q0 hs x hhx
+    by_cases ha : a c x = 1
+    · exact Or.inl (step_of_mcount_pos (p := server) (m := .acquire x) (by unfold a at ha; omega))
+    · -- x is queued, so the lock is held by someone whose token is somewhere
+      have hq : 0 < q0.count x := by omega
+      cases h0 with
+      | none =>
+        have := hi.queue_empty q0 hs
+        subst this
+        simp at hq
+      | some h =>
+        have oldh := (hi.holder h q0 hs).1
+        have := hd_le c h
+        by_cases hg : g c h = 1
+        · exact Or.inl (step_of_mcount_pos (p := h) (m := .grant) (by unfold g at hg; omega))
+        · by_cases hhd : hd c h = 1
+          · exact Or.inr ⟨h, hhd⟩
+          · have hr : r c h = 1 := by omega
+            exact Or.inl (step_of_mcount_pos (p := server) (m := .release h) (by unfold r at hr; omega))
+
+/-- Corollary in reachable configurations. -/
+theorem progress_forever (n : Nat) {c : Config St Msg} (hr : ReachEnv (initCfg n) c) {x : Pid}
+    (hx : c.stateOf x = some (.client .waiting)) :
+    (∃ c', Step beh c c') ∨ ∃ h, c.stateOf h = some (.client .holding) := by
+  have hi := hr.inv (initCfg_inv n)
+  have hw : w c x = 1 := by have := (w_hd_of_state hx).1; simpa using this
+  rcases progress hi hw with h | ⟨h, hh⟩
+  · exact Or.inl h
+  · exact Or.inr ⟨h, hd_eq_one hh⟩
 
 end Leanactors.Examples.Lock
