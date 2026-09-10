@@ -91,6 +91,8 @@ partial def explore (b : EBehavior St Msg) (sg : Signals St Msg) (s : Sys St Msg
 
 #eval explore beh sig init 8 2
 
+#eval explore Gen.Watchdog.beh sig init 8 2
+
 /-- **Mutant**: the watchdog uses `send(w, :stop)`-style politeness instead
 of `Process.exit`, i.e. it forgets to kill. A hung worker is never
 replaced, though the invariant does not see that (the worker is alive and
