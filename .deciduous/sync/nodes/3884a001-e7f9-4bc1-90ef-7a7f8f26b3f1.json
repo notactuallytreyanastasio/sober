@@ -1,0 +1,12 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "3884a001-e7f9-4bc1-90ef-7a7f8f26b3f1",
+  "created_at": "2026-09-10T09:51:09.818133-04:00",
+  "metadata": {
+    "confidence": 90
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Write Core.lean (Config, Behavior, Step, Reach, executable step/run)",
+  "updated_at": "2026-09-10T09:51:09.818133-04:00"
+}

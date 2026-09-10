@@ -1,0 +1,12 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "44910dce-1edf-4088-935f-e1c8488bb1f8",
+  "created_at": "2026-09-10T09:48:25.978780-04:00",
+  "metadata": {
+    "confidence": 95
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Scaffold Lake project leanactors, install Lean 4.33.1 via elan",
+  "updated_at": "2026-09-10T09:48:25.978780-04:00"
+}

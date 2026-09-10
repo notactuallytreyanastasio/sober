@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T09:48:25.913943-04:00",
+  "edge_id": "315246ae6aed9628e444",
+  "edge_type": "leads_to",
+  "from_change_id": "ce31e7e0-2ca3-4c8f-8700-b91e84cac692",
+  "rationale": "rejected for v1: too much metatheory before any payoff",
+  "to_change_id": "87f85b9f-3a24-4ced-8bb2-ba297030c45d",
+  "weight": 1.0
+}
