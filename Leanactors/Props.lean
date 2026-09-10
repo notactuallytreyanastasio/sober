@@ -130,7 +130,7 @@ theorem Step.queue {beh : Behavior σ μ} {c c' : Config σ μ} (h : Step beh c 
   intro q
   cases h with
   | run p s m rest hget =>
-    obtain ⟨new, hnew⟩ := mboxOf_deliverAll (c.set p ⟨(beh s m).1, rest⟩) (beh s m).2 q
+    obtain ⟨new, hnew⟩ := mboxOf_deliverAll (c.set p ⟨(beh p s m).1, rest⟩) (beh p s m).2 q
     rw [hnew]
     by_cases hq : q = p
     · subst hq
@@ -151,7 +151,7 @@ def AllStates (P : σ → Prop) (c : Config σ μ) : Prop :=
 /-- A behaviour *preserves* `P` if handling any message keeps `P`. Note this
 says nothing about the messages sent; it is purely about local state. -/
 def Preserves (beh : Behavior σ μ) (P : σ → Prop) : Prop :=
-  ∀ s m, P s → P (beh s m).1
+  ∀ p s m, P s → P (beh p s m).1
 
 /-- Establishing an invariant initially: `ofList` satisfies `P` if every
 listed initial state does. -/
@@ -180,14 +180,14 @@ theorem Step.preserves {beh : Behavior σ μ} {P : σ → Prop} (hb : Preserves 
   intro q a hq
   cases h with
   | run p s m rest hget =>
-    have hs := stateOf_deliverAll (c.set p ⟨(beh s m).1, rest⟩) (beh s m).2 q
+    have hs := stateOf_deliverAll (c.set p ⟨(beh p s m).1, rest⟩) (beh p s m).2 q
     unfold stateOf at hs
     rw [hq] at hs
     by_cases hqp : q = p
     · subst hqp
       simp at hs
       rw [hs]
-      exact hb s m (hc _ _ hget)
+      exact hb _ s m (hc _ _ hget)
     · rw [get_set_ne _ _ hqp] at hs
       cases hcq : c.get q with
       | none => rw [hcq] at hs; simp at hs

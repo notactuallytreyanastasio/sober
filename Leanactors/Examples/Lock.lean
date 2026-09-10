@@ -45,25 +45,25 @@ inductive Phase | idle | waiting | holding
 
 inductive St
   | srv (holder : Option Pid) (queue : List Pid)
-  | cli (me : Pid) (phase : Phase)
+  | cli (phase : Phase)
   deriving Repr, DecidableEq
 
 /-- The lock server lives at pid 0. -/
 def server : Pid := 0
 
 def beh : Behavior St Msg
-  | .srv none q,     .acquire p => (.srv (some p) q, [(p, .grant)])
-  | .srv (some h) q, .acquire p => (.srv (some h) (q ++ [p]), [])
-  | .srv (some h) q, .release p =>
+  | _,  .srv none q,     .acquire p => (.srv (some p) q, [(p, .grant)])
+  | _,  .srv (some h) q, .acquire p => (.srv (some h) (q ++ [p]), [])
+  | _,  .srv (some h) q, .release p =>
       if p = h then
         match q with
         | []        => (.srv none [], [])
         | n :: rest => (.srv (some n) rest, [(n, .grant)])
       else (.srv (some h) q, [])
-  | .cli me .idle,    .tick  => (.cli me .waiting, [(server, .acquire me)])
-  | .cli me .waiting, .grant => (.cli me .holding, [])
-  | .cli me .holding, .tick  => (.cli me .idle, [(server, .release me)])
-  | s, _ => (s, [])
+  | me, .cli .idle,    .tick  => (.cli .waiting, [(server, .acquire me)])
+  | _,  .cli .waiting, .grant => (.cli .holding, [])
+  | me, .cli .holding, .tick  => (.cli .idle, [(server, .release me)])
+  | _,  s, _ => (s, [])
 
 /-! ## The invariant
 
@@ -89,7 +89,7 @@ still holder" (impossible under FIFO) is simply handled by `a + qn = w`.
 
 def phaseOf (c : Config St Msg) (p : Pid) : Option Phase :=
   match c.stateOf p with
-  | some (.cli _ ph) => some ph
+  | some (.cli ph) => some ph
   | _ => none
 
 def w (c : Config St Msg) (p : Pid) : Nat := if phaseOf c p = some .waiting then 1 else 0
@@ -100,7 +100,6 @@ def g (c : Config St Msg) (p : Pid) : Nat := c.mcount p .grant
 
 structure Inv (c : Config St Msg) : Prop where
   srv : ∃ h q, c.stateOf server = some (.srv h q)
-  cli : ∀ p me ph, c.stateOf p = some (.cli me ph) → me = p
   only_srv : ∀ p h q, c.stateOf p = some (.srv h q) → p = server
   nonholder : ∀ h q, c.stateOf server = some (.srv h q) → ∀ p, h ≠ some p →
     g c p = 0 ∧ hd c p = 0 ∧ r c p = 0 ∧ a c p + q.count p = w c p
@@ -133,7 +132,7 @@ This is cheap insurance against an invariant that is *true* but not
 /-- Server at pid 0, idle clients at pids `1..n`, all mailboxes empty. -/
 def initCfg (n : Nat) : Config St Msg :=
   ⟨fun p => if p = server then some ⟨.srv none [], []⟩
-            else if p ≤ n then some ⟨.cli p .idle, []⟩ else none⟩
+            else if p ≤ n then some ⟨.cli .idle, []⟩ else none⟩
 
 /-! ## Environment
 
@@ -156,7 +155,7 @@ def checkInv (c : Config St Msg) (pids : List Pid) : Bool :=
   | some (.srv h q) =>
     pids.all fun p =>
       (match c.stateOf p with
-       | some (.cli me _) => decide (me = p)
+       | some (.cli _) => true
        | some (.srv _ _) => decide (p = server)
        | none => true) &&
       (if h = some p then

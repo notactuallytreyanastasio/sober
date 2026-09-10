@@ -20,9 +20,9 @@ namespace Leanactors
 /-- A process identifier. -/
 abbrev Pid := Nat
 
-/-- An actor's behaviour: given its state and one message, return the new
-state and the messages it wants sent, in order. -/
-abbrev Behavior (σ μ : Type) := σ → μ → σ × List (Pid × μ)
+/-- An actor's behaviour: given its own pid (`self()`), its state and one
+message, return the new state and the messages it wants sent, in order. -/
+abbrev Behavior (σ μ : Type) := Pid → σ → μ → σ × List (Pid × μ)
 
 /-- One live actor. -/
 structure Actor (σ μ : Type) where
@@ -73,7 +73,7 @@ def step {σ μ : Type} (beh : Behavior σ μ) (c : Config σ μ) (p : Choice) :
     Option (Config σ μ) :=
   match c.get p with
   | some ⟨s, m :: rest⟩ =>
-    some ((c.set p ⟨(beh s m).1, rest⟩).deliverAll (beh s m).2)
+    some ((c.set p ⟨(beh p s m).1, rest⟩).deliverAll (beh p s m).2)
   | _ => none
 
 /-- Relational single step: `Step beh c c'` holds iff some actor with a
@@ -81,7 +81,7 @@ nonempty mailbox can take `c` to `c'`. -/
 inductive Step {σ μ : Type} (beh : Behavior σ μ) : Config σ μ → Config σ μ → Prop
   | run (c : Config σ μ) (p : Pid) (s : σ) (m : μ) (rest : List μ)
       (h : c.get p = some ⟨s, m :: rest⟩) :
-      Step beh c ((c.set p ⟨(beh s m).1, rest⟩).deliverAll (beh s m).2)
+      Step beh c ((c.set p ⟨(beh p s m).1, rest⟩).deliverAll (beh p s m).2)
 
 /-- Reflexive-transitive closure: reachability under any fair or unfair
 scheduler. -/

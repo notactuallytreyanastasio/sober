@@ -138,16 +138,16 @@ end Config
 open Config
 
 /-- **Step characterisation.** Every step is: some actor `p` in state `s`
-pops `m` off its mailbox (leaving `rest`), moves to `(beh s m).1`, and the
-sends `(beh s m).2` are appended to existing mailboxes. Stated purely in
+pops `m` off its mailbox (leaving `rest`), moves to `(beh p s m).1`, and the
+sends `(beh p s m).2` are appended to existing mailboxes. Stated purely in
 terms of `stateOf` and `mcount` so downstream proofs are arithmetic. -/
 theorem Step.chars [DecidableEq μ] {beh : Behavior σ μ} {c c' : Config σ μ}
     (h : Step beh c c') :
     ∃ p s m rest, c.get p = some ⟨s, m :: rest⟩ ∧
-      (∀ q, c'.stateOf q = if q = p then some (beh s m).1 else c.stateOf q) ∧
+      (∀ q, c'.stateOf q = if q = p then some (beh p s m).1 else c.stateOf q) ∧
       (∀ q m', c'.mcount q m' =
         (if q = p then rest.count m' else c.mcount q m') +
-        if (c.get q).isSome then (beh s m).2.count (q, m') else 0) := by
+        if (c.get q).isSome then (beh p s m).2.count (q, m') else 0) := by
   cases h with
   | run p s m rest hget =>
     refine ⟨p, s, m, rest, hget, fun q => ?_, fun q m' => ?_⟩

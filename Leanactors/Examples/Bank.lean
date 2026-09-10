@@ -42,11 +42,11 @@ inductive St
 non-negativity is a *proven invariant*, not baked into the type. This
 mirrors Elixir where the runtime value is just an integer. -/
 def beh : Behavior St Msg
-  | .bank b,   .deposit n     => (.bank (b + n), [])
-  | .bank b,   .withdraw n    => if (n : Int) ≤ b then (.bank (b - n), []) else (.bank b, [])
-  | .bank b,   .balance to    => (.bank b, [(to, .reply b)])
-  | .client _, .reply v       => (.client (some v), [])
-  | s,         _              => (s, [])
+  | _, .bank b,   .deposit n     => (.bank (b + n), [])
+  | _, .bank b,   .withdraw n    => if (n : Int) ≤ b then (.bank (b - n), []) else (.bank b, [])
+  | _, .bank b,   .balance to    => (.bank b, [(to, .reply b)])
+  | _, .client _, .reply v       => (.client (some v), [])
+  | _, s,         _              => (s, [])
 
 /-- The invariant: bank balances are non-negative; clients are unconstrained. -/
 def Ok : St → Prop
@@ -56,7 +56,7 @@ def Ok : St → Prop
 /-- Each handler clause preserves `Ok`. This is the only proof that touches
 the business logic. -/
 theorem beh_preserves : Preserves beh Ok := by
-  intro s m hs
+  intro _ s m hs
   cases s with
   | client seen => cases m <;> simp [beh, Ok]
   | bank b =>
