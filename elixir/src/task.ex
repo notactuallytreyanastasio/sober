@@ -2,8 +2,13 @@
 # either its reply or its DOWN. Executed by ../task.exs, translated by
 # ../to_lean.exs.
 #
-# Translator conventions for monitors:
-#   {:ok, pid} = GenServer.start(Mod, arg)      -> spawn (no link)
+# Translator conventions for monitors and init:
+#   {:ok, pid} = GenServer.start(Mod, arg)      -> spawn (no link) with Mod's
+#                                                  state = Mod.init(arg), where
+#                                                  init/1 is `{:ok, e}` for a pure
+#                                                  expression e of its parameter
+#                                                  (here Worker.init(parent) builds
+#                                                  {parent, 0} from the bare pid)
 #   Process.monitor(pid)                         -> monitor effect
 #   {:DOWN, reference(), :process, pid(), term()} in @type msg -> DOWN (Pid) (Reason)
 
@@ -22,7 +27,7 @@ defmodule Caller do
   @impl true
   @spec handle_info(msg(), state()) :: {:noreply, state()}
   def handle_info(:go, {nil, r}) do
-    {:ok, pid} = GenServer.start(Worker, {self(), 0})
+    {:ok, pid} = GenServer.start(Worker, self())
     Process.monitor(pid)
     {:noreply, {pid, r}}
   end
@@ -42,7 +47,7 @@ defmodule Worker do
   @type state :: {pid(), non_neg_integer()}
 
   @impl true
-  def init(s), do: {:ok, s}
+  def init(parent), do: {:ok, {parent, 0}}
 
   @impl true
   @spec handle_info(msg(), state()) :: {:stop, term(), state()}

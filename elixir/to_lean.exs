@@ -13,6 +13,13 @@
 #   guard, body = zero or more send/2 or GenServer.cast/2 calls followed by
 #   {:noreply, e} or (handle_call only) {:reply, r, e}; `if`/`case` are
 #   allowed around whole bodies.
+#   init/1: `def init(p), do: {:ok, e}` (or the block form whose other
+#   statements are all `Process.flag(:trap_exit, true)`), where p is a
+#   variable or a tuple of variables and e is a pure expression of p. At
+#   `{:ok, pid} = GenServer.start[_link](Mod, arg)` the child's state is e
+#   with p bound to arg (positionally when p is a tuple and arg a tuple
+#   literal). A module without init/1 gets the `use GenServer` default,
+#   the identity.
 #   A statement `v = GenServer.call(Mod, m)` splits the clause: everything
 #   before it runs, the request is sent, and the actor enters a generated
 #   await state <mod>_await<i> (capturing the variables the rest needs).
@@ -28,7 +35,7 @@ defmodule ToLean do
   defmodule Ctx do
     defstruct types: %{}, msg_ctors: [], st_ctors: [], pids: %{}, enums: %{}, ns: "Gen", warnings: [],
               extra: [], awaits: %{}, reply_type: nil, effects: false, traps: %{}, pid_vars: [],
-              covered: []
+              covered: [], inits: %{}
   end
 
   # ---------- entry ----------
@@ -49,8 +56,9 @@ defmodule ToLean do
     ctx = Enum.reduce(mods, ctx, fn {name, body}, c -> collect_types(c, name, body) end)
     clauses = for {name, body} <- mods, cl <- clauses(name, body), do: cl
     traps = for {name, body} <- mods, traps?(body), into: %{}, do: {name, true}
+    inits = for {name, body} <- mods, init = init_of(name, body), init != nil, into: %{}, do: {name, init}
     effects = map_size(traps) > 0 or Enum.any?(clauses, &effects_in?(&1.body))
-    ctx = %{ctx | traps: traps, effects: effects}
+    ctx = %{ctx | traps: traps, effects: effects, inits: inits}
     if effects and not List.keymember?(ctx.msg_ctors, :EXIT, 0) and map_size(traps) > 0,
       do: fail("a trapping module must declare {:EXIT, pid(), term()} in @type msg")
     IO.puts(render(ctx, clauses))
@@ -65,6 +73,73 @@ defmodule ToLean do
       n, acc -> {n, acc}
     end)
     found
+  end
+
+  # `init/1` as a pure state expression of its parameter: {param_pattern, expr}.
+  # Accepted: `def init(p), do: {:ok, e}` or a block whose only other
+  # statements are `Process.flag(:trap_exit, true)`. nil when undefined
+  # (the `use GenServer` default init is the identity).
+  defp init_of(mod, body) do
+    case for {:def, _, [{:init, _, [p]}, [do: b]]} <- body, do: {p, b} do
+      [] -> nil
+      [{p, b}] ->
+        {flags, [last]} = Enum.split(stmts(b), -1)
+        Enum.each(flags, fn
+          {{:., _, [{:__aliases__, _, [:Process]}, :flag]}, _, [:trap_exit, true]} -> :ok
+          other -> fail("#{mod}.init/1: unsupported statement #{Macro.to_string(other)}")
+        end)
+        e = case last do
+          {:ok, e} -> e
+          other -> fail("#{mod}.init/1 must end in {:ok, state}, got #{Macro.to_string(other)}")
+        end
+        params = init_params(mod, p)
+        Enum.each(free_vars(e), fn v ->
+          v in params || fail("#{mod}.init/1: state expression uses #{v}, which is not a parameter")
+        end)
+        {_, selfs} = Macro.prewalk(e, false, fn {:self, _, []} = n, _ -> {n, true}; n, a -> {n, a} end)
+        selfs && fail("#{mod}.init/1: self() in the initial state is not supported")
+        {p, e}
+      _ -> fail("#{mod}.init/1 must have exactly one clause")
+    end
+  end
+
+  # the variables bound by an init parameter pattern (a variable or a tuple of variables)
+  defp init_params(_mod, {v, _, nil}) when is_atom(v), do: [Atom.to_string(v)]
+  defp init_params(mod, {a, b}), do: init_params(mod, {:{}, [], [a, b]})
+  defp init_params(mod, {:{}, _, xs}), do: Enum.flat_map(xs, fn
+    {v, _, nil} when is_atom(v) -> [Atom.to_string(v)]
+    other -> fail("#{mod}.init/1: unsupported parameter pattern #{Macro.to_string(other)}")
+  end)
+  defp init_params(mod, p), do: fail("#{mod}.init/1: unsupported parameter pattern #{Macro.to_string(p)}")
+
+  # The child's initial state at a spawn site: Mod.init's state expression
+  # with the parameter bound to the spawn argument, rendered in the parent's
+  # environment. A variable parameter is bound to the whole argument; a tuple
+  # parameter to the parts of a tuple literal, positionally.
+  defp child_state(ctx, env, child, arg, cctor, cfields) do
+    case Map.get(ctx.inits, child) do
+      nil -> state_expr(env, arg, cctor, cfields)
+      {param, e} ->
+        binds =
+          case {param, arg} do
+            {{v, _, nil}, _} when is_atom(v) -> [{param, arg}]
+            {{a, b}, {x, y}} -> [{a, x}, {b, y}]
+            {{:{}, _, ps}, {:{}, _, xs}} when length(ps) == length(xs) -> Enum.zip(ps, xs)
+            {{:{}, _, ps}, {x, y}} when length(ps) == 2 -> Enum.zip(ps, [x, y])
+            {{a, b}, {:{}, _, [x, y]}} -> [{a, x}, {b, y}]
+            _ -> fail("#{child}.init/1 parameter #{Macro.to_string(param)} cannot be bound to spawn argument #{Macro.to_string(arg)}")
+          end
+          |> Enum.flat_map(fn
+            {{v, _, nil}, x} when is_atom(v) -> [{v, x}]
+            {p, _} -> fail("#{child}.init/1: unsupported parameter pattern #{Macro.to_string(p)}")
+          end)
+          |> Map.new()
+        bound = Macro.postwalk(e, fn
+          {v, _, nil} = n when is_atom(v) -> Map.get(binds, v, n)
+          n -> n
+        end)
+        state_expr(env, bound, cctor, cfields)
+    end
   end
 
   defp effects_in?(body) do
@@ -680,7 +755,7 @@ defmodule ToLean do
           {:=, _, [{:ok, {v, _, nil}}, {{:., _, [{:__aliases__, _, [:GenServer]}, f]}, _, [{:__aliases__, _, [child]}, arg]}]} when is_atom(v) and f in [:start_link, :start] ->
             c.effects || fail("spawn outside effects mode")
             {cctor, cfields} = List.keyfind(c.st_ctors, ctor_name(child), 0) || fail("unknown child module #{child}")
-            init = state_expr(e, arg, cctor, cfields)
+            init = child_state(c, e, child, arg, cctor, cfields)
             k = Map.get(e, :__fresh__, 0)
             pid = if k == 0, do: "fresh", else: "(fresh + #{k})"
             e = e |> Map.put(:__fresh__, k + 1) |> Map.put({:alias, Atom.to_string(v)}, pid) |> Map.put(lean_ident(Atom.to_string(v)), "Pid")
