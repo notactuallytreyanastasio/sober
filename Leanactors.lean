@@ -1,6 +1,7 @@
 import Leanactors.Core
 import Leanactors.Props
 import Leanactors.Count
+import Leanactors.Sys
 import Leanactors.Examples.Bank
 import Leanactors.Examples.Lock
 import Leanactors.Examples.LockProof
@@ -8,3 +9,5 @@ import Leanactors.Examples.LockMutants
 import Leanactors.Gen.Lock
 import Leanactors.Gen.Bank
 import Leanactors.Examples.LockFcfs
+import Leanactors.Examples.Supervisor
+import Leanactors.Examples.SupervisorProof

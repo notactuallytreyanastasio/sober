@@ -58,6 +58,10 @@ def deliverAll (c : Config σ μ) : List (Pid × μ) → Config σ μ
   | [] => c
   | (p, m) :: rest => (c.deliver p m).deliverAll rest
 
+/-- Remove an actor (process exit). -/
+def remove (c : Config σ μ) (p : Pid) : Config σ μ :=
+  ⟨fun q => if q = p then none else c.actors q⟩
+
 /-- Build a configuration from a list of `(pid, initial state)` pairs. -/
 def ofList (xs : List (Pid × σ)) : Config σ μ :=
   ⟨fun p => (xs.find? (·.1 = p)).map fun (_, s) => ⟨s, []⟩⟩
