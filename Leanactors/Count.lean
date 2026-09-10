@@ -81,6 +81,66 @@ theorem isSome_deliver (c : Config σ μ) (p q : Pid) (m : μ) :
   have := congrArg Option.isSome h
   simpa [Option.isSome_map] using this
 
+/-- Messages in `l` addressed to `q`, in order. -/
+def sendsTo (l : List (Pid × μ)) (q : Pid) : List μ :=
+  l.filterMap fun pm => if pm.1 = q then some pm.2 else none
+
+omit [DecidableEq μ] in
+theorem sendsTo_nil (q : Pid) : sendsTo ([] : List (Pid × μ)) q = [] := rfl
+
+omit [DecidableEq μ] in
+theorem sendsTo_cons (p : Pid) (m : μ) (l : List (Pid × μ)) (q : Pid) :
+    sendsTo ((p, m) :: l) q = (if p = q then [m] else []) ++ sendsTo l q := by
+  unfold sendsTo
+  by_cases h : p = q <;> simp [h]
+
+omit [DecidableEq μ] in
+theorem mboxOf_set (c : Config σ μ) (p q : Pid) (a : Actor σ μ) :
+    (c.set p a).mboxOf q = if q = p then some a.mailbox else c.mboxOf q := by
+  by_cases h : q = p
+  · subst h; simp [mboxOf, get_set_self]
+  · simp [mboxOf, get_set_ne _ _ h, h]
+
+omit [DecidableEq μ] in
+/-- Exact form of delivery: the mailbox of `q` grows by `[m]` iff `q = p`. -/
+theorem mboxOf_deliver_eq (c : Config σ μ) (p q : Pid) (m : μ) :
+    (c.deliver p m).mboxOf q = (c.mboxOf q).map (· ++ if q = p then [m] else []) := by
+  unfold deliver
+  cases hp : c.actors p with
+  | none =>
+    by_cases hq : q = p
+    · subst hq; simp [mboxOf, get, hp]
+    · simp [hq]
+  | some a =>
+    by_cases hq : q = p
+    · subst hq; simp [mboxOf, get, set, hp]
+    · simp [mboxOf, get, set, hq, Function.comp_def]
+
+omit [DecidableEq μ] in
+theorem mboxOf_deliverAll_eq (c : Config σ μ) (l : List (Pid × μ)) (q : Pid) :
+    (c.deliverAll l).mboxOf q = (c.mboxOf q).map (· ++ sendsTo l q) := by
+  induction l generalizing c with
+  | nil => simp [deliverAll, sendsTo_nil]
+  | cons pm rest ih =>
+    obtain ⟨p, m⟩ := pm
+    simp only [deliverAll]
+    rw [ih, mboxOf_deliver_eq, sendsTo_cons, Option.map_map]
+    congr 1
+    funext l
+    by_cases h : q = p
+    · subst h; simp [List.append_assoc]
+    · simp [h, Ne.symm h]
+
+omit [DecidableEq μ] in
+/-- A count is the count in the mailbox list. -/
+theorem mcount_eq_of_mboxOf [DecidableEq μ] {c : Config σ μ} {q : Pid} {mb : List μ}
+    (h : c.mboxOf q = some mb) (m : μ) : c.mcount q m = mb.count m := by
+  unfold mboxOf at h
+  unfold mcount
+  cases hq : c.get q with
+  | none => rw [hq] at h; simp at h
+  | some a => rw [hq] at h; simp at h; simp [h]
+
 theorem mcount_deliver (c : Config σ μ) (p q : Pid) (m m' : μ) :
     (c.deliver p m').mcount q m =
       c.mcount q m + if q = p ∧ m' = m ∧ (c.get q).isSome then 1 else 0 := by
@@ -147,15 +207,18 @@ theorem Step.chars [DecidableEq μ] {beh : Behavior σ μ} {c c' : Config σ μ}
       (∀ q, c'.stateOf q = if q = p then some (beh p s m).1 else c.stateOf q) ∧
       (∀ q m', c'.mcount q m' =
         (if q = p then rest.count m' else c.mcount q m') +
-        if (c.get q).isSome then (beh p s m).2.count (q, m') else 0) := by
+        if (c.get q).isSome then (beh p s m).2.count (q, m') else 0) ∧
+      (∀ q, c'.mboxOf q =
+        (if q = p then some rest else c.mboxOf q).map (· ++ sendsTo (beh p s m).2 q)) := by
   cases h with
   | run p s m rest hget =>
-    refine ⟨p, s, m, rest, hget, fun q => ?_, fun q m' => ?_⟩
+    refine ⟨p, s, m, rest, hget, fun q => ?_, fun q m' => ?_, fun q => ?_⟩
     · rw [stateOf_deliverAll, stateOf_set]
     · rw [mcount_deliverAll, mcount_set, isSome_set]
       by_cases hq : q = p
       · subst hq; simp [hget]
       · simp [hq]
+    · rw [mboxOf_deliverAll_eq, mboxOf_set]
 
 /-- Popping the head: the count in `p`'s own mailbox before the step. -/
 theorem mcount_of_get [DecidableEq μ] {c : Config σ μ} {p : Pid} {s : σ} {m : μ} {rest : List μ}
