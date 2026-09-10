@@ -241,7 +241,8 @@ environment stimulus up to a depth, returning the number of configurations
 visited and the first violating path if any. `#eval explore ...` runs at
 `lake build` time. Recorded counts: the lock invariant on 77,925 and 23,281
 configurations (nodes 71, 78); the supervisor on 236,220 (node 90); the task
-on 243,526 (node 112); the watchdog on 10,365 (node 123). Node 29 and node
+on 243,526 (node 112); the watchdog on 10,365 (node 123; 10,411 since
+`Sys.terminate` keeps pending timers, see section 5). Node 29 and node
 96 both make the same point in their post-mortems: none of the proof
 iterations were about the invariant, because the checker had already
 validated it. The iterations were about Lean plumbing.

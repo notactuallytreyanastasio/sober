@@ -153,7 +153,8 @@ def terminate (s : Sys σ μ) (p : Pid) (r : Reason) : Sys σ μ :=
     links := unlink s.links p
     signals := s.signals ++ (linkedTo s.links p).map fun q => (q, p, r)
     monitors := unmonitor s.monitors p
-    downs := s.downs ++ (watchers s.monitors p).map fun w => (w, p, r) }
+    downs := s.downs ++ (watchers s.monitors p).map fun w => (w, p, r)
+    timers := s.timers }
 
 /-- One effect on behalf of `p`; the `Option Reason` records a pending self-exit. -/
 def applyEffect (p : Pid) : Sys σ μ × Option Reason → Effect σ μ → Sys σ μ × Option Reason

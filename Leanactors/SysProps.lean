@@ -29,8 +29,7 @@ by hand; this file states them once.
 ## Termination (`Sys.terminate`)
 
 * `terminate_stateOf`, `terminate_isSome`, `terminate_mcount`,
-  `terminate_next`: everything except `p` untouched; `terminate_timers`:
-  the timer list is reset (the definition omits the field).
+  `terminate_next`, `terminate_timers`: everything except `p` untouched.
 * `terminate_mem_links`, `terminate_mem_monitors`: pairs not involving `p`
   survive; `terminate_mem_signals`, `terminate_mem_downs`: old entries
   survive.
@@ -156,8 +155,8 @@ structure Grows (a b : Sys σ μ) : Prop where
   timers : ∀ x ∈ a.timers, x ∈ b.timers
 
 /-- `b` is `a` with things only added, except that `p` may have changed
-state, died, or lost its links and monitors. Timers are not tracked:
-`Sys.terminate` clears them (see `terminate_timers`). -/
+state, died, or lost its links and monitors. Timers are only added: a
+death keeps them (`terminate_timers`). -/
 structure Frame (p : Pid) (a b : Sys σ μ) : Prop where
   next : a.next ≤ b.next
   stateOf : ∀ q, q ≠ p → q < a.next → b.cfg.stateOf q = a.cfg.stateOf q
@@ -168,6 +167,7 @@ structure Frame (p : Pid) (a b : Sys σ μ) : Prop where
   monitors : ∀ x ∈ a.monitors, x.1 ≠ p → x.2 ≠ p → x ∈ b.monitors
   signals : ∀ x ∈ a.signals, x ∈ b.signals
   downs : ∀ x ∈ a.downs, x ∈ b.downs
+  timers : ∀ x ∈ a.timers, x ∈ b.timers
 
 theorem Grows.refl (a : Sys σ μ) : Grows a a :=
   ⟨Nat.le_refl _, fun _ _ => rfl, fun _ h => h, fun _ _ _ => Nat.le_refl _,
@@ -186,7 +186,7 @@ theorem Grows.trans {a b c : Sys σ μ} (h1 : Grows a b) (h2 : Grows b c) : Grow
 
 theorem Grows.frame {a b : Sys σ μ} (h : Grows a b) (p : Pid) : Frame p a b :=
   ⟨h.next, fun q _ hq => h.stateOf q hq, fun q _ => h.alive q, fun q m _ hq => h.mcount q m hq,
-   fun x hx _ _ => h.links x hx, fun x hx _ _ => h.monitors x hx, h.signals, h.downs⟩
+   fun x hx _ _ => h.links x hx, fun x hx _ _ => h.monitors x hx, h.signals, h.downs, h.timers⟩
 
 theorem Frame.refl (p : Pid) (a : Sys σ μ) : Frame p a a := (Grows.refl a).frame p
 
@@ -200,7 +200,8 @@ theorem Frame.trans {p : Pid} {a b c : Sys σ μ} (h1 : Frame p a b) (h2 : Frame
    fun x h h1' h2' => h2.links x (h1.links x h h1' h2') h1' h2',
    fun x h h1' h2' => h2.monitors x (h1.monitors x h h1' h2') h1' h2',
    fun x h => h2.signals x (h1.signals x h),
-   fun x h => h2.downs x (h1.downs x h)⟩
+   fun x h => h2.downs x (h1.downs x h),
+   fun x h => h2.timers x (h1.timers x h)⟩
 
 /-- A frame followed by growth is a frame. -/
 theorem Frame.trans_grows {p : Pid} {a b c : Sys σ μ} (h1 : Frame p a b) (h2 : Grows b c) :
@@ -224,7 +225,7 @@ theorem frame_set (s : Sys σ μ) (p : Pid) (a : Actor σ μ) :
   ⟨Nat.le_refl _, fun _ hp _ => by simp [stateOf_set, hp],
    fun _ hp h => by rw [isSome_set]; simp [hp, h],
    fun _ _ hp _ => by simp [mcount_set, hp],
-   fun _ h _ _ => h, fun _ h _ _ => h, fun _ h => h, fun _ h => h⟩
+   fun _ h _ _ => h, fun _ h _ _ => h, fun _ h => h, fun _ h => h, fun _ h => h⟩
 
 /-- Creating an actor at the fresh pid and bumping the counter. -/
 theorem grows_spawn (s : Sys σ μ) (init : σ) :
@@ -397,9 +398,9 @@ section terminate
 variable (s : Sys σ μ) (p : Pid) (r : Reason)
 
 @[simp] theorem terminate_next : (s.terminate p r).next = s.next := rfl
-/-- `terminate` does not mention `timers`, so the structure default applies:
-every pending timer is dropped when any actor dies. -/
-@[simp] theorem terminate_timers : (s.terminate p r).timers = [] := rfl
+/-- Pending timers survive a death (`terminate` used to omit the field, so
+the structure default `[]` silently disarmed every timer). -/
+@[simp] theorem terminate_timers : (s.terminate p r).timers = s.timers := rfl
 theorem terminate_links : (s.terminate p r).links = unlink s.links p := rfl
 theorem terminate_monitors : (s.terminate p r).monitors = unmonitor s.monitors p := rfl
 theorem terminate_signals :
@@ -514,7 +515,8 @@ theorem terminate_frame : Frame p s (s.terminate p r) :=
    fun _ m hq _ => by rw [terminate_mcount_ne s p r hq m]; exact Nat.le_refl _,
    fun x hx h1 h2 => terminate_mem_links s p r hx h1 h2,
    fun x hx h1 h2 => terminate_mem_monitors s p r hx h1 h2,
-   fun _ h => terminate_mem_signals s p r h, fun _ h => terminate_mem_downs s p r h⟩
+   fun _ h => terminate_mem_signals s p r h, fun _ h => terminate_mem_downs s p r h,
+   fun _ h => h⟩
 
 end terminate
 
