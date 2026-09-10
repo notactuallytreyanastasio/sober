@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "1ec09dbb-26f2-4fdf-9826-7ab7db4b124c",
+  "created_at": "2026-09-10T12:18:39.720827-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Effects mode in to_lean.exs: supervisor.ex translates to exactly the hand model; beh_eq_gen by cases+rfl; proof unchanged except EXIT rename; bank/lock outputs byte-identical; BEAM driver: crash -> restart, restarts=1",
+  "updated_at": "2026-09-10T12:18:39.720827-04:00"
+}

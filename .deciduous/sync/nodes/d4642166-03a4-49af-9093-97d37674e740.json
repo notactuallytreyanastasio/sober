@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "d4642166-03a4-49af-9093-97d37674e740",
+  "created_at": "2026-09-10T12:15:50.035792-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 70,
+    "prompt": "keep going"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Translate the supervisor from Elixir: GenServer.start_link as spawnLink, Process.flag(:trap_exit) as Signals.traps, exit/{:stop,..} as exit effects",
+  "updated_at": "2026-09-10T12:15:50.035792-04:00"
+}

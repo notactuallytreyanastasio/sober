@@ -11,7 +11,7 @@ for a pure subset of Elixir/BEAM programs. No Mathlib.
 | `Leanactors/Props.lean` | Frame rule, domain preservation, mailbox-queue lemma, per-actor invariant induction, `run_sound` |
 | `Leanactors/Count.lean` | Message counting, `Step.chars` (a step as arithmetic over counts), config-level invariant induction, FIFO corollary |
 | `Leanactors/Sys.lean` | Spawn, links, exits: effects, fresh-pid counter, link list, asynchronous exit signals; `runE_lift` shows message-only behaviours are unchanged |
-| `Leanactors/Examples/Supervisor.lean` | One-for-one supervisor with a trapping parent and a crashing worker; bounded checker; the no-`trap_exit` mutant |
+| `Leanactors/Examples/Supervisor.lean` | One-for-one supervisor translated from `elixir/src/supervisor.ex`; bounded checker; the no-`trap_exit` mutant |
 | `Leanactors/Examples/SupervisorProof.lean` | The supervisor never dies and a missing child always has its restart in flight |
 | `Leanactors/Examples/Bank.lean` | Per-actor invariant: a bank's balance never goes negative under any scheduler |
 | `Leanactors/Examples/Lock.lean` | Cross-actor invariant: lock server + clients blocking in `GenServer.call`, token invariant, bounded model checker |
@@ -23,6 +23,7 @@ for a pure subset of Elixir/BEAM programs. No Mathlib.
 | `elixir/to_lean.exs` | The translator: `@type`-directed, small subset, unverified |
 | `elixir/bank.exs` | Driver: casts plus two clients blocking in `GenServer.call`; checks the trace matches Lean |
 | `elixir/lock.exs` | Driver: clients block in `GenServer.call` under chaos ticks; event log checked for overlapping critical sections |
+| `elixir/supervisor.exs` | Driver: crashes the worker on the BEAM and checks the supervisor survived and restarted it |
 
 ## Pipeline: Elixir source to Lean theorem
 
@@ -47,6 +48,16 @@ becomes a Lean pattern plus an equality guard. Nothing in the translator
 inspects values; every decision is type-directed. That is the division of
 labour the original question asked about: Elixir's set-theoretic types fix
 the shapes, Lean proves the interleavings.
+
+**Process effects.** When a file uses `Process.flag(:trap_exit, true)`,
+`{:ok, pid} = GenServer.start_link(Mod, arg)`, `{:stop, reason, state}` or
+`exit/1`, the translator switches to effects mode: it emits an `EBehavior`
+whose clauses bind `fresh`, turns `start_link` into `spawnLink` with the
+child's state constructor (so `Mod.init` must be the identity), binds the
+pid variable to `fresh`, maps any non-`:normal` reason to `error`, types
+`{:EXIT, pid(), term()}` as `EXIT (Pid) (Reason)`, and generates the
+`Signals` record from which modules trap. Files without effects keep
+producing a plain `Behavior`, byte for byte as before.
 
 **Synchronous calls.** `handle_call/3` is supported on both sides. On the
 server, `@type call` alternatives become message constructors with a leading
@@ -132,7 +143,8 @@ queues more signals. No recursion, every step is a function, and
 `runE_lift` proves the old `step` is exactly the new one for behaviours
 that only send, so the bank and lock results carry over untouched.
 
-The supervisor example uses every new effect. Its invariant says the parent
+The supervisor example is translated from Elixir and uses every new
+effect. Its invariant says the parent
 is alive and its current child is either alive and linked, or has an exit
 signal pending, or has its `EXIT` message already in the parent's mailbox.
 The checker validates it on 236,220 configurations, catches the mutant
@@ -143,5 +155,5 @@ termination lemma for the two places an actor dies.
 ## Not modelled yet
 
 Monitors, selective `receive` beyond the call-reply encoding, timeouts,
-multi-node delivery, and translator support for `spawn_link` and
-`trap_exit` (the supervisor is hand-modelled, not translated).
+multi-node delivery, monitors in the translator, and `GenServer.start_link`
+children whose `init` is not the identity.

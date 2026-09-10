@@ -1066,6 +1066,83 @@
       "created_at": "2026-09-10T12:03:42.242326-04:00",
       "updated_at": "2026-09-10T12:03:42.242326-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":80}"
+    },
+    {
+      "id": 98,
+      "change_id": "d4642166-03a4-49af-9093-97d37674e740",
+      "node_type": "goal",
+      "title": "Translate the supervisor from Elixir: GenServer.start_link as spawnLink, Process.flag(:trap_exit) as Signals.traps, exit/{:stop,..} as exit effects",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T12:15:50.035792-04:00",
+      "updated_at": "2026-09-10T12:15:50.035792-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":70,\"prompt\":\"keep going\"}"
+    },
+    {
+      "id": 99,
+      "change_id": "22c7376b-e06a-4b3e-915f-2768960879f6",
+      "node_type": "option",
+      "title": "Effects mode in the translator, switched on per file when any handler spawns/exits/traps; message-only files keep emitting Behavior",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T12:15:50.078254-04:00",
+      "updated_at": "2026-09-10T12:15:50.078254-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":80}"
+    },
+    {
+      "id": 100,
+      "change_id": "2fd31221-e057-438b-bf31-2a8ff3715af3",
+      "node_type": "option",
+      "title": "Always emit EBehavior and use lift-free proofs everywhere",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T12:15:50.105987-04:00",
+      "updated_at": "2026-09-10T12:15:50.105987-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":30}"
+    },
+    {
+      "id": 101,
+      "change_id": "6fe3ed87-4e17-4ae0-89ac-0db461c83439",
+      "node_type": "decision",
+      "title": "Per-file effects mode; Bank and Lock outputs stay byte-identical",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T12:15:50.163882-04:00",
+      "updated_at": "2026-09-10T12:15:50.163882-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":80}"
+    },
+    {
+      "id": 102,
+      "change_id": "a74d32f9-fc5f-4b75-9b91-b2482d497800",
+      "node_type": "action",
+      "title": "Write elixir/src/supervisor.ex; extend to_lean.exs with effects mode, :EXIT typing, spawn aliases to fresh, exit reasons; generate Gen/Supervisor.lean",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T12:15:50.221307-04:00",
+      "updated_at": "2026-09-10T12:15:50.221307-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":65}"
+    },
+    {
+      "id": 103,
+      "change_id": "1ec09dbb-26f2-4fdf-9826-7ab7db4b124c",
+      "node_type": "outcome",
+      "title": "Effects mode in to_lean.exs: supervisor.ex translates to exactly the hand model; beh_eq_gen by cases+rfl; proof unchanged except EXIT rename; bank/lock outputs byte-identical; BEAM driver: crash -> restart, restarts=1",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T12:18:39.720827-04:00",
+      "updated_at": "2026-09-10T12:18:39.720827-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":95}"
+    },
+    {
+      "id": 104,
+      "change_id": "41989812-c7e6-404e-9d14-c67fe5aae5ca",
+      "node_type": "observation",
+      "title": "All three examples now come from Elixir source. Translator subset: casts, calls with blocking clients, replies, spawn_link, trap_exit, exit; ~600 lines, still unverified, always checked by an equivalence theorem against the hand model",
+      "description": "The equivalence theorems are the trust boundary: beh_eq_gen for Bank, Lock, Supervisor. A translator bug shows up as a failed rfl, not as a false theorem.",
+      "status": "pending",
+      "created_at": "2026-09-10T12:18:39.781667-04:00",
+      "updated_at": "2026-09-10T12:18:39.781667-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":85}"
     }
   ],
   "edges": [
@@ -2300,6 +2377,94 @@
       "weight": 1.0,
       "rationale": "remaining gap",
       "created_at": "2026-09-10T12:03:42.258968-04:00"
+    },
+    {
+      "id": 113,
+      "from_node_id": 97,
+      "to_node_id": 98,
+      "from_change_id": "2f77ff17-2e9c-486c-83f5-ba1777658f58",
+      "to_change_id": "d4642166-03a4-49af-9093-97d37674e740",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "the gap the last observation named",
+      "created_at": "2026-09-10T12:15:50.053958-04:00"
+    },
+    {
+      "id": 114,
+      "from_node_id": 98,
+      "to_node_id": 99,
+      "from_change_id": "d4642166-03a4-49af-9093-97d37674e740",
+      "to_change_id": "22c7376b-e06a-4b3e-915f-2768960879f6",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T12:15:50.120483-04:00"
+    },
+    {
+      "id": 115,
+      "from_node_id": 98,
+      "to_node_id": 100,
+      "from_change_id": "d4642166-03a4-49af-9093-97d37674e740",
+      "to_change_id": "2fd31221-e057-438b-bf31-2a8ff3715af3",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T12:15:50.135167-04:00"
+    },
+    {
+      "id": 116,
+      "from_node_id": 99,
+      "to_node_id": 101,
+      "from_change_id": "22c7376b-e06a-4b3e-915f-2768960879f6",
+      "to_change_id": "6fe3ed87-4e17-4ae0-89ac-0db461c83439",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "chosen",
+      "created_at": "2026-09-10T12:15:50.180520-04:00"
+    },
+    {
+      "id": 117,
+      "from_node_id": 100,
+      "to_node_id": 101,
+      "from_change_id": "2fd31221-e057-438b-bf31-2a8ff3715af3",
+      "to_change_id": "6fe3ed87-4e17-4ae0-89ac-0db461c83439",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "rejected: would churn the lock proof for no gain",
+      "created_at": "2026-09-10T12:15:50.196022-04:00"
+    },
+    {
+      "id": 118,
+      "from_node_id": 101,
+      "to_node_id": 102,
+      "from_change_id": "6fe3ed87-4e17-4ae0-89ac-0db461c83439",
+      "to_change_id": "a74d32f9-fc5f-4b75-9b91-b2482d497800",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "implement",
+      "created_at": "2026-09-10T12:15:50.236016-04:00"
+    },
+    {
+      "id": 119,
+      "from_node_id": 102,
+      "to_node_id": 103,
+      "from_change_id": "a74d32f9-fc5f-4b75-9b91-b2482d497800",
+      "to_change_id": "1ec09dbb-26f2-4fdf-9826-7ab7db4b124c",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "succeeded",
+      "created_at": "2026-09-10T12:18:39.750242-04:00"
+    },
+    {
+      "id": 120,
+      "from_node_id": 103,
+      "to_node_id": 104,
+      "from_change_id": "1ec09dbb-26f2-4fdf-9826-7ab7db4b124c",
+      "to_change_id": "41989812-c7e6-404e-9d14-c67fe5aae5ca",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "state of the bridge",
+      "created_at": "2026-09-10T12:18:39.804688-04:00"
     }
   ]
 }
