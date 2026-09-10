@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5150e9c9-98c3-4c54-abfa-09d56dcfaeeb",
+  "created_at": "2026-09-10T15:38:51.098869-04:00",
+  "description": "Rejected node 306: defaulting msg tags to cast would reclassify existing info-only tags (e.g. ttl Client :value, watchdog :timeout) and change Gen output. Chosen: explicit declarations. Tag in two of msg/cast/info/call = error; declared kind vs clause kind mismatch = error; cast/call declared with no clause -> crash clause via existing insert_crashes needed-set; info declared with no clause -> not in kinds as cast/call, so ignored by the catch-all as today.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Add @type cast / @type info unions; classify/2 seeds kinds from declarations (call, cast, info), clause scan checks declared kind; msg unchanged",
+  "updated_at": "2026-09-10T15:38:51.098869-04:00"
+}

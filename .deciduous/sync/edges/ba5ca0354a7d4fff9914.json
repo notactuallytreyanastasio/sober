@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T15:42:03.006567-04:00",
+  "edge_id": "ba5ca0354a7d4fff9914",
+  "edge_type": "leads_to",
+  "from_change_id": "a9524630-dfb4-4784-851d-e02b9a373d17",
+  "rationale": "metatheory follows the core",
+  "to_change_id": "658350ba-c545-4c01-ab9c-a83486aa738b",
+  "weight": 1.0
+}

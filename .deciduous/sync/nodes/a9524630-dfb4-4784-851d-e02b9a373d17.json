@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "a9524630-dfb4-4784-851d-e02b9a373d17",
+  "created_at": "2026-09-10T15:42:00.190688-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Sys.lean: Reason.kill, Reason.propagated, signalE kill branch, runE terminate with reason.propagated",
+  "updated_at": "2026-09-10T15:42:00.190688-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "37bfa076-d2c8-4417-9930-0e12df4897b2",
+  "created_at": "2026-09-10T15:40:26.018086-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "All #eval outputs byte-identical to baseline: Supervisor 236220/40, Task 243526/2/20, Watchdog 10411/749, same witness paths",
+  "updated_at": "2026-09-10T15:40:26.018086-04:00"
+}

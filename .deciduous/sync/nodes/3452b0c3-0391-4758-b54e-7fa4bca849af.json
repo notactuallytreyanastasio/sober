@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "3452b0c3-0391-4758-b54e-7fa4bca849af",
+  "created_at": "2026-09-10T16:05:27.452488-04:00",
+  "description": "Merges: f71a1dd explore, b1a10c6 kill, f95ffb9 kinds, ed30bb7 after; fb86e6e TtlProof fix; 77b89cd README; NOTES commit follows. The README verify paragraph belongs to untracked elixir/verify.exs and ./verify (not part of this round); it is restored to the working tree after the docs commits so the owner can commit it with those files.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Integration notes for the verifier: no textual merge conflicts across the four branches; TtlProof.lean was the only post-merge fix (fb86e6e); regen of Gen and expected produced no diff; uncommitted user WIP (elixir/verify.exs, ./verify, and a README verify paragraph saved to scratchpad and re-applied uncommitted) left out of the round 3 commits; hand-written line count measured as find Leanactors -name '*.lean' -not -path '*/Gen/*' (20 files, 5,610 lines), theorems as grep -rh '^theorem' (322)",
+  "updated_at": "2026-09-10T16:05:27.452488-04:00"
+}

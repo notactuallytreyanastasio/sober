@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "293858a3-a5a6-4f90-b7dd-b0af326967a8",
+  "created_at": "2026-09-10T15:43:40.979120-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 30
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Gen scheme B: spawn state 0 arms 1, clauses compare carried gen with gen+1 (off by one, harder to read)",
+  "updated_at": "2026-09-10T15:43:40.979120-04:00"
+}

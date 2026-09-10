@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "c273c8d0-0059-48e5-92d6-7b41f8250c69",
+  "created_at": "2026-09-10T15:59:22.876051-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "wf3/kill merged clean (no conflicts with explore's example-file edits)",
+  "updated_at": "2026-09-10T15:59:22.876051-04:00"
+}

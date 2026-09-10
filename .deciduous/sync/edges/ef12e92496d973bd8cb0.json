@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T15:37:46.111117-04:00",
+  "edge_id": "ef12e92496d973bd8cb0",
+  "edge_type": "leads_to",
+  "from_change_id": "28e1480c-8648-4934-a5d1-856b82f99176",
+  "rationale": "round 3 piece: exact receive-after semantics and the Ttl proof",
+  "to_change_id": "1c30d801-02b6-46ba-a0ad-c05de5c9fe1d",
+  "weight": 1.0
+}

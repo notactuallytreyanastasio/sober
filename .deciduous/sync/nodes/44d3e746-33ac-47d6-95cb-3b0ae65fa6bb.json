@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "44d3e746-33ac-47d6-95cb-3b0ae65fa6bb",
+  "created_at": "2026-09-10T15:52:14.431431-04:00",
+  "description": "Sys.lean: Reason gains kill; Reason.propagated (kill->error, simp lemmas, propagated_ne_kill); signalE matches the reason before traps (kill: terminate q .error; normal: deliver-if-traps else no-op; error: deliver-if-traps else terminate); runE: terminate p reason.propagated. SysProps.lean: signalE_cases is 5-way with the kill disjunct LAST (existing rcases patterns gain one underscore in the trapped case and a 5th alternative); signalE_stateOf: target dies only of a non-normal signal; runE_cases: s' = terminate p reason.propagated (callers pass _ instead of reason); new applyEffects_mem_signals_cases (old lemma applyEffects_mem_signals is the monotone projection and is untouched), Effect.init?, applyEffects_stateOf_cases, runE_stateOf_spawn_cases, SysStep.stateOf_spawn_cases (no q<next bound), Sys.NoKillTo p with of_signals_eq/of_signals_nil/of_cons/terminate/applyEffects/runE/signalE/downE/timerE, SysStep.noKillTo, SysReach.noKillTo_of_no_signal. Translator: reason_str(:kill) -> .kill only, header comment paragraph on exit reasons. Gen/Watchdog.lean regenerated (.signal w .kill). Examples/Watchdog.lean: hand beh .signal w .kill, checker lists [.normal, .error, .kill]. Supervisor.lean/Task.lean: checker lists include .kill. SupervisorProof: Inv.signal/Inv.step take (hk : a.NoKillTo 0); beh_no_signal, noKillTo_step, init_noKillTo; reach_inv inducts on Inv ∧ NoKillTo 0. WatchdogProof: same plus ChildNe (no watchdog at any pid names 0 as worker), dog_state_cases, beh_spawns_workers, dog_signal, childNe_step, init_childNe; reach_inv inducts on Inv ∧ NoKillTo 0 ∧ ChildNe. TaskProof: one  -> . Fixtures: process_exit.ex comment + expected (.signal p .kill); new stop_kill.ex ({:stop, :kill, s} and exit(:kill) -> .exit .kill; :shutdown -> .error).",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Files and functions changed for the kill piece",
+  "updated_at": "2026-09-10T15:52:14.431431-04:00"
+}

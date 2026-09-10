@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T15:42:00.150104-04:00",
+  "edge_id": "efc0e452ecc84bdaaa21",
+  "edge_type": "leads_to",
+  "from_change_id": "5c1e20aa-af27-4f8a-98a7-f1b4b5d17afb",
+  "rationale": "rejected: every terminate_* lemma would carry r.propagated",
+  "to_change_id": "c7502391-8eec-4871-826a-1342d0b21312",
+  "weight": 1.0
+}

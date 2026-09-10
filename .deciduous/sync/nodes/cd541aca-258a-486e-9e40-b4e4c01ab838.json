@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "cd541aca-258a-486e-9e40-b4e4c01ab838",
+  "created_at": "2026-09-10T15:56:40.430448-04:00",
+  "description": "TtlProof.Inv.run's put-0 case does `rcases hs' with ⟨h1, _⟩ | ⟨reason, _, rfl⟩` and `(hi.set hget (hkeep _)).terminate p reason`; under wf3/kill's runE_cases (s' = terminate p reason.propagated) write `⟨_, _, rfl⟩` and `.terminate p _`. TtlProof.Inv.signal does a 4-way `rcases hc with ⟨_, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩`; under the 5-way signalE_cases add a fifth alternative for kill (terminate q .error, closed by hpop.terminate q _). Nothing else in TtlProof depends on Sys/SysProps shapes beyond terminate_stateOf/terminate_mcount/terminate_timers, stateOf_set/mcount_set, stateOf_deliver/mcount_deliver, mcount_of_get, downE_cases, timerE_cases. Inv.terminate takes any Reason, so a new constructor needs no change there.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Merge caveat with the kill piece (node 337): TtlProof pattern-matches runE_cases and signalE_cases",
+  "updated_at": "2026-09-10T15:56:40.430448-04:00"
+}

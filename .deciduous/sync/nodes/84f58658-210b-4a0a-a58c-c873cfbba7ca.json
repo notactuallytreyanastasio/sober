@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "84f58658-210b-4a0a-a58c-c873cfbba7ca",
+  "created_at": "2026-09-10T15:56:40.384200-04:00",
+  "description": "elixir/to_lean.exs: header paragraph on receive...after rewritten; collect_types adds the Msg ctor after_<loop> (a0 : Nat) and appends the hidden field {gen, Nat} to the loop module's St fields; clauses/2 builds the after clause with mpat {after_tag, gen'} and after: true (prune_param keeps the param); arm_after arms {after_tag, gen + 1}; render_clauses renders an after clause as `if gen' = gen then <body> else (<state>, [])` (a cond branch before the guard/fallthrough branches); new helpers visible_fields, gen_suffix, spawn_gen, state_str, reenter_state; patterns uses visible fields, appends the `gen` part, sets env[:__vparts__], rejects a source variable named gen; plain_body renders continuing states with visible fields plus gen_suffix; defer_clause and the deferred branch of fallthrough re-enter at (gen + 1); whole_alias uses __vparts__; the spawn site in sends renders the child at generation 0 and arms after_<loop> 0 via after_arm(ctx, mod, pid, g); cps_split rejects blocking calls in an after-loop. Leanactors/Gen/Ttl.lean regenerated (St.cache (s : Option Nat) (gen : Nat), Msg.after_run (a0 : Nat), exitMsg placeholder is now .ask); the other five Gen files are byte-identical. Leanactors/Examples/Ttl.lean: doc, hand beh, beh_eq_gen (cases m; after_run closes by rfl through the if), init at generation 0 with timers [(0, .after_run 0)], checkInv matches .cache (some 0) _, mutant comment, new served/afterStale/trace demos. New Leanactors/Examples/TtlProof.lean (imported from Leanactors.lean). New fixture elixir/test/fixtures/receive_after.ex + expected/receive_after.lean (26 fixtures).",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Files and functions changed for the after piece",
+  "updated_at": "2026-09-10T15:56:40.384200-04:00"
+}

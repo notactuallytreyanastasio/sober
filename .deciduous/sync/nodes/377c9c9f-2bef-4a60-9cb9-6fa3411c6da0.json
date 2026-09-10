@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "377c9c9f-2bef-4a60-9cb9-6fa3411c6da0",
+  "created_at": "2026-09-10T15:42:26.415702-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Add fixtures kind_cast_uncovered, kind_info_uncovered (ok, lean: check), error_kind_conflict, error_kind_mismatch (expect: error); regen expected",
+  "updated_at": "2026-09-10T15:42:26.415702-04:00"
+}

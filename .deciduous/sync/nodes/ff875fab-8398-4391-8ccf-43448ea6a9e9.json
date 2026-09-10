@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "ff875fab-8398-4391-8ccf-43448ea6a9e9",
+  "created_at": "2026-09-10T15:43:47.970776-04:00",
+  "description": "README 'Not modelled yet' last sentence, replace 'A @type msg tag that no callback of a module mentions gets no crash clause (only tags seen in some clause or in @type call are classified); the fixture crash_uncovered.ex covers the classified case.' with: 'A @type msg tag that no callback of a module mentions is not classified and gets no crash clause; declare it under @type cast (crash clause even with no clause) or @type info (ignored) to fix its kind. Fixtures crash_uncovered.ex (inferred kind), kind_cast_uncovered.ex and kind_info_uncovered.ex (declared kinds).' README status/fixture counts: 25 -> 29. NOTES section 3 Conventions bullet 1 append: 'Optional @type cast and @type info unions declare a tag's kind directly (a cast/call tag with no clause crashes, an info tag with no clause is ignored; a tag in two of msg/cast/info/call or a clause of the wrong kind is an error); msg stays cast-or-info by handling callback.' NOTES section 6 closed-message-world bullet: append 'unless declared under @type cast or @type info (round 3)'. Round 3 section: translator ~1,360 lines, 29 fixtures.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "README/NOTES replacement text for declared kinds",
+  "updated_at": "2026-09-10T15:43:47.970776-04:00"
+}

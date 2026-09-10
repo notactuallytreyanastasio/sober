@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "f92eb7ed-e92a-4886-983e-4f45e79ca918",
+  "created_at": "2026-09-10T15:38:55.551935-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Sys.exploreWith (Pid -> List μ) + Sys.explore (fixed list); steps runs++signal++down++timers++env; local-namespace priority keeps Ttl/Lock explore unambiguous",
+  "updated_at": "2026-09-10T15:38:55.551935-04:00"
+}

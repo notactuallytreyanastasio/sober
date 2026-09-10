@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b9a476ef-65d5-4394-9c34-f08955381d53",
+  "created_at": "2026-09-10T15:56:40.472383-04:00",
+  "description": "Exact w.r.t. the BEAM for processed messages: a receive entry arms exactly one live timer (generation = state gen) and any message handled by an arm cancels it by moving to gen+1, so a stale after_<loop> (carried gen != state gen) is consumed and ignored (`stale_ignored` in TtlProof). Two things remain approximations, both towards more behaviours: (1) timers are still untimed, so the live timer may fire before or after any message; (2) the defer clause and a failed guard re-enter at gen+1 and arm a fresh timer, whereas the BEAM keeps the original timeout running when it skips a non-matching message (the model can delay the expiry across skipped messages; it cannot produce an expiry the BEAM could not, because the fresh timer may fire immediately). The old accumulation approximation (a stale after firing late after other messages were handled) is gone. Lean has no non-linear patterns, so the stale-ignore is the else branch of the after clause (`| me, _, .cache v gen, .after_run gen' => if gen' = gen then ... else (.cache v gen, [])`), placed before the defer clause; it is not a separate Lean clause. Timers still accumulate in Sys.timers (stale entries stay until fired); no timer-cancel effect was added to Sys.lean. Checker counts: explore beh sig init 7 3 = 16,723 (was 17,206), mutant behNoRaise caught after 29 configurations: timer 0, run 0, timer 0, run 0, env put 0 -> 0, run 0 (two live expiries then put 0). Reserved name: a source variable `gen` in an after-loop module is a translator error; a GenServer.call inside such a loop is an error.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Semantics of the generation encoding and its remaining approximations",
+  "updated_at": "2026-09-10T15:56:40.472383-04:00"
+}

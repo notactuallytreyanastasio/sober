@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "1c30d801-02b6-46ba-a0ad-c05de5c9fe1d",
+  "created_at": "2026-09-10T15:37:43.649923-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80,
+    "prompt": "exact receive ... after semantics, then a proof for the Ttl example: hidden trailing gen : Nat, after message carries generation, every clause bumps gen and arms new generation, stale after ignored (not deferred), regenerate Gen/Ttl and fixtures, update Examples/Ttl.lean, write Examples/TtlProof.lean with Inv, Inv.step, init_inv, reach_inv, cache_never_zero"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Exact receive-after semantics: generation-counted after timer (gen field, after_<loop> (a0 : Nat), stale-ignore clause) + TtlProof.lean",
+  "updated_at": "2026-09-10T15:37:43.649923-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "85cc22cf-6b2e-4408-9530-138b7c0b4ce8",
+  "created_at": "2026-09-10T15:43:45.195647-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Choose scheme A: hidden trailing field gen : Nat on the loop St constructor, after_<loop> (a0 : Nat), spawn arms generation 0, re-entries bump; translator keeps gen in st_ctors and uses visible fields for patterns/expressions",
+  "updated_at": "2026-09-10T15:43:45.195647-04:00"
+}

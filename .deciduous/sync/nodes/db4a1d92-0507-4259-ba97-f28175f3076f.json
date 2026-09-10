@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "db4a1d92-0507-4259-ba97-f28175f3076f",
+  "created_at": "2026-09-10T15:37:23.469960-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80,
+    "prompt": "Add optional @type cast :: ... and @type info :: ... declarations; a tag declared under cast/call with no clause gets a crash clause, under info is ignored; msg stays cast-or-info by callback; declared in two kinds is an error; handle_cast for an info tag is a kind mismatch error. Six sources translate byte-identically. Fixtures: unclassified cast crashes, unclassified info ignored, declared-kind conflict."
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Translator: message kinds by declaration (@type cast / @type info)",
+  "updated_at": "2026-09-10T15:37:23.469960-04:00"
+}

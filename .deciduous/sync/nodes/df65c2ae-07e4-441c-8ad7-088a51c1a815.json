@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "df65c2ae-07e4-441c-8ad7-088a51c1a815",
+  "created_at": "2026-09-10T15:53:37.204757-04:00",
+  "description": "NOTES section 6, replace the bullet \"Exit reasons collapse to normal | error ... under-approximation\" with: \"Exit reasons are normal, error and kill. Process.exit(p, :kill) is the untrappable kill it is on the BEAM: the target dies whatever it traps and its links and monitors see error (:killed). A remote Process.exit(p, :normal) is ignored by a non-trapping target and is an EXIT message to a trapping one. Any other reason is error, so a trapping process cannot tell :shutdown from :boom; that collapse is harmless for the properties proved so far (no handler inspects the reason). One remaining approximation: a process that exits ITSELF with :kill (exit(:kill), {:stop, :kill, s}) is reported to its links as error; on the BEAM such a link-propagated kill is trappable and a trapping link sees {:EXIT, p, :kill}, a non-trapping one dies with :killed. The model agrees on who dies and differs only in the reason atom a trapping link would see.\" NOTES section 2 (Sys paragraph): after \"a non-trapping target ignores normal and is itself terminated by error, which queues more signals\" add \"and a kill terminates its target whether or not it traps (round 3; Reason.kill, Reason.propagated)\". NOTES section 4 / 7: mention that the supervisor and watchdog proofs now carry Sys.NoKillTo 0 (and ChildNe for the watchdog) beside Inv, with Inv and every theorem statement unchanged; SysProps grew 1,079 -> 1,373 lines (kill case, signal/actor provenance, NoKillTo), SupervisorProof 290 -> 315, WatchdogProof 287 -> 361. CAVEATS for the integrator: (1) the signalE definition matches on the reason first, so the trapped case of signalE_cases carries r ≠ .kill and the kill disjunct is the fifth; any proof that rcases on signalE_cases needs one more underscore in the trapped alternative and a fifth alternative. (2) runE_cases now states s = terminate p reason.propagated; proofs that passed reason explicitly to terminate_frame / terminate_stateOf_self / fresh_terminate pass _ instead. (3) A trapping actor CAN now die: any \"pid 0 never dies\" proof needs NoKillTo 0, which is why it is a separate conjunct in reach_inv rather than an Inv field (an Inv field would have re-threaded every Grows call). (4) The existing projection lemma applyEffects_mem_signals is untouched; the new provenance lemma is applyEffects_mem_signals_cases. (5) The checkers enumerate [.normal, .error, .kill] so that the Bool invariant still quantifies over all of Reason; no count changed because a kill to a non-trapping worker was already a termination.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "NOTES replacement text and semantic caveats of the kill model",
+  "updated_at": "2026-09-10T15:53:37.204757-04:00"
+}

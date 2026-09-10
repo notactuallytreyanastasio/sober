@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "1b04cc22-59a2-4570-8a97-2f111f6b11cc",
+  "created_at": "2026-09-10T15:37:17.397798-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80,
+    "prompt": "Write Leanactors/Explore.lean with one generic explorer over Sys σ μ; switch Supervisor.lean, Task.lean, Watchdog.lean to it, deleting local copies, keeping every #eval identical"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Generic bounded explorer Leanactors/Explore.lean for Sys; switch Supervisor/Task/Watchdog to it",
+  "updated_at": "2026-09-10T15:37:17.397798-04:00"
+}

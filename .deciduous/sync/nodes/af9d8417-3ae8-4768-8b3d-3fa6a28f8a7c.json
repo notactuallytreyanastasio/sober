@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "af9d8417-3ae8-4768-8b3d-3fa6a28f8a7c",
+  "created_at": "2026-09-10T15:43:47.908994-04:00",
+  "description": "(1) Msg constructor order per module is msg, cast, info, after_<loop>, call, reply; the placeholder exitMsg picks the first nullary ctor so a file with cast-only nullary tags picks one of those. (2) A cast/call tag declared under @type cast/call with no clause: crash clause '| _, _, .mod s_0.., .tag _.. => (state, [.exit .error])' via the existing insert_crashes needed-set, and such a module can become exhaustive (no catch-all), as kind_cast_uncovered shows. (3) An info tag with no clause is ignored only through the global catch-all (not in total, not needed), same as today. (4) A cast-declared tag handled by handle_info is also a kind mismatch error (symmetric rule). (5) @type msg + @type cast for the same tag is an error (declared twice), not a redundancy. (6) A raw process may declare @type info (its clauses are all info) but not cast/call. (7) node 246 remains true for msg tags: an undeclared-kind msg tag with no clause is still unclassified; declaring it under cast is now the fix.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Semantic caveats of declared kinds",
+  "updated_at": "2026-09-10T15:43:47.908994-04:00"
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "c7502391-8eec-4871-826a-1342d0b21312",
+  "created_at": "2026-09-10T15:41:54.873023-04:00",
+  "description": "Sys.terminate stays the primitive 'remove p, queue r to links and watchers'. signalE: (q,src,.kill) with live q -> terminate q .error regardless of traps. runE: self-exit reason r -> terminate p r.propagated (kill -> error). A trapping actor at pid 0 can now die of a kill signal, so the supervisor/watchdog proofs need 'no (0,_, .kill) in signals'; proved as Sys.NoKillTo 0 (SysProps) preserved alongside Inv rather than as a new Inv field, to avoid re-threading every Grows call.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Reason.kill + Reason.propagated; signalE checks kill before traps; kill-freedom proved as a separate Sys.NoKillTo invariant beside Inv",
+  "updated_at": "2026-09-10T15:41:54.873023-04:00"
+}
