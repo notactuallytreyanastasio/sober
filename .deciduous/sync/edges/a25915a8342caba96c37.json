@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T11:45:53.771995-04:00",
+  "edge_id": "a25915a8342caba96c37",
+  "edge_type": "leads_to",
+  "from_change_id": "96747624-bb4a-4ebf-8c1b-54af33bc5d42",
+  "rationale": "chosen: the reorder case A2 (acquire h while h holds) is exactly what breaks rank accounting, and FIFO is what excludes it",
+  "to_change_id": "b75ede52-d103-4174-b3fd-6eb3b02574e1",
+  "weight": 1.0
+}

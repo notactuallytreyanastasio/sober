@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "91dbdd50-b3ae-4902-bcab-b8e9ac6563e2",
+  "created_at": "2026-09-10T11:51:53.443031-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "LockProof preserves ordered and holder_not_queued in all cases; the A2 case closed via relBeforeAcq_head + token arithmetic. LockFcfs: Step.rank_step, Waiting relation (steps + env), bounded_waiting, fcfs. Zero sorry, zero warnings, chain passes",
+  "updated_at": "2026-09-10T11:51:53.443031-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b75ede52-d103-4174-b3fd-6eb3b02574e1",
+  "created_at": "2026-09-10T11:45:53.752361-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 70
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "FCFS via two new Inv fields: ordered (no acquire h before release h in server mailbox) and holder_not_queued; plus a Waiting trace relation counting transfers",
+  "updated_at": "2026-09-10T11:45:53.752361-04:00"
+}

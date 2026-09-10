@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "515f23a1-7edf-4ab9-a384-1d1e07d5bc61",
+  "created_at": "2026-09-10T11:51:53.500565-04:00",
+  "description": "The ordered field is an invariant over the server's mailbox *list*, not counts. Preservation needed exact mailbox equations (mboxOf_deliverAll_eq) rather than mcount. The general append lemma relBeforeAcq_append handles every send with one side condition: appending release h requires no pending acquire h, which follows from hd=1 -> a=0 in the token invariant.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "FIFO is finally load-bearing, and in exactly the place predicted three sessions ago: the reorder 'acquire h while h holds' is harmless for safety and deadlock freedom but breaks rank accounting. The proof that excludes it uses only the tail-append shape of Step.chars' mailbox clause",
+  "updated_at": "2026-09-10T11:51:53.500565-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "96747624-bb4a-4ebf-8c1b-54af33bc5d42",
+  "created_at": "2026-09-10T11:45:53.690628-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 75
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "FCFS as a trace-safety property: rank decreases by exactly one per handover while queued; needs 'holder never queued', which needs mailbox order (release h precedes acquire h)",
+  "updated_at": "2026-09-10T11:45:53.690628-04:00"
+}
