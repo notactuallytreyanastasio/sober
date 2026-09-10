@@ -47,10 +47,11 @@ def beh : Behavior St Msg
   | me, .client_await1, m          => (.client_await1, [(me, m)])
   | _,  s, _                       => (s, [])
 
-/-- The translated Elixir is extensionally the same behaviour. -/
-theorem beh_eq_gen : Gen.Bank.beh = beh := by
-  funext p s m
-  cases s <;> cases m <;> first | rfl | simp [Gen.Bank.beh, beh]
+/-- The translated Elixir is extensionally the same behaviour: the generated
+`EBehavior` is the hand-written `Behavior` lifted to send-only effects. -/
+theorem beh_eq_gen : Gen.Bank.beh = lift beh := by
+  funext p f s m
+  cases s <;> cases m <;> first | rfl | (simp only [Gen.Bank.beh, beh, lift]; split <;> rfl) | simp [Gen.Bank.beh, beh, lift]
 
 /-- The invariant: bank balances are non-negative; clients are unconstrained. -/
 def Ok : St → Prop
