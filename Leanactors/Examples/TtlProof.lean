@@ -128,9 +128,9 @@ theorem Inv.run {a b : Sys St Msg} {p : Pid} (h : runE beh a p = some b) (hi : I
       cases x with
       | zero =>
         simp only [beh, applyEffects, List.foldl, applyEffect] at hs'
-        rcases hs' with ⟨h1, _⟩ | ⟨reason, _, rfl⟩
+        rcases hs' with ⟨h1, _⟩ | ⟨_, _, rfl⟩
         · cases h1
-        · exact (hi.set hget (hkeep _)).terminate p reason
+        · exact (hi.set hget (hkeep _)).terminate p _
       | succ n =>
         simp only [beh, applyEffects, List.foldl, applyEffect] at hs'
         rcases hs' with ⟨_, rfl⟩ | ⟨_, hr, _⟩
@@ -188,10 +188,11 @@ proof does not even need that: a trapped signal would be a delivery of
 theorem Inv.signal {a b : Sys St Msg} (h : signalE sig a = some b) (hi : Inv a) : Inv b := by
   obtain ⟨q, _, _, rest, _, hc⟩ := signalE_cases h
   have hpop : Inv { a with signals := rest } := ⟨hi.cache_ok, hi.no_zero, hi.timers_ok⟩
-  rcases hc with ⟨_, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩
+  rcases hc with ⟨_, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩
   · exact hpop
   · exact hpop.deliver q (by simp [Gen.Ttl.sig])
   · exact hpop
+  · exact hpop.terminate q .error
   · exact hpop.terminate q .error
 
 /-- This program declares no DOWN codec, so a DOWN step only pops the queue. -/
