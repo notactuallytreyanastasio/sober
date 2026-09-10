@@ -400,6 +400,18 @@ is wrong, `beh_eq_gen` fails to typecheck.
                         # lake build, run the six drivers
 ```
 
+`./check.sh` is the CI-shaped version: it stops at the first failure. `./verify`
+(`elixir/verify.exs`) runs the exact same tools but keeps going, and renders
+whatever they printed as a source frame — file, line, a caret, and, for the
+Lean diagnostics it recognises, a plain-English note — instead of a raw
+`file:line:col:` string:
+
+```sh
+./verify                    # every stage: translate, fixtures, prove, run
+./verify translate prove    # only these stages
+./verify --no-color         # plain text (also respects NO_COLOR)
+```
+
 or piecewise:
 
 ```sh

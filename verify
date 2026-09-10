@@ -1,0 +1,4 @@
+#!/bin/sh
+# Friendly wrapper around elixir/verify.exs — see that file for what it does.
+cd "$(dirname "$0")"
+exec elixir elixir/verify.exs "$@"
