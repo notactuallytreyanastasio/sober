@@ -10,6 +10,11 @@ liveness proofs are built from: `stable_until` (one fair choice establishes
 the goal) and `rank_leads_to` (a `Nat` measure drops at every fair-taken
 step). Everything is proved once over an abstract run `ρ : Nat → α` and
 instantiated for the `Config` layer (`CRun`) and the `Sys` layer (`SysRun`).
+A run is infinite; at each time it takes a labelled step or an idle step
+(`ch t = none`, the state repeats), so every finite execution extends to a
+run and a theorem over runs is never vacuous. Weak fairness of a choice
+says it is disabled infinitely often or taken infinitely often, which
+forbids idling (or scheduling others) forever while it is enabled.
 
 API summary (the signatures below are the contract; see the declarations):
 
@@ -83,23 +88,32 @@ the lock uses `env := EnvStep`):
 * `CEnabled_run_iff (c) (p) : CEnabled c (.run p) ↔ ∃ mb, c.mboxOf p = some mb ∧ mb ≠ []`
 * `CEnabled.exists_step (beh) (env) (h : CEnabled c (.run p)) : ∃ c', CStepL beh env (.run p) c c'`
 * `CStepL.enabled (h : CStepL beh env (.run p) c c') : CEnabled c (.run p)`
-* `structure CRun beh env where st : Nat → Config σ μ; ch : Nat → CChoice;
-     step : ∀ t, CStepL beh env (ch t) (st t) (st (t+1))`
-* `CRun.step_at (ρ) (h : ρ.ch t = c) : CStepL beh env c (ρ.st t) (ρ.st (t+1))`
-* `CRun.step_or (ρ) (t) : Step beh (ρ.st t) (ρ.st (t+1)) ∨ env (ρ.st t) (ρ.st (t+1))`
+* `inductive CStepI beh env : Option CChoice → Config σ μ → Config σ μ → Prop` with
+  `| step (c) (a b) (h : CStepL beh env c a b) : CStepI beh env (some c) a b`
+  `| idle (a) : CStepI beh env none a a`
+  (a labelled step, or an idle step in which nothing happens: idle steps make
+  every finite execution an infinite run, and weak fairness forbids idling
+  forever while a choice is enabled)
+* `CStepI.of_some (h : CStepI beh env (some c) a b) : CStepL beh env c a b`
+* `CStepI.cases (h : CStepI beh env oc a b) : (∃ c, CStepL beh env c a b) ∨ b = a`
+* `structure CRun beh env where st : Nat → Config σ μ; ch : Nat → Option CChoice;
+     step : ∀ t, CStepI beh env (ch t) (st t) (st (t+1))`
+* `def CRun.idle (beh) (env) (c) : CRun beh env` (idles forever in `c`: a run exists from every configuration)
+* `CRun.step_at (ρ) (h : ρ.ch t = some c) : CStepL beh env c (ρ.st t) (ρ.st (t+1))`
+* `CRun.step_or (ρ) (t) : Step beh (ρ.st t) (ρ.st (t+1)) ∨ env (ρ.st t) (ρ.st (t+1)) ∨ ρ.st (t+1) = ρ.st t`
 * `CRun.reach (ρ) (t) : ReachE beh env (ρ.st 0) (ρ.st t)`
 * `CRun.reach_from (ρ) (h : t ≤ t') : ReachE beh env (ρ.st t) (ρ.st t')`
 * `CRun.inv (ρ) (hstep : ∀ {a b}, Step beh a b → I a → I b) (henv : ∀ {a b}, env a b → I a → I b)
      (h0 : I (ρ.st 0)) (t) : I (ρ.st t)`
 * `def CRun.WeakFair (ρ) (c : CChoice) : Prop :=
-     (∀ t, ∃ t' ≥ t, ¬ CEnabled (ρ.st t') c) ∨ (∀ t, ∃ t' ≥ t, ρ.ch t' = c)`
-* `CRun.WeakFair.weakFairOn (h : ρ.WeakFair c) : WeakFairOn (fun t => CEnabled (ρ.st t) c) (fun t => ρ.ch t = c)`
-* `CRun.WeakFair.taken (h : ρ.WeakFair c) (hen : ∀ t' ≥ t, CEnabled (ρ.st t') c) : ∃ t' ≥ t, ρ.ch t' = c`
-* `CRun.WeakFair.of_taken (h : ∀ t, (∀ t' ≥ t, CEnabled (ρ.st t') c) → ∃ t' ≥ t, ρ.ch t' = c) : ρ.WeakFair c`
+     (∀ t, ∃ t' ≥ t, ¬ CEnabled (ρ.st t') c) ∨ (∀ t, ∃ t' ≥ t, ρ.ch t' = some c)`
+* `CRun.WeakFair.weakFairOn (h : ρ.WeakFair c) : WeakFairOn (fun t => CEnabled (ρ.st t) c) (fun t => ρ.ch t = some c)`
+* `CRun.WeakFair.taken (h : ρ.WeakFair c) (hen : ∀ t' ≥ t, CEnabled (ρ.st t') c) : ∃ t' ≥ t, ρ.ch t' = some c`
+* `CRun.WeakFair.of_taken (h : ∀ t, (∀ t' ≥ t, CEnabled (ρ.st t') c) → ∃ t' ≥ t, ρ.ch t' = some c) : ρ.WeakFair c`
 * `def CRun.EnvFair (ρ) (P : Config σ μ → Prop) (e : Config σ μ → Config σ μ → Prop) : Prop :=
-     ∀ t, (∀ t' ≥ t, P (ρ.st t')) → ∃ t' ≥ t, ρ.ch t' = .env ∧ e (ρ.st t') (ρ.st (t'+1))`
+     ∀ t, (∀ t' ≥ t, P (ρ.st t')) → ∃ t' ≥ t, ρ.ch t' = some .env ∧ e (ρ.st t') (ρ.st (t'+1))`
 * `CRun.EnvFair.weakFairOn (h : ρ.EnvFair P e) :
-     WeakFairOn (fun t => P (ρ.st t)) (fun t => ρ.ch t = .env ∧ e (ρ.st t) (ρ.st (t+1)))`
+     WeakFairOn (fun t => P (ρ.st t)) (fun t => ρ.ch t = some .env ∧ e (ρ.st t) (ρ.st (t+1)))`
 * `CRun.stable_until_run (ρ) (p) (hfair : ρ.WeakFair (.run p))
      (hstable : ∀ {a b}, ReachE beh env (ρ.st 0) a → Step beh a b → P a → ¬ Q a → P b ∨ Q b)
      (henv : ∀ {a b}, ReachE beh env (ρ.st 0) a → env a b → P a → ¬ Q a → P b ∨ Q b)
@@ -144,18 +158,26 @@ Sys layer (`beh : EBehavior σ μ`, `sig : Signals σ μ`, choices are `SysChoic
 * `SysEnabled.exists_step (beh) (sig) (h : SysEnabled s c) : ∃ s', SysStepL beh sig c s s'`
 * `SysStepL.enabled (h : SysStepL beh sig c s s') : SysEnabled s c`
 * `SysEnabled_iff (beh) (sig) (s) (c) : SysEnabled s c ↔ ∃ s', SysStepL beh sig c s s'`
-* `structure SysRun beh sig where st : Nat → Sys σ μ; ch : Nat → SysChoice;
-     step : ∀ t, SysStepL beh sig (ch t) (st t) (st (t+1))`
-* `SysRun.step_at (ρ) (h : ρ.ch t = c) : SysStepL beh sig c (ρ.st t) (ρ.st (t+1))`
-* `SysRun.sysStep (ρ) (t) : SysStep beh sig (ρ.st t) (ρ.st (t+1))`
+* `inductive SysStepI beh sig : Option SysChoice → Sys σ μ → Sys σ μ → Prop` with
+  `| step (c) (a b) (h : SysStepL beh sig c a b) : SysStepI beh sig (some c) a b`
+  `| idle (a) : SysStepI beh sig none a a`
+  (idle steps matter here: a closed `Sys` with nothing enabled, such as the
+  supervisor once its worker is idle, has no infinite run without them)
+* `SysStepI.of_some (h : SysStepI beh sig (some c) a b) : SysStepL beh sig c a b`
+* `SysStepI.cases (h : SysStepI beh sig oc a b) : SysStep beh sig a b ∨ b = a`
+* `structure SysRun beh sig where st : Nat → Sys σ μ; ch : Nat → Option SysChoice;
+     step : ∀ t, SysStepI beh sig (ch t) (st t) (st (t+1))`
+* `def SysRun.idle (beh) (sig) (s) : SysRun beh sig` (idles forever in `s`)
+* `SysRun.step_at (ρ) (h : ρ.ch t = some c) : SysStepL beh sig c (ρ.st t) (ρ.st (t+1))`
+* `SysRun.sysStep_or (ρ) (t) : SysStep beh sig (ρ.st t) (ρ.st (t+1)) ∨ ρ.st (t+1) = ρ.st t`
 * `SysRun.reach (ρ) (t) : SysReach beh sig (ρ.st 0) (ρ.st t)`
 * `SysRun.reach_from (ρ) (h : t ≤ t') : SysReach beh sig (ρ.st t) (ρ.st t')`
 * `SysRun.inv (ρ) (hstep : ∀ {a b}, SysStep beh sig a b → I a → I b) (h0 : I (ρ.st 0)) (t) : I (ρ.st t)`
 * `def SysRun.WeakFair (ρ) (c : SysChoice) : Prop :=
-     (∀ t, ∃ t' ≥ t, ¬ SysEnabled (ρ.st t') c) ∨ (∀ t, ∃ t' ≥ t, ρ.ch t' = c)`
-* `SysRun.WeakFair.weakFairOn (h : ρ.WeakFair c) : WeakFairOn (fun t => SysEnabled (ρ.st t) c) (fun t => ρ.ch t = c)`
-* `SysRun.WeakFair.taken (h : ρ.WeakFair c) (hen : ∀ t' ≥ t, SysEnabled (ρ.st t') c) : ∃ t' ≥ t, ρ.ch t' = c`
-* `SysRun.WeakFair.of_taken (h : ∀ t, (∀ t' ≥ t, SysEnabled (ρ.st t') c) → ∃ t' ≥ t, ρ.ch t' = c) : ρ.WeakFair c`
+     (∀ t, ∃ t' ≥ t, ¬ SysEnabled (ρ.st t') c) ∨ (∀ t, ∃ t' ≥ t, ρ.ch t' = some c)`
+* `SysRun.WeakFair.weakFairOn (h : ρ.WeakFair c) : WeakFairOn (fun t => SysEnabled (ρ.st t) c) (fun t => ρ.ch t = some c)`
+* `SysRun.WeakFair.taken (h : ρ.WeakFair c) (hen : ∀ t' ≥ t, SysEnabled (ρ.st t') c) : ∃ t' ≥ t, ρ.ch t' = some c`
+* `SysRun.WeakFair.of_taken (h : ∀ t, (∀ t' ≥ t, SysEnabled (ρ.st t') c) → ∃ t' ≥ t, ρ.ch t' = some c) : ρ.WeakFair c`
 * `SysRun.stable_until (ρ) (c) (hfair : ρ.WeakFair c)
      (hstable : ∀ {a b}, SysReach beh sig (ρ.st 0) a → SysStep beh sig a b → P a → ¬ Q a → P b ∨ Q b)
      (hen : ∀ {a}, SysReach beh sig (ρ.st 0) a → P a → ¬ Q a → SysEnabled a c)
@@ -500,27 +522,67 @@ theorem CStepL.enabled {beh : Behavior σ μ} {env : Config σ μ → Config σ 
   cases h with
   | run _ _ s m rest hget => exact ⟨s, m, rest, hget⟩
 
-/-- An infinite `Config`-layer run: states, the choice taken at each time,
-and the proof that consecutive states are related by that choice. -/
+/-- One step of a `Config`-layer run: a labelled step, or an idle step in
+which nothing happens. Idle steps make every finite execution an infinite
+run (so theorems over runs are never vacuous); weak fairness forbids
+idling forever while a choice is enabled. -/
+inductive CStepI (beh : Behavior σ μ) (env : Config σ μ → Config σ μ → Prop) :
+    Option CChoice → Config σ μ → Config σ μ → Prop
+  | step (c : CChoice) (a b : Config σ μ) (h : CStepL beh env c a b) :
+      CStepI beh env (some c) a b
+  | idle (a : Config σ μ) : CStepI beh env none a a
+
+theorem CStepI.of_some {beh : Behavior σ μ} {env : Config σ μ → Config σ μ → Prop}
+    {c : CChoice} {a b : Config σ μ} (h : CStepI beh env (some c) a b) :
+    CStepL beh env c a b := by
+  cases h with
+  | step _ _ _ h => exact h
+
+theorem CStepI.cases {beh : Behavior σ μ} {env : Config σ μ → Config σ μ → Prop}
+    {oc : Option CChoice} {a b : Config σ μ} (h : CStepI beh env oc a b) :
+    (∃ c, CStepL beh env c a b) ∨ b = a := by
+  cases h with
+  | step c _ _ h => exact Or.inl ⟨c, h⟩
+  | idle _ => exact Or.inr rfl
+
+/-- An infinite `Config`-layer run: states, the choice taken at each time
+(`none` for an idle step), and the proof that consecutive states are
+related by that choice. -/
 structure CRun (beh : Behavior σ μ) (env : Config σ μ → Config σ μ → Prop) where
   st : Nat → Config σ μ
-  ch : Nat → CChoice
-  step : ∀ t, CStepL beh env (ch t) (st t) (st (t+1))
+  ch : Nat → Option CChoice
+  step : ∀ t, CStepI beh env (ch t) (st t) (st (t+1))
 
 namespace CRun
 
 variable {beh : Behavior σ μ} {env : Config σ μ → Config σ μ → Prop}
 
-theorem step_at (ρ : CRun beh env) {t : Nat} {c : CChoice} (h : ρ.ch t = c) :
-    CStepL beh env c (ρ.st t) (ρ.st (t+1)) := h ▸ ρ.step t
+/-- The run that idles forever in `c`: a run exists from every
+configuration (it is weakly fair only for choices disabled in `c`). -/
+def idle (beh : Behavior σ μ) (env : Config σ μ → Config σ μ → Prop) (c : Config σ μ) :
+    CRun beh env := ⟨fun _ => c, fun _ => none, fun _ => .idle c⟩
+
+theorem step_at (ρ : CRun beh env) {t : Nat} {c : CChoice} (h : ρ.ch t = some c) :
+    CStepL beh env c (ρ.st t) (ρ.st (t+1)) := by
+  have hs := ρ.step t
+  rw [h] at hs
+  exact hs.of_some
 
 theorem step_or (ρ : CRun beh env) (t : Nat) :
-    Step beh (ρ.st t) (ρ.st (t+1)) ∨ env (ρ.st t) (ρ.st (t+1)) := (ρ.step t).cases
+    Step beh (ρ.st t) (ρ.st (t+1)) ∨ env (ρ.st t) (ρ.st (t+1)) ∨ ρ.st (t+1) = ρ.st t := by
+  rcases (ρ.step t).cases with ⟨_, hs⟩ | heq
+  · rcases hs.cases with h | h
+    · exact Or.inl h
+    · exact Or.inr (Or.inl h)
+  · exact Or.inr (Or.inr heq)
 
 theorem reach (ρ : CRun beh env) (t : Nat) : ReachE beh env (ρ.st 0) (ρ.st t) := by
   induction t with
   | zero => exact .refl _
-  | succ t ih => exact ih.trans (.single (ρ.step t))
+  | succ t ih =>
+    rcases (ρ.step t).cases with ⟨_, hs⟩ | heq
+    · exact ih.trans (.single hs)
+    · rw [heq]; exact ih
 
 theorem reach_from (ρ : CRun beh env) {t t' : Nat} (h : t ≤ t') :
     ReachE beh env (ρ.st t) (ρ.st t') := by
@@ -530,7 +592,9 @@ theorem reach_from (ρ : CRun beh env) {t t' : Nat} (h : t ≤ t') :
     subst this; exact .refl _
   | succ t' ih =>
     rcases Nat.lt_or_eq_of_le h with hlt | heq
-    · exact (ih (Nat.le_of_lt_succ hlt)).trans (.single (ρ.step t'))
+    · rcases (ρ.step t').cases with ⟨_, hs⟩ | heq'
+      · exact (ih (Nat.le_of_lt_succ hlt)).trans (.single hs)
+      · rw [heq']; exact ih (Nat.le_of_lt_succ hlt)
     · subst heq; exact .refl _
 
 theorem inv (ρ : CRun beh env) {I : Config σ μ → Prop}
@@ -541,28 +605,28 @@ theorem inv (ρ : CRun beh env) {I : Config σ μ → Prop}
 /-- Weak fairness of choice `c`: disabled infinitely often, or taken
 infinitely often. -/
 def WeakFair (ρ : CRun beh env) (c : CChoice) : Prop :=
-  (∀ t, ∃ t' ≥ t, ¬ CEnabled (ρ.st t') c) ∨ (∀ t, ∃ t' ≥ t, ρ.ch t' = c)
+  (∀ t, ∃ t' ≥ t, ¬ CEnabled (ρ.st t') c) ∨ (∀ t, ∃ t' ≥ t, ρ.ch t' = some c)
 
 theorem WeakFair.weakFairOn {ρ : CRun beh env} {c : CChoice} (h : ρ.WeakFair c) :
-    WeakFairOn (fun t => CEnabled (ρ.st t) c) (fun t => ρ.ch t = c) := h
+    WeakFairOn (fun t => CEnabled (ρ.st t) c) (fun t => ρ.ch t = some c) := h
 
 theorem WeakFair.taken {ρ : CRun beh env} {c : CChoice} (h : ρ.WeakFair c) {t : Nat}
-    (hen : ∀ t' ≥ t, CEnabled (ρ.st t') c) : ∃ t' ≥ t, ρ.ch t' = c :=
+    (hen : ∀ t' ≥ t, CEnabled (ρ.st t') c) : ∃ t' ≥ t, ρ.ch t' = some c :=
   h.weakFairOn.taken hen
 
 theorem WeakFair.of_taken {ρ : CRun beh env} {c : CChoice}
-    (h : ∀ t, (∀ t' ≥ t, CEnabled (ρ.st t') c) → ∃ t' ≥ t, ρ.ch t' = c) : ρ.WeakFair c :=
+    (h : ∀ t, (∀ t' ≥ t, CEnabled (ρ.st t') c) → ∃ t' ≥ t, ρ.ch t' = some c) : ρ.WeakFair c :=
   WeakFairOn.of_taken h
 
 /-- Environment fairness: if `P` holds from `t` on, an environment step
 satisfying `e` happens at some `t' ≥ t`. -/
 def EnvFair (ρ : CRun beh env) (P : Config σ μ → Prop)
     (e : Config σ μ → Config σ μ → Prop) : Prop :=
-  ∀ t, (∀ t' ≥ t, P (ρ.st t')) → ∃ t' ≥ t, ρ.ch t' = .env ∧ e (ρ.st t') (ρ.st (t'+1))
+  ∀ t, (∀ t' ≥ t, P (ρ.st t')) → ∃ t' ≥ t, ρ.ch t' = some .env ∧ e (ρ.st t') (ρ.st (t'+1))
 
 theorem EnvFair.weakFairOn {ρ : CRun beh env} {P : Config σ μ → Prop}
     {e : Config σ μ → Config σ μ → Prop} (h : ρ.EnvFair P e) :
-    WeakFairOn (fun t => P (ρ.st t)) (fun t => ρ.ch t = .env ∧ e (ρ.st t) (ρ.st (t+1))) :=
+    WeakFairOn (fun t => P (ρ.st t)) (fun t => ρ.ch t = some .env ∧ e (ρ.st t) (ρ.st (t+1))) :=
   WeakFairOn.of_taken h
 
 /-- `stable_until` for a fair actor `p`, with state-level hypotheses that
@@ -577,9 +641,10 @@ theorem stable_until_run (ρ : CRun beh env) (p : Pid) (hfair : ρ.WeakFair (.ru
     LeadsTo ρ.st P Q := by
   apply stable_until_leadsTo hfair.weakFairOn
   · intro u hp hq
-    rcases ρ.step_or u with hs | he
+    rcases ρ.step_or u with hs | he | heq
     · exact hstable (ρ.reach u) hs hp hq
     · exact henv (ρ.reach u) he hp hq
+    · rw [heq]; exact Or.inl hp
   · intro u hp hq
     exact hen (ρ.reach u) hp hq
   · intro u hp hq htk
@@ -597,9 +662,10 @@ theorem stable_until_env (ρ : CRun beh env) {P₀ : Config σ μ → Prop}
     LeadsTo ρ.st P Q := by
   apply stable_until_leadsTo hfair.weakFairOn
   · intro u hp hq
-    rcases ρ.step_or u with hs | he
+    rcases ρ.step_or u with hs | he | heq
     · exact hstable (ρ.reach u) hs hp hq
     · exact henv (ρ.reach u) he hp hq
+    · rw [heq]; exact Or.inl hp
   · intro u hp hq
     exact hen (ρ.reach u) hp hq
   · intro u hp hq ⟨hch, he⟩
@@ -620,11 +686,14 @@ theorem rank_leads_to_run (ρ : CRun beh env) (p : Pid) (f : Config σ μ → Na
     LeadsTo ρ.st P Q := by
   apply rank_leads_to f hfair.weakFairOn
   · intro u hp hq
-    rcases ρ.step_or u with hs | he
+    rcases ρ.step_or u with hs | he | heq
     · exact hstable (ρ.reach u) hs hp hq
     · exact henv (ρ.reach u) he hp hq
+    · rw [heq]; exact Or.inl hp
   · intro u hp hq hp'
-    exact hnoinc (ρ.reach u) (ρ.step u) hp hq hp'
+    rcases (ρ.step u).cases with ⟨_, hs⟩ | heq
+    · exact hnoinc (ρ.reach u) hs hp hq hp'
+    · rw [heq]; exact Nat.le_refl _
   · intro u hp hq
     exact hen (ρ.reach u) hp hq
   · intro u hp hq htk hp'
@@ -642,11 +711,14 @@ theorem rank_leads_to_env (ρ : CRun beh env) (f : Config σ μ → Nat) {P₀ :
     LeadsTo ρ.st P Q := by
   apply rank_leads_to f hfair.weakFairOn
   · intro u hp hq
-    rcases ρ.step_or u with hs | he
+    rcases ρ.step_or u with hs | he | heq
     · exact hstable (ρ.reach u) hs hp hq
     · exact henv (ρ.reach u) he hp hq
+    · rw [heq]; exact Or.inl hp
   · intro u hp hq hp'
-    exact hnoinc (ρ.reach u) (ρ.step u) hp hq hp'
+    rcases (ρ.step u).cases with ⟨_, hs⟩ | heq
+    · exact hnoinc (ρ.reach u) hs hp hq hp'
+    · rw [heq]; exact Nat.le_refl _
   · intro u hp hq
     exact hen (ρ.reach u) hp hq
   · intro u hp hq ⟨hch, he⟩ hp'
@@ -771,26 +843,59 @@ theorem SysEnabled_iff (beh : EBehavior σ μ) (sig : Signals σ μ) (s : Sys σ
     SysEnabled s c ↔ ∃ s', SysStepL beh sig c s s' :=
   ⟨SysEnabled.exists_step beh sig, fun ⟨_, h⟩ => h.enabled⟩
 
-/-- An infinite `Sys`-layer run. -/
+/-- One step of a `Sys`-layer run: a labelled step, or an idle step. Idle
+steps matter here: a closed `Sys` in which nothing is enabled (the
+supervisor once its worker has nothing to do) has no infinite run without
+them, and a theorem over its runs would be vacuous. -/
+inductive SysStepI (beh : EBehavior σ μ) (sig : Signals σ μ) :
+    Option SysChoice → Sys σ μ → Sys σ μ → Prop
+  | step (c : SysChoice) (a b : Sys σ μ) (h : SysStepL beh sig c a b) :
+      SysStepI beh sig (some c) a b
+  | idle (a : Sys σ μ) : SysStepI beh sig none a a
+
+theorem SysStepI.of_some {beh : EBehavior σ μ} {sig : Signals σ μ} {c : SysChoice}
+    {a b : Sys σ μ} (h : SysStepI beh sig (some c) a b) : SysStepL beh sig c a b := by
+  cases h with
+  | step _ _ _ h => exact h
+
+theorem SysStepI.cases {beh : EBehavior σ μ} {sig : Signals σ μ} {oc : Option SysChoice}
+    {a b : Sys σ μ} (h : SysStepI beh sig oc a b) : SysStep beh sig a b ∨ b = a := by
+  cases h with
+  | step _ _ _ h => exact Or.inl h.toSysStep
+  | idle _ => exact Or.inr rfl
+
+/-- An infinite `Sys`-layer run: states, the choice taken at each time
+(`none` for an idle step), and the proof that consecutive states are
+related by that choice. -/
 structure SysRun (beh : EBehavior σ μ) (sig : Signals σ μ) where
   st : Nat → Sys σ μ
-  ch : Nat → SysChoice
-  step : ∀ t, SysStepL beh sig (ch t) (st t) (st (t+1))
+  ch : Nat → Option SysChoice
+  step : ∀ t, SysStepI beh sig (ch t) (st t) (st (t+1))
 
 namespace SysRun
 
 variable {beh : EBehavior σ μ} {sig : Signals σ μ}
 
-theorem step_at (ρ : SysRun beh sig) {t : Nat} {c : SysChoice} (h : ρ.ch t = c) :
-    SysStepL beh sig c (ρ.st t) (ρ.st (t+1)) := h ▸ ρ.step t
+/-- The run that idles forever in `s`: a run exists from every system. -/
+def idle (beh : EBehavior σ μ) (sig : Signals σ μ) (s : Sys σ μ) : SysRun beh sig :=
+  ⟨fun _ => s, fun _ => none, fun _ => .idle s⟩
 
-theorem sysStep (ρ : SysRun beh sig) (t : Nat) : SysStep beh sig (ρ.st t) (ρ.st (t+1)) :=
-  (ρ.step t).toSysStep
+theorem step_at (ρ : SysRun beh sig) {t : Nat} {c : SysChoice} (h : ρ.ch t = some c) :
+    SysStepL beh sig c (ρ.st t) (ρ.st (t+1)) := by
+  have hs := ρ.step t
+  rw [h] at hs
+  exact hs.of_some
+
+theorem sysStep_or (ρ : SysRun beh sig) (t : Nat) :
+    SysStep beh sig (ρ.st t) (ρ.st (t+1)) ∨ ρ.st (t+1) = ρ.st t := (ρ.step t).cases
 
 theorem reach (ρ : SysRun beh sig) (t : Nat) : SysReach beh sig (ρ.st 0) (ρ.st t) := by
   induction t with
   | zero => exact .refl _
-  | succ t ih => exact ih.trans (.single (ρ.sysStep t))
+  | succ t ih =>
+    rcases ρ.sysStep_or t with hs | heq
+    · exact ih.trans (.single hs)
+    · rw [heq]; exact ih
 
 theorem reach_from (ρ : SysRun beh sig) {t t' : Nat} (h : t ≤ t') :
     SysReach beh sig (ρ.st t) (ρ.st t') := by
@@ -800,7 +905,9 @@ theorem reach_from (ρ : SysRun beh sig) {t t' : Nat} (h : t ≤ t') :
     subst this; exact .refl _
   | succ t' ih =>
     rcases Nat.lt_or_eq_of_le h with hlt | heq
-    · exact (ih (Nat.le_of_lt_succ hlt)).trans (.single (ρ.sysStep t'))
+    · rcases ρ.sysStep_or t' with hs | heq'
+      · exact (ih (Nat.le_of_lt_succ hlt)).trans (.single hs)
+      · rw [heq']; exact ih (Nat.le_of_lt_succ hlt)
     · subst heq; exact .refl _
 
 theorem inv (ρ : SysRun beh sig) {I : Sys σ μ → Prop}
@@ -811,17 +918,17 @@ theorem inv (ρ : SysRun beh sig) {I : Sys σ μ → Prop}
 /-- Weak fairness of choice `c`: disabled infinitely often, or taken
 infinitely often. -/
 def WeakFair (ρ : SysRun beh sig) (c : SysChoice) : Prop :=
-  (∀ t, ∃ t' ≥ t, ¬ SysEnabled (ρ.st t') c) ∨ (∀ t, ∃ t' ≥ t, ρ.ch t' = c)
+  (∀ t, ∃ t' ≥ t, ¬ SysEnabled (ρ.st t') c) ∨ (∀ t, ∃ t' ≥ t, ρ.ch t' = some c)
 
 theorem WeakFair.weakFairOn {ρ : SysRun beh sig} {c : SysChoice} (h : ρ.WeakFair c) :
-    WeakFairOn (fun t => SysEnabled (ρ.st t) c) (fun t => ρ.ch t = c) := h
+    WeakFairOn (fun t => SysEnabled (ρ.st t) c) (fun t => ρ.ch t = some c) := h
 
 theorem WeakFair.taken {ρ : SysRun beh sig} {c : SysChoice} (h : ρ.WeakFair c) {t : Nat}
-    (hen : ∀ t' ≥ t, SysEnabled (ρ.st t') c) : ∃ t' ≥ t, ρ.ch t' = c :=
+    (hen : ∀ t' ≥ t, SysEnabled (ρ.st t') c) : ∃ t' ≥ t, ρ.ch t' = some c :=
   h.weakFairOn.taken hen
 
 theorem WeakFair.of_taken {ρ : SysRun beh sig} {c : SysChoice}
-    (h : ∀ t, (∀ t' ≥ t, SysEnabled (ρ.st t') c) → ∃ t' ≥ t, ρ.ch t' = c) : ρ.WeakFair c :=
+    (h : ∀ t, (∀ t' ≥ t, SysEnabled (ρ.st t') c) → ∃ t' ≥ t, ρ.ch t' = some c) : ρ.WeakFair c :=
   WeakFairOn.of_taken h
 
 /-- `stable_until` for a fair choice `c`, with state-level hypotheses that
@@ -836,7 +943,9 @@ theorem stable_until (ρ : SysRun beh sig) (c : SysChoice) (hfair : ρ.WeakFair 
     LeadsTo ρ.st P Q := by
   apply stable_until_leadsTo hfair.weakFairOn
   · intro u hp hq
-    exact hstable (ρ.reach u) (ρ.sysStep u) hp hq
+    rcases ρ.sysStep_or u with hs | heq
+    · exact hstable (ρ.reach u) hs hp hq
+    · rw [heq]; exact Or.inl hp
   · intro u hp hq
     exact hen (ρ.reach u) hp hq
   · intro u hp hq htk
@@ -855,9 +964,13 @@ theorem rank_leads_to (ρ : SysRun beh sig) (c : SysChoice) (f : Sys σ μ → N
     LeadsTo ρ.st P Q := by
   apply Leanactors.rank_leads_to f hfair.weakFairOn
   · intro u hp hq
-    exact hstable (ρ.reach u) (ρ.sysStep u) hp hq
+    rcases ρ.sysStep_or u with hs | heq
+    · exact hstable (ρ.reach u) hs hp hq
+    · rw [heq]; exact Or.inl hp
   · intro u hp hq hp'
-    exact hnoinc (ρ.reach u) (ρ.sysStep u) hp hq hp'
+    rcases ρ.sysStep_or u with hs | heq
+    · exact hnoinc (ρ.reach u) hs hp hq hp'
+    · rw [heq]; exact Nat.le_refl _
   · intro u hp hq
     exact hen (ρ.reach u) hp hq
   · intro u hp hq htk hp'
