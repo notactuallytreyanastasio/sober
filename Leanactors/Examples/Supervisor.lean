@@ -1,4 +1,5 @@
 import Leanactors.Sys
+import Leanactors.Gen.Supervisor
 /-!
 # Leanactors.Examples.Supervisor
 
@@ -33,33 +34,26 @@ namespace Leanactors.Examples.Supervisor
 
 open Leanactors Config Sys
 
-inductive Msg
-  | start
-  | job
-  | crash
-  | stop
-  | exited (who : Pid) (r : Reason)
-  deriving Repr, DecidableEq
+-- `Msg`, `St`, `sup` and `sig` come from the translation of `elixir/src/supervisor.ex`.
+export Leanactors.Gen.Supervisor (Msg St sup sig)
 
-inductive St
-  | sup (child : Option Pid) (restarts : Nat)
-  | worker (done : Nat)
-  deriving Repr, DecidableEq
-
-/-- The supervisor traps exits; workers do not. -/
-def sig : Signals St Msg where
-  traps := fun | .sup _ _ => true | .worker _ => false
-  exitMsg := fun p r => .exited p r
-
+/-- The behaviour, hand-written. -/
 def beh : EBehavior St Msg
   | _, fresh, .sup none k, .start => (.sup (some fresh) k, [.spawnLink (.worker 0)])
-  | _, fresh, .sup (some c) k, .exited who _ =>
+  | _, fresh, .sup (some c) k, .EXIT who _ =>
       if who = c then (.sup (some fresh) (k + 1), [.spawnLink (.worker 0)])
       else (.sup (some c) k, [])
   | _, _, .worker n, .job => (.worker (n + 1), [])
-  | _, _, .worker _, .crash => (.worker 0, [.exit .error])
-  | _, _, .worker _, .stop => (.worker 0, [.exit .normal])
+  | _, _, .worker n, .crash => (.worker n, [.exit .error])
+  | _, _, .worker n, .stop => (.worker n, [.exit .normal])
   | _, _, s, _ => (s, [])
+
+/-- The translated Elixir is extensionally the same behaviour. -/
+theorem beh_eq_gen : Gen.Supervisor.beh = beh := by
+  funext me fresh s m
+  cases s with
+  | sup c k => cases c <;> cases m <;> first | rfl | simp [Gen.Supervisor.beh, beh]
+  | worker n => cases m <;> rfl
 
 /-- The supervisor at pid 0 with `:start` in its mailbox; pid 1 is fresh. -/
 def init : Sys St Msg :=
@@ -76,7 +70,7 @@ structure Inv (s : Sys St Msg) : Prop where
   child_ok : ∀ c k, s.cfg.stateOf 0 = some (.sup (some c) k) →
     ((s.cfg.get c).isSome ∧ (0, c) ∈ s.links) ∨
     (∃ r, (0, c, r) ∈ s.signals) ∨
-    (∃ r, 0 < s.cfg.mcount 0 (.exited c r))
+    (∃ r, 0 < s.cfg.mcount 0 (.EXIT c r))
 
 /-! ## Bounded model check -/
 
@@ -89,7 +83,7 @@ def checkInv (s : Sys St Msg) : Bool :=
   | some (.sup (some c) _) =>
     ((s.cfg.get c).isSome && s.links.contains (0, c)) ||
     [Reason.normal, .error].any (fun r => s.signals.contains (0, c, r)) ||
-    [Reason.normal, .error].any (fun r => 0 < s.cfg.mcount 0 (.exited c r))
+    [Reason.normal, .error].any (fun r => 0 < s.cfg.mcount 0 (.EXIT c r))
   | _ => false
 
 /-- Every interleaving of actor runs, signal deliveries and environment
@@ -103,7 +97,7 @@ partial def explore (b : EBehavior St Msg) (sg : Signals St Msg) (s : Sys St Msg
     let sigs := (signalE sg s).map (fun s' => [(s', env, "signal")]) |>.getD []
     let envs := if env = 0 then [] else
       (livePids s).flatMap fun p =>
-        [Msg.job, .crash, .stop].map fun m =>
+        [(.job : Msg), .crash, .stop].map fun m =>
           ({ s with cfg := s.cfg.deliver p m }, env - 1, s!"env {repr m} -> {p}")
     (runs ++ sigs ++ envs).foldl (fun (n, bad) (s', e, lbl) =>
       match bad with

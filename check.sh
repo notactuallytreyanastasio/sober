@@ -7,8 +7,10 @@ export PATH="$HOME/.elan/bin:$PATH"
 echo "== translate"
 elixir elixir/to_lean.exs elixir/src/lock.ex Leanactors.Gen.Lock --pid Lock=server > /tmp/Gen.Lock.lean
 elixir elixir/to_lean.exs elixir/src/bank.ex Leanactors.Gen.Bank --pid Bank=bank > /tmp/Gen.Bank.lean
+elixir elixir/to_lean.exs elixir/src/supervisor.ex Leanactors.Gen.Supervisor --pid Sup=sup > /tmp/Gen.Supervisor.lean
 diff -q /tmp/Gen.Lock.lean Leanactors/Gen/Lock.lean
 diff -q /tmp/Gen.Bank.lean Leanactors/Gen/Bank.lean
+diff -q /tmp/Gen.Supervisor.lean Leanactors/Gen/Supervisor.lean
 echo "   generated files are up to date"
 
 echo "== prove"
@@ -19,3 +21,4 @@ echo "   all proofs check, no sorry, no warnings"
 echo "== run on BEAM"
 elixir elixir/bank.exs | tail -1
 elixir elixir/lock.exs 10 5000 | tail -1
+elixir elixir/supervisor.exs | tail -1

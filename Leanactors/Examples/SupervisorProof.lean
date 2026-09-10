@@ -29,9 +29,9 @@ theorem Inv.frame {a b : Sys St Msg} (hi : Inv a)
     (hsup : b.cfg.stateOf 0 = a.cfg.stateOf 0)
     (halive : ∀ c, (a.cfg.get c).isSome → (b.cfg.get c).isSome)
     (hlinks : ∀ c, (0, c) ∈ a.links → (0, c) ∈ b.links)
-    (hsigs : ∀ c r, (0, c, r) ∈ a.signals → (0, c, r) ∈ b.signals ∨ 0 < b.cfg.mcount 0 (.exited c r))
+    (hsigs : ∀ c r, (0, c, r) ∈ a.signals → (0, c, r) ∈ b.signals ∨ 0 < b.cfg.mcount 0 (.EXIT c r))
     (hcount : ∀ c k r, a.cfg.stateOf 0 = some (.sup (some c) k) →
-      a.cfg.mcount 0 (.exited c r) ≤ b.cfg.mcount 0 (.exited c r)) : Inv b := by
+      a.cfg.mcount 0 (.EXIT c r) ≤ b.cfg.mcount 0 (.EXIT c r)) : Inv b := by
   refine ⟨Nat.lt_of_lt_of_le hi.next_pos hnext, ?_, ?_⟩
   · obtain ⟨child, k, h⟩ := hi.sup_alive
     exact ⟨child, k, by rw [hsup]; exact h⟩
@@ -53,7 +53,7 @@ theorem Inv.terminate_ne {a s : Sys St Msg} (hi : Inv a) {p : Pid} (hp : p ≠ 0
     (hsup : s.cfg.stateOf 0 = a.cfg.stateOf 0)
     (halive : ∀ c, c ≠ p → (a.cfg.get c).isSome → (s.cfg.get c).isSome)
     (hsigs : ∀ c r', (0, c, r') ∈ a.signals → (0, c, r') ∈ s.signals)
-    (hcount : ∀ c r', a.cfg.mcount 0 (.exited c r') ≤ s.cfg.mcount 0 (.exited c r')) :
+    (hcount : ∀ c r', a.cfg.mcount 0 (.EXIT c r') ≤ s.cfg.mcount 0 (.EXIT c r')) :
     Inv (s.terminate p r) := by
   refine ⟨Nat.lt_of_lt_of_le hi.next_pos hnext, ?_, ?_⟩
   · obtain ⟨child, k, h⟩ := hi.sup_alive
@@ -139,7 +139,7 @@ theorem Inv.step {a b : Sys St Msg} (h : SysStep beh sig a b) (hi : Inv a) : Inv
             obtain rfl := Option.some.inj hrun
             exact Inv.frame hi (Nat.le_refl _) (hst _) (hal _) (fun _ h => h) (fun _ _ h => Or.inl h)
               (fun c _ r _ => hcnt _ _)
-          | exited who r =>
+          | EXIT who r =>
             simp only [beh, applyEffects, List.foldl] at hrun
             obtain rfl := Option.some.inj hrun
             exact Inv.frame hi (Nat.le_refl _) (hst _) (hal _) (fun _ h => h) (fun _ _ h => Or.inl h)
@@ -170,7 +170,7 @@ theorem Inv.step {a b : Sys St Msg} (h : SysStep beh sig a b) (hi : Inv a) : Inv
               · intro c r h; exact Or.inl h
               · intro c kk r _; simp [mcount_set, Ne.symm hp, Ne.symm hn0]
           -- the no-op shape: state unchanged, message consumed
-          have noop_case : ∀ (hm : ∀ c r, child' = some c → m ≠ .exited c r),
+          have noop_case : ∀ (hm : ∀ c r, child' = some c → m ≠ .EXIT c r),
               Inv { a with cfg := a.cfg.set p ⟨.sup child' k', rest⟩ } := by
             intro hm
             by_cases hp : p = 0
@@ -216,13 +216,13 @@ theorem Inv.step {a b : Sys St Msg} (h : SysStep beh sig a b) (hi : Inv a) : Inv
               simp only [beh, applyEffects, List.foldl] at hrun
               obtain rfl := Option.some.inj hrun
               exact noop_case (by intro c r h; cases h)
-            | exited who r =>
+            | EXIT who r =>
               simp only [beh, applyEffects, List.foldl] at hrun
               obtain rfl := Option.some.inj hrun
               exact noop_case (by intro c r h; cases h)
           | some c' =>
             cases m with
-            | exited who r =>
+            | EXIT who r =>
               by_cases hw : who = c'
               · subst hw
                 simp only [beh, if_true, applyEffects, List.foldl, applyEffect] at hrun
@@ -347,7 +347,7 @@ mailbox. -/
 theorem restart_in_flight {s : Sys St Msg} (hr : SysReach beh sig init s)
     {c : Pid} {k : Nat} (hc : s.cfg.stateOf 0 = some (.sup (some c) k))
     (hdead : (s.cfg.get c).isSome = false) :
-    (∃ r, (0, c, r) ∈ s.signals) ∨ ∃ r, 0 < s.cfg.mcount 0 (.exited c r) := by
+    (∃ r, (0, c, r) ∈ s.signals) ∨ ∃ r, 0 < s.cfg.mcount 0 (.EXIT c r) := by
   rcases (reach_inv hr).child_ok c k hc with ⟨hal, _⟩ | h | h
   · rw [hdead] at hal; cases hal
   · exact Or.inl h
