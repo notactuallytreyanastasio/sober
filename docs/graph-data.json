@@ -2404,9 +2404,9 @@
       "node_type": "action",
       "title": "Workflow round 2 root",
       "description": null,
-      "status": "pending",
+      "status": "done",
       "created_at": "2026-09-10T14:51:12.291176-04:00",
-      "updated_at": "2026-09-10T14:51:12.291176-04:00",
+      "updated_at": "2026-09-10T15:30:57.636508-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":70}"
     },
     {
@@ -3210,6 +3210,28 @@
       "status": "pending",
       "created_at": "2026-09-10T15:26:14.044050-04:00",
       "updated_at": "2026-09-10T15:26:14.044050-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":85}"
+    },
+    {
+      "id": 294,
+      "change_id": "558aed90-298e-4cff-abfb-6d53d5249ed8",
+      "node_type": "outcome",
+      "title": "Round 2 complete and verified: receive-after, auto registration, raise, uniform EBehavior with lift equivalence for Bank/Lock, 25 translator fixtures in check.sh, Sys proofs 396/394/433 -> 290/313/287 lines on SysProps; sixth example Ttl; main at 06e65c4, chain green with six drivers",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T15:30:57.515186-04:00",
+      "updated_at": "2026-09-10T15:30:57.515186-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":95}"
+    },
+    {
+      "id": 295,
+      "change_id": "ac488a13-0491-4d4e-b385-33291a86b053",
+      "node_type": "observation",
+      "title": "Round 2 protocol worked with builders writing directly into the shared db (no lock failures reported). The fixtures builder found four translator bugs on its own, and the merge exposed a fifth (crash clauses redundant after Bool-splitting clauses) that the integrator fixed with an exhaustiveness check. Open handoffs from the integrator: unclassified @type msg tags get no crash clause (node 246), Ttl has no proof, after-timers accumulate",
+      "description": "Total: 4924 hand-written Lean lines, 275 theorems, 0 sorry, translator 1337 lines, 25 fixtures.",
+      "status": "pending",
+      "created_at": "2026-09-10T15:30:57.584853-04:00",
+      "updated_at": "2026-09-10T15:30:57.584853-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":85}"
     }
   ],
@@ -6975,6 +6997,28 @@
       "weight": 1.0,
       "rationale": "handoff",
       "created_at": "2026-09-10T15:26:14.069170-04:00"
+    },
+    {
+      "id": 350,
+      "from_node_id": 219,
+      "to_node_id": 294,
+      "from_change_id": "381f1e24-15ac-4212-8347-aa0c526b4d31",
+      "to_change_id": "558aed90-298e-4cff-abfb-6d53d5249ed8",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "workflow finished",
+      "created_at": "2026-09-10T15:30:57.542806-04:00"
+    },
+    {
+      "id": 351,
+      "from_node_id": 294,
+      "to_node_id": 295,
+      "from_change_id": "558aed90-298e-4cff-abfb-6d53d5249ed8",
+      "to_change_id": "ac488a13-0491-4d4e-b385-33291a86b053",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "what round 2 showed",
+      "created_at": "2026-09-10T15:30:57.611724-04:00"
     }
   ]
 }

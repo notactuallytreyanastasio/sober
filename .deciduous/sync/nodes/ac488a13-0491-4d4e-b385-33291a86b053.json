@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "ac488a13-0491-4d4e-b385-33291a86b053",
+  "created_at": "2026-09-10T15:30:57.584853-04:00",
+  "description": "Total: 4924 hand-written Lean lines, 275 theorems, 0 sorry, translator 1337 lines, 25 fixtures.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Round 2 protocol worked with builders writing directly into the shared db (no lock failures reported). The fixtures builder found four translator bugs on its own, and the merge exposed a fifth (crash clauses redundant after Bool-splitting clauses) that the integrator fixed with an exhaustiveness check. Open handoffs from the integrator: unclassified @type msg tags get no crash clause (node 246), Ttl has no proof, after-timers accumulate",
+  "updated_at": "2026-09-10T15:30:57.584853-04:00"
+}
