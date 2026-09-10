@@ -26,6 +26,21 @@
 #   A second clause resumes on `reply v`. Any other message that arrives
 #   while awaiting is re-enqueued to self, encoding selective receive.
 #
+# Unhandled messages (effects mode only): a GenServer with no matching
+#   handle_cast/handle_call clause dies with FunctionClauseError, so for
+#   every cast or call tag of a module that has no clause whose Lean pattern
+#   is total (all message arguments and all state fields plain variables)
+#   a crash clause `| _, _, .<mod> s_0 .., .<tag> _ .. => (state, [.exit .error])`
+#   is emitted; a guarded cast/call clause whose guard fails with nothing to
+#   fall through to crashes the same way. Unmatched handle_info messages are
+#   ignored, as on the BEAM. Assumption: each message tag of a module is
+#   handled by one kind of callback (cast, call or info); a tag seen in two
+#   kinds is an error. Clauses are emitted per module in source order except
+#   that handle_info clauses come after the handle_cast/handle_call clauses
+#   and the crash clauses, so an info catch-all does not shadow a crash.
+#   In message mode (plain `Behavior`, no exit effect) an uncovered cast or
+#   call tag only produces a warning on stderr and stays modelled as ignored.
+#
 # The @type declarations are the type oracle: they decide when a pattern
 # variable at an `Option` position needs `some`, when `nil` is `none`, and
 # what the Lean inductives look like. This is the point where Elixir's
@@ -35,7 +50,7 @@ defmodule ToLean do
   defmodule Ctx do
     defstruct types: %{}, msg_ctors: [], st_ctors: [], pids: %{}, enums: %{}, ns: "Gen", warnings: [],
               extra: [], awaits: %{}, reply_type: nil, effects: false, traps: %{}, pid_vars: [],
-              covered: [], inits: %{}
+              covered: [], inits: %{}, mods: [], kinds: %{}
   end
 
   # ---------- entry ----------
@@ -54,18 +69,48 @@ defmodule ToLean do
     mods = for {:defmodule, _, [{:__aliases__, _, [name]}, [do: body]]} <- top(ast), do: {name, stmts(body)}
     ctx = %Ctx{ns: ns, pids: pids}
     ctx = Enum.reduce(mods, ctx, fn {name, body}, c -> collect_types(c, name, body) end)
-    clauses = for {name, body} <- mods, cl <- clauses(name, body), do: cl
+    clauses = for {name, body} <- mods, cl <- ordered(clauses(name, body)), do: cl
     traps = for {name, body} <- mods, traps?(body), into: %{}, do: {name, true}
     inits = for {name, body} <- mods, init = init_of(name, body), init != nil, into: %{}, do: {name, init}
     effects = map_size(traps) > 0 or Enum.any?(clauses, &effects_in?(&1.body))
-    ctx = %{ctx | traps: traps, effects: effects, inits: inits}
+    ctx = %{ctx | traps: traps, effects: effects, inits: inits, mods: Enum.map(mods, &elem(&1, 0))}
+    ctx = %{ctx | kinds: classify(ctx, clauses)}
     if effects and not List.keymember?(ctx.msg_ctors, :EXIT, 0) and map_size(traps) > 0,
       do: fail("a trapping module must declare {:EXIT, pid(), term()} in @type msg")
-    IO.puts(render(ctx, clauses))
+    {out, ctx} = render(ctx, clauses)
+    IO.puts(out)
     Enum.each(ctx.warnings, &IO.puts(:stderr, "warning: " <> &1))
   end
 
   def main(_), do: IO.puts(:stderr, "usage: to_lean.exs SRC.ex NAMESPACE [--pid Mod=const]")
+
+  # BEAM dispatch keys on the callback, not the tag: handle_cast, handle_call
+  # and handle_info are separate functions. The Lean match is one function,
+  # so a module's handle_info clauses go after its cast/call clauses (and
+  # after the crash clauses inserted between them), each group in source order.
+  defp ordered(clauses) do
+    {ci, info} = Enum.split_with(clauses, &(&1.kind != :handle_info))
+    ci ++ info
+  end
+
+  # Which callback handles each tag, keyed {module, tag}. Every @type call
+  # alternative is a call tag even if no handle_call clause mentions it.
+  # A tag handled by two kinds in one module would need two Lean clauses for
+  # one Msg constructor, so it is an error: tags are assumed kind-disjoint.
+  defp classify(ctx, clauses) do
+    from_calls =
+      for mod <- ctx.mods, {:ok, t} <- [Map.fetch(ctx.types, {mod, :call})], alt <- union(t),
+          do: {{mod, tag_of(alt)}, :handle_call}
+    from_clauses =
+      for cl <- clauses, not bare?(cl.mpat), do: {{cl.mod, elem(msg_shape(cl.mpat), 0)}, cl.kind}
+    Enum.reduce(from_calls ++ from_clauses, %{}, fn {{mod, tag} = key, kind}, acc ->
+      case Map.fetch(acc, key) do
+        {:ok, ^kind} -> acc
+        {:ok, other} -> fail("message tag #{tag} in #{mod} is handled by both #{other} and #{kind}")
+        :error -> Map.put(acc, key, kind)
+      end
+    end)
+  end
 
   defp traps?(body) do
     {_, found} = Macro.prewalk({:__block__, [], body}, false, fn
@@ -294,9 +339,9 @@ defmodule ToLean do
   end
 
   defp clause_of(mod, :handle_call, [mpat, fpat, spat], guard, b),
-    do: %{mod: mod, mpat: mpat, spat: spat, guard: guard, body: b, from: fpat}
-  defp clause_of(mod, _, [mpat, spat], guard, b),
-    do: %{mod: mod, mpat: mpat, spat: spat, guard: guard, body: b, from: nil}
+    do: %{mod: mod, kind: :handle_call, mpat: mpat, spat: spat, guard: guard, body: b, from: fpat}
+  defp clause_of(mod, kind, [mpat, spat], guard, b),
+    do: %{mod: mod, kind: kind, mpat: mpat, spat: spat, guard: guard, body: b, from: nil}
   defp clause_of(_, _, _, _, _) do
     nil
   end
@@ -390,16 +435,24 @@ defmodule ToLean do
     #{sig}#{beh}
     end #{ctx.ns}
     """
+    |> then(&{&1, ctx})
   end
 
   defp render_clauses(ctx, clauses) do
     indexed = Enum.with_index(clauses)
     # A clause subsumed by an earlier clause of the same module is unreachable
     # (Elixir warns "this clause cannot match"; with a guard we already inlined it).
+    # Across kinds it is not unreachable on the BEAM (separate callbacks) but
+    # would be in the single Lean match, so that is an error.
     indexed = Enum.reject(indexed, fn {cl, j} ->
-      Enum.any?(indexed, fn {e, i} -> i < j and e.mod == cl.mod and general?(e.mpat, cl.mpat) and general?(e.spat, cl.spat) end)
+      Enum.any?(indexed, fn {e, i} ->
+        sub = i < j and e.mod == cl.mod and general?(e.mpat, cl.mpat) and general?(e.spat, cl.spat)
+        if sub and e.kind != cl.kind,
+          do: fail("a #{cl.kind} clause of #{cl.mod} is shadowed by a bare #{e.kind} pattern; use a tag")
+        sub
+      end)
     end)
-    Enum.map_reduce(indexed, ctx, fn {cl, i}, c ->
+    {rendered, ctx} = Enum.map_reduce(indexed, ctx, fn {cl, i}, c ->
       {env, mp, sp, guards} = patterns(c, cl)
       env = if uses_self?(cl), do: Map.put(env, :__self__, true), else: env
       env = if spawns?(cl), do: Map.put(env, :__fresh__, 0), else: env
@@ -421,8 +474,63 @@ defmodule ToLean do
         if c.effects,
           do: "  | #{self_name(env)}, #{fresh_name(env)}, #{sp}, #{mp}",
           else: "  | #{self_name(env)}, #{sp}, #{mp}"
-      {"#{header} => #{rhs}", c}
+      {{cl, lean_total?(cl, env), "#{header} => #{rhs}"}, c}
     end)
+    insert_crashes(ctx, rendered)
+  end
+
+  # Is the clause's Lean pattern total for its tag: every message argument
+  # and every state field a plain variable or wildcard? Judged on the Lean
+  # parts, not the Elixir ones, because a pid-narrowed variable renders as
+  # `(some w)` and leaves the `none` case to a later clause.
+  defp lean_total?(cl, env) do
+    (bare?(cl.mpat) or Enum.all?(env[:__mparts__] || [], &plain?/1)) and
+      Enum.all?(env[:__sparts__] || [], &plain?/1)
+  end
+
+  defp plain?(part), do: part =~ ~r/^[A-Za-z_][A-Za-z0-9_']*$/ and part not in ["none", "true", "false"]
+
+  # Per module: cast/call clauses, then one crash clause for each cast or
+  # call tag no total clause of the module covers, then info clauses.
+  # A bare message variable in a cast/call clause covers every tag.
+  defp insert_crashes(ctx, rendered) do
+    Enum.map_reduce(ctx.mods, ctx, fn mod, c ->
+      chunk = Enum.filter(rendered, fn {cl, _, _} -> cl.mod == mod end)
+      {ci, info} = Enum.split_with(chunk, fn {cl, _, _} -> cl.kind != :handle_info end)
+      covered = for {cl, true, _} <- ci, do: if(bare?(cl.mpat), do: :all, else: elem(msg_shape(cl.mpat), 0))
+      needed =
+        if :all in covered do
+          []
+        else
+          for {tag, _} <- c.msg_ctors,
+              Map.get(c.kinds, {mod, tag}) in [:handle_cast, :handle_call],
+              tag not in covered,
+              do: tag
+        end
+      {crash, c} =
+        if c.effects do
+          {Enum.map(needed, &crash_clause(c, mod, &1)), c}
+        else
+          warnings =
+            for tag <- needed,
+                do: "#{c.kinds[{mod, tag}]} #{tag} in #{mod} is not handled in every state; " <>
+                    "an unmatched cast or call crashes on the BEAM, modelled as ignored (no exit effect in message mode)"
+          {[], %{c | warnings: c.warnings ++ warnings}}
+        end
+      strs = fn xs -> Enum.map(xs, &elem(&1, 2)) end
+      {strs.(ci) ++ crash ++ strs.(info), c}
+    end)
+    |> then(fn {groups, c} -> {List.flatten(groups), c} end)
+  end
+
+  # `| _, _, .<mod> s_0 .., .<tag> _ .. => (.<mod> s_0 .., [.exit .error])`:
+  # no clause matched, FunctionClauseError, links and monitors are notified.
+  defp crash_clause(ctx, mod, tag) do
+    {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(mod), 0)
+    {^tag, ts} = List.keyfind(ctx.msg_ctors, tag, 0)
+    st = ".#{ctor}" <> (fields |> Enum.with_index() |> Enum.map_join("", fn {_, i} -> " s_#{i}" end))
+    mp = ".#{tag}" <> Enum.map_join(ts, "", fn _ -> " _" end)
+    "  | _, _, #{st}, #{mp} => (#{st}, [.exit .error])"
   end
 
   defp bare?({v, _, nil}) when is_atom(v), do: true
@@ -452,12 +560,15 @@ defmodule ToLean do
   end
 
   # A guarded clause that fails its guard falls through to the next clause of
-  # the same module whose patterns are at least as general. That clause's
-  # variables are aliased to the current clause's Lean pattern parts.
+  # the same module and callback kind whose patterns are at least as general.
+  # That clause's variables are aliased to the current clause's Lean pattern parts.
   defp fallthrough(ctx, clauses, i, env, sp) do
     cl = Enum.at(clauses, i)
-    later = clauses |> Enum.with_index() |> Enum.filter(fn {c, j} -> j > i and c.mod == cl.mod end)
+    later = clauses |> Enum.with_index() |> Enum.filter(fn {c, j} -> j > i and c.mod == cl.mod and c.kind == cl.kind end)
     case Enum.find(later, fn {c, _} -> general?(c.mpat, cl.mpat) and general?(c.spat, cl.spat) end) do
+      nil when ctx.effects and cl.kind != :handle_info ->
+        # no clause matches: FunctionClauseError
+        {"(#{sp}, [.exit .error])", ctx}
       nil ->
         ctx = %{ctx | warnings: ctx.warnings ++ ["clause #{i} guard has no fallthrough; Elixir would crash, modelled as no-op"]}
         {"(#{sp}, [])", ctx}
@@ -537,7 +648,7 @@ defmodule ToLean do
               {args, %{}}
             end
           {parts, env, gs} = pat_list(ctx, args, arg_types, env0, [])
-          {if(parts == [], do: ".#{tag}", else: ".#{tag} " <> Enum.join(parts, " ")), env, gs}
+          {if(parts == [], do: ".#{tag}", else: ".#{tag} " <> Enum.join(parts, " ")), Map.put(env, :__mparts__, parts), gs}
       end
     {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(cl.mod), 0)
     sub = state_subpats(cl.spat, length(fields))
