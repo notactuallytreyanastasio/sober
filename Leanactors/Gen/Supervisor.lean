@@ -36,8 +36,7 @@ def beh : EBehavior St Msg
   | _, _, .worker n, .job => (.worker (n + 1), [])
   | _, _, .worker n, .crash => (.worker n, [.exit .error])
   | _, _, .worker n, .stop => (.worker n, [.exit .normal])
-  -- Unmatched message: GenServer would crash (cast) or ignore (info). Modelled as ignore.
-  | _, _, s, _ => (s, [])
+  | me, _, .worker s_0, m => (.worker s_0, [.send me m])
 
 end Leanactors.Gen.Supervisor
 

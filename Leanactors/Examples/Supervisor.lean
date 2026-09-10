@@ -9,8 +9,8 @@ A one-for-one supervisor with a single permanent worker. The Elixir:
 defmodule Sup do
   use GenServer
   def init(_), do: Process.flag(:trap_exit, true); {:ok, {nil, 0}}
-  def handle_info(:start, {nil, k}), do: {:noreply, {spawn_link(Worker, :run, [0]), k}}
-  def handle_info({:EXIT, c, _}, {c, k}), do: {:noreply, {spawn_link(Worker, :run, [0]), k + 1}}
+  def handle_info(:start, {nil, k}), do: pid = spawn_link(Worker, :run, [0]); {:noreply, {pid, k}}
+  def handle_info({:EXIT, c, _}, {c, k}), do: pid = spawn_link(Worker, :run, [0]); {:noreply, {pid, k + 1}}
   def handle_info(_, s), do: {:noreply, s}
 end
 
@@ -19,11 +19,17 @@ defmodule Worker do
     receive do
       :job -> run(n + 1)
       :crash -> exit(:boom)
-      :stop -> exit(:normal)
+      :stop -> :ok
     end
   end
 end
 ```
+
+The worker is a raw process, not a GenServer: its `receive` has no catch-all
+clause, so a `start` or `EXIT` message that reaches it is not consumed but
+stays in the mailbox. The translation encodes that selective receive by
+re-enqueueing the message to self, exactly as it does for a blocking
+`GenServer.call`.
 
 **Property.** The supervisor never dies, and whenever it has no live child a
 restart is already in flight: either the worker's exit signal is pending
@@ -46,6 +52,7 @@ def beh : EBehavior St Msg
   | _, _, .worker n, .job => (.worker (n + 1), [])
   | _, _, .worker n, .crash => (.worker n, [.exit .error])
   | _, _, .worker n, .stop => (.worker n, [.exit .normal])
+  | me, _, .worker n, m => (.worker n, [.send me m])
   | _, _, s, _ => (s, [])
 
 /-- The translated Elixir is extensionally the same behaviour. -/

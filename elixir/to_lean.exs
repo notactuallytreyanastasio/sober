@@ -18,6 +18,16 @@
 #   await state <mod>_await<i> (capturing the variables the rest needs).
 #   A second clause resumes on `reply v`. Any other message that arrives
 #   while awaiting is re-enqueued to self, encoding selective receive.
+#   Raw processes: instead of callbacks a module may define exactly one loop
+#   `def run(state) do receive do pat [when g] -> body ... end end` (any
+#   name). Each receive clause is a handle_info clause with the parameter as
+#   the state pattern; a body ending in `run(e)` continues with state e,
+#   `exit(r)` exits with the current state, any other last expression means
+#   the loop returns (exit :normal). If the receive has no catch-all clause
+#   a defer clause re-enqueues unmatched messages to self: selective receive.
+#   `pid = spawn(Mod, :run, [a])`, `pid = spawn_link(Mod, :run, [a])` and
+#   `{pid, _ref} = spawn_monitor(Mod, :run, [a])` map to spawn/spawnLink/
+#   spawnMonitor with Mod's state constructor applied to a.
 #
 # The @type declarations are the type oracle: they decide when a pattern
 # variable at an `Option` position needs `some`, when `nil` is `none`, and
@@ -28,7 +38,7 @@ defmodule ToLean do
   defmodule Ctx do
     defstruct types: %{}, msg_ctors: [], st_ctors: [], pids: %{}, enums: %{}, ns: "Gen", warnings: [],
               extra: [], awaits: %{}, reply_type: nil, effects: false, traps: %{}, pid_vars: [],
-              covered: []
+              covered: [], loops: %{}, defers: []
   end
 
   # ---------- entry ----------
@@ -49,8 +59,15 @@ defmodule ToLean do
     ctx = Enum.reduce(mods, ctx, fn {name, body}, c -> collect_types(c, name, body) end)
     clauses = for {name, body} <- mods, cl <- clauses(name, body), do: cl
     traps = for {name, body} <- mods, traps?(body), into: %{}, do: {name, true}
-    effects = map_size(traps) > 0 or Enum.any?(clauses, &effects_in?(&1.body))
-    ctx = %{ctx | traps: traps, effects: effects}
+    # raw receive loops: module -> loop function; those without a catch-all
+    # clause defer (re-enqueue) unmatched messages
+    loops = for {name, body} <- mods, {fname, _, _} <- [loop_of(body)], into: %{}, do: {name, fname}
+    defers =
+      for {name, _} <- loops,
+          not Enum.any?(clauses, fn cl -> cl.mod == name and cl.guard == nil and bare?(cl.mpat) end),
+          do: name
+    effects = map_size(traps) > 0 or map_size(loops) > 0 or Enum.any?(clauses, &effects_in?(&1.body))
+    ctx = %{ctx | traps: traps, effects: effects, loops: loops, defers: defers}
     if effects and not List.keymember?(ctx.msg_ctors, :EXIT, 0) and map_size(traps) > 0,
       do: fail("a trapping module must declare {:EXIT, pid(), term()} in @type msg")
     IO.puts(render(ctx, clauses))
@@ -71,6 +88,7 @@ defmodule ToLean do
     {_, found} = Macro.prewalk(body, false, fn
       {{:., _, [{:__aliases__, _, [:GenServer]}, f]}, _, _} = n, _ when f in [:start_link, :start] -> {n, true}
       {{:., _, [{:__aliases__, _, [:Process]}, f]}, _, _} = n, _ when f in [:monitor, :send_after, :exit] -> {n, true}
+      {f, _, [_, _, _]} = n, _ when f in [:spawn, :spawn_link, :spawn_monitor] -> {n, true}
       {:{}, _, [:noreply, _, _]} = n, _ -> {n, true}
       {:exit, _, [_]} = n, _ -> {n, true}
       {:{}, _, [:stop, _, _]} = n, _ -> {n, true}
@@ -208,15 +226,68 @@ defmodule ToLean do
 
   # ---------- clauses ----------
 
+  # A module is either a GenServer (handle_* callbacks) or a raw process:
+  # one `def loop(state) do receive do ... end end`, whose receive clauses
+  # are handle_info clauses with the parameter as the state pattern.
   defp clauses(mod, body) do
-    for {:def, _, [head, [do: b]]} <- body,
-        {fname, args, guard} = head_parts(head),
-        fname in [:handle_cast, :handle_info, :handle_call],
-        cl = clause_of(mod, fname, args, guard, b),
-        cl != nil do
-      cl
+    case loop_of(body) do
+      nil ->
+        for {:def, _, [head, [do: b]]} <- body,
+            {fname, args, guard} = head_parts(head),
+            fname in [:handle_cast, :handle_info, :handle_call],
+            cl = clause_of(mod, fname, args, guard, b),
+            cl != nil do
+          cl
+        end
+      {fname, param, arms} ->
+        for {:->, _, [[lhs], b]} <- arms do
+          {mpat, guard} =
+            case lhs do
+              {:when, _, [p, g]} -> {p, g}
+              p -> {p, nil}
+            end
+          %{mod: mod, mpat: mpat, spat: param, guard: guard, body: loop_tail(fname, b), from: nil}
+        end
     end
   end
+
+  # {loop name, state parameter, receive arms} of a raw process module, or nil
+  defp loop_of(body) do
+    loops = for {:def, _, [head, [do: {:receive, _, [opts]}]]} <- body, do: {head_parts(head), opts}
+    handlers =
+      for {:def, _, [head, _]} <- body, {f, _, _} = head_parts(head), f in [:handle_cast, :handle_info, :handle_call], do: f
+    case loops do
+      [] -> nil
+      [_ | _] when handlers != [] -> fail("a module cannot mix GenServer callbacks with a receive loop")
+      [{{fname, [param], nil}, [do: arms]}] -> {fname, param, arms}
+      [{{fname, _, _}, _}] -> fail("receive loop #{fname} must take one argument and have no guard or `after`")
+      _ -> fail("more than one receive loop in a module")
+    end
+  end
+
+  # Rewrite the tail of a receive-clause body: `loop(e)` continues with state
+  # e, `exit(r)` stays, a statement is kept and the loop returns after it,
+  # any other value means the loop returns normally.
+  defp loop_tail(fname, {:if, m, [c, [do: a, else: b]]}),
+    do: {:if, m, [c, [do: loop_tail(fname, a), else: loop_tail(fname, b)]]}
+  defp loop_tail(fname, {:case, m, [s, [do: arms]]}),
+    do: {:case, m, [s, [do: for({:->, am, [p, b]} <- arms, do: {:->, am, [p, loop_tail(fname, b)]})]]}
+  defp loop_tail(fname, b) do
+    {init, [last]} = Enum.split(stmts(b), -1)
+    tail =
+      case last do
+        {^fname, _, [e]} -> [{:noreply, e}]
+        {:exit, _, [_]} -> [last]
+        _ -> if(value?(last), do: [], else: [last]) ++ [{:exit, [], [:normal]}]
+      end
+    {:__block__, [], init ++ tail}
+  end
+
+  defp value?(x) when is_atom(x) or is_integer(x) or is_list(x), do: true
+  defp value?({v, _, nil}) when is_atom(v), do: true
+  defp value?({:{}, _, _}), do: true
+  defp value?({_, _}), do: true
+  defp value?(_), do: false
 
   defp clause_of(mod, :handle_call, [mpat, fpat, spat], guard, b),
     do: %{mod: mod, mpat: mpat, spat: spat, guard: guard, body: b, from: fpat}
@@ -324,31 +395,56 @@ defmodule ToLean do
     indexed = Enum.reject(indexed, fn {cl, j} ->
       Enum.any?(indexed, fn {e, i} -> i < j and e.mod == cl.mod and general?(e.mpat, cl.mpat) and general?(e.spat, cl.spat) end)
     end)
-    Enum.map_reduce(indexed, ctx, fn {cl, i}, c ->
-      {env, mp, sp, guards} = patterns(c, cl)
-      env = if uses_self?(cl), do: Map.put(env, :__self__, true), else: env
-      env = if spawns?(cl), do: Map.put(env, :__fresh__, 0), else: env
-      env = if cl.from, do: Map.put(env, :__from__, from_name(cl.from)), else: env
-      guard_str = Enum.map(guards, &guard_to_lean(env, &1)) ++ if(cl.guard, do: [guard_to_lean(env, cl.guard)], else: [])
-      {body_str, c} = body(c, cl.mod, env, cl.body)
-      {rhs, c} =
-        case guard_str do
-          [] -> {body_str, c}
-          gs ->
-            {fallback, c} = fallthrough(c, clauses, i, env, sp)
-            {"if #{Enum.join(gs, " ∧ ")} then #{body_str} else #{fallback}", c}
-        end
-      c =
-        if cl.guard == nil and bare?(cl.mpat) and bare?(cl.spat),
-          do: %{c | covered: [ctor_name(cl.mod) | c.covered]},
-          else: c
-      header =
-        if c.effects,
-          do: "  | #{self_name(env)}, #{fresh_name(env)}, #{sp}, #{mp}",
-          else: "  | #{self_name(env)}, #{sp}, #{mp}"
-      {"#{header} => #{rhs}", c}
-    end)
+    {rendered, ctx} =
+      Enum.map_reduce(indexed, ctx, fn {cl, i}, c ->
+        {env, mp, sp, guards} = patterns(c, cl)
+        env = if uses_self?(cl), do: Map.put(env, :__self__, true), else: env
+        env = if spawns?(cl), do: Map.put(env, :__fresh__, 0), else: env
+        env = if cl.from, do: Map.put(env, :__from__, from_name(cl.from)), else: env
+        guard_str = Enum.map(guards, &guard_to_lean(env, &1)) ++ if(cl.guard, do: [guard_to_lean(env, cl.guard)], else: [])
+        {body_str, c} = body(c, cl.mod, env, cl.body)
+        {rhs, c, deferred} =
+          case guard_str do
+            [] -> {body_str, c, false}
+            gs ->
+              {fallback, c, deferred} = fallthrough(c, clauses, i, env, sp)
+              {"if #{Enum.join(gs, " ∧ ")} then #{body_str} else #{fallback}", c, deferred}
+          end
+        c =
+          if cl.guard == nil and bare?(cl.mpat) and bare?(cl.spat),
+            do: %{c | covered: [ctor_name(cl.mod) | c.covered]},
+            else: c
+        # a deferring fallback re-enqueues the whole message: name the pattern
+        {me, mp} = if deferred, do: {"me", "#{msg_name(env)}@(#{mp})"}, else: {self_name(env), mp}
+        header =
+          if c.effects,
+            do: "  | #{me}, #{fresh_name(env)}, #{sp}, #{mp}",
+            else: "  | #{me}, #{sp}, #{mp}"
+        {{cl.mod, "#{header} => #{rhs}"}, c}
+      end)
+    # selective receive: a raw process without a catch-all clause re-enqueues
+    # any other message to itself, after its last clause
+    last_of = rendered |> Enum.with_index() |> Enum.reduce(%{}, fn {{mod, _}, i}, acc -> Map.put(acc, mod, i) end)
+    strs =
+      rendered
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {{mod, str}, i} ->
+        if mod in ctx.defers and last_of[mod] == i, do: [str, defer_clause(ctx, mod)], else: [str]
+      end)
+    ctx = %{ctx | covered: Enum.map(ctx.defers, &ctor_name/1) ++ ctx.covered}
+    {strs, ctx}
   end
+
+  # `| me, _, .mod s_0 s_1 .., m => (.mod s_0 s_1 .., [.send me m])`
+  defp defer_clause(ctx, mod) do
+    {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(mod), 0)
+    parts = fields |> Enum.with_index() |> Enum.map(fn {_, i} -> "s_#{i}" end)
+    sp = if parts == [], do: ".#{ctor}", else: ".#{ctor} " <> Enum.join(parts, " ")
+    "  | me, _, #{sp}, m => (#{sp}, [#{send_str(ctx, "me", "m")}])"
+  end
+
+  # the name for a whole message in a deferring clause (avoid the clause's own `m`)
+  defp msg_name(env), do: if(Map.has_key?(env, "m"), do: "m'", else: "m")
 
   defp bare?({v, _, nil}) when is_atom(v), do: true
   defp bare?(_), do: false
@@ -360,6 +456,7 @@ defmodule ToLean do
   defp spawns?(cl) do
     {_, found} = Macro.prewalk(cl.body, false, fn
       {{:., _, [{:__aliases__, _, [:GenServer]}, f]}, _, _} = n, _ when f in [:start_link, :start] -> {n, true}
+      {f, _, [_, _, _]} = n, _ when f in [:spawn, :spawn_link, :spawn_monitor] -> {n, true}
       n, acc -> {n, acc}
     end)
     found
@@ -378,21 +475,27 @@ defmodule ToLean do
 
   # A guarded clause that fails its guard falls through to the next clause of
   # the same module whose patterns are at least as general. That clause's
-  # variables are aliased to the current clause's Lean pattern parts.
+  # variables are aliased to the current clause's Lean pattern parts. In a
+  # raw process without a catch-all the message is deferred instead (third
+  # component true).
   defp fallthrough(ctx, clauses, i, env, sp) do
     cl = Enum.at(clauses, i)
     later = clauses |> Enum.with_index() |> Enum.filter(fn {c, j} -> j > i and c.mod == cl.mod end)
     case Enum.find(later, fn {c, _} -> general?(c.mpat, cl.mpat) and general?(c.spat, cl.spat) end) do
       nil ->
-        ctx = %{ctx | warnings: ctx.warnings ++ ["clause #{i} guard has no fallthrough; Elixir would crash, modelled as no-op"]}
-        {"(#{sp}, [])", ctx}
+        if cl.mod in ctx.defers do
+          {"(#{sp}, [#{send_str(ctx, "me", msg_name(env))}])", ctx, true}
+        else
+          ctx = %{ctx | warnings: ctx.warnings ++ ["clause #{i} guard has no fallthrough; Elixir would crash, modelled as no-op"]}
+          {"(#{sp}, [])", ctx, false}
+        end
       {c, _} ->
         env2 = aliases(c.mpat, cl.mpat, env, %{__msg_parts__: env[:__mparts__]})
         env2 = whole_alias(c.spat, sp, env2)
         env2 = if uses_self?(c), do: Map.put(env2, :__self__, true), else: env2
         {b, ctx} = body(ctx, c.mod, env2, c.body)
         if c.guard, do: fail("chained guards are not supported (clause #{i})")
-        {b, ctx}
+        {b, ctx, false}
     end
   end
 
@@ -681,10 +784,20 @@ defmodule ToLean do
             c.effects || fail("spawn outside effects mode")
             {cctor, cfields} = List.keyfind(c.st_ctors, ctor_name(child), 0) || fail("unknown child module #{child}")
             init = state_expr(e, arg, cctor, cfields)
-            k = Map.get(e, :__fresh__, 0)
-            pid = if k == 0, do: "fresh", else: "(fresh + #{k})"
-            e = e |> Map.put(:__fresh__, k + 1) |> Map.put({:alias, Atom.to_string(v)}, pid) |> Map.put(lean_ident(Atom.to_string(v)), "Pid")
-            {if(f == :start_link, do: ".spawnLink (#{init})", else: ".spawn (#{init})"), {c, e}}
+            {if(f == :start_link, do: ".spawnLink (#{init})", else: ".spawn (#{init})"), {c, bind_fresh(e, v)}}
+          {:=, _, [lhs, {f, _, [{:__aliases__, _, [child]}, fname, [arg]]}]} when f in [:spawn, :spawn_link, :spawn_monitor] ->
+            c.effects || fail("spawn outside effects mode")
+            v =
+              case {f, lhs} do
+                {:spawn_monitor, {{v, _, nil}, {ref, _, nil}}} when is_atom(v) and is_atom(ref) -> v
+                {_, {v, _, nil}} when f != :spawn_monitor and is_atom(v) -> v
+                _ -> fail("unsupported spawn binding #{Macro.to_string(s)}")
+              end
+            Map.get(c.loops, child) == fname || fail("#{child}.#{fname} is not the receive loop of #{child}")
+            {cctor, cfields} = List.keyfind(c.st_ctors, ctor_name(child), 0) || fail("unknown module #{child}")
+            init = state_expr(e, arg, cctor, cfields)
+            eff = %{spawn: ".spawn", spawn_link: ".spawnLink", spawn_monitor: ".spawnMonitor"}[f]
+            {"#{eff} (#{init})", {c, bind_fresh(e, v)}}
           {{:., _, [{:__aliases__, _, [:Process]}, :monitor]}, _, [target]} ->
             c.effects || fail("monitor outside effects mode")
             {".monitor #{paren_or(expr(e, target, "Pid"))}", {c, e}}
@@ -695,6 +808,13 @@ defmodule ToLean do
         end
       end)
     {strs, c, e}
+  end
+
+  # bind the pid variable of a spawn to `fresh`, `fresh + 1`, ...
+  defp bind_fresh(env, v) do
+    k = Map.get(env, :__fresh__, 0)
+    pid = if k == 0, do: "fresh", else: "(fresh + #{k})"
+    env |> Map.put(:__fresh__, k + 1) |> Map.put({:alias, Atom.to_string(v)}, pid) |> Map.put(lean_ident(Atom.to_string(v)), "Pid")
   end
 
   defp reason_str(:normal), do: ".normal"
