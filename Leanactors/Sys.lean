@@ -18,6 +18,11 @@ Spawn, links and exits, as a layer over `Config`.
 * Monitors are one-directional and never cascade: terminating `p` queues a
   DOWN notification for every watcher, delivered as a message via
   `Signals.downMsg` by the `downE` step (dropped if no codec is declared).
+* Timers are untimed: `sendAfter p m` records a pending delivery and the
+  `timerE i` step fires the `i`-th pending timer, in any order. That
+  over-approximates real durations, which is sound for safety.
+* `Effect.signal q r` is `Process.exit(q, r)`: it queues an exit signal to
+  `q` from self, handled exactly like a link-propagated exit.
 * `lift` embeds a message-only `Behavior`; `runE_lift` shows the old `step`
   is exactly the new one on systems with no links and no signals, so every
   earlier theorem still applies.
@@ -35,6 +40,8 @@ inductive Effect (σ μ : Type)
   | link (p : Pid)
   | monitor (p : Pid)
   | spawnMonitor (init : σ)
+  | sendAfter (to : Pid) (m : μ)
+  | signal (q : Pid) (r : Reason)
   | exit (r : Reason)
   deriving Repr
 
@@ -59,6 +66,8 @@ structure Sys (σ μ : Type) where
   monitors : List (Pid × Pid) := []
   /-- Pending DOWN notifications `(watcher, target, reason)`, oldest first. -/
   downs : List (Pid × Pid × Reason) := []
+  /-- Pending timers `(target, message)`; any may fire at any time. -/
+  timers : List (Pid × μ) := []
 
 namespace Config
 
@@ -163,6 +172,8 @@ def applyEffect (p : Pid) : Sys σ μ × Option Reason → Effect σ μ → Sys 
   | (s, d), .spawnMonitor init =>
       ({ s with cfg := s.cfg.set s.next ⟨init, []⟩, next := s.next + 1,
                 monitors := (p, s.next) :: s.monitors }, d)
+  | (s, d), .sendAfter to m => ({ s with timers := s.timers ++ [(to, m)] }, d)
+  | (s, d), .signal q r => ({ s with signals := s.signals ++ [(q, p, r)] }, d)
   | (s, _), .exit r => (s, some r)
 
 def applyEffects (p : Pid) (s : Sys σ μ) (effs : List (Effect σ μ)) : Sys σ μ × Option Reason :=
@@ -204,6 +215,13 @@ def downE (sig : Signals σ μ) (s : Sys σ μ) : Option (Sys σ μ) :=
       | some codec, some _ => { s' with cfg := s'.cfg.deliver w (codec t r) }
       | _, _ => s')
 
+/-- Fire the `i`-th pending timer (dropped if the target is gone). -/
+def timerE (s : Sys σ μ) (i : Nat) : Option (Sys σ μ) :=
+  match s.timers[i]? with
+  | none => none
+  | some (to, m) =>
+    some { s with cfg := s.cfg.deliver to m, timers := s.timers.eraseIdx i }
+
 end Sys
 
 /-- Relational semantics: any actor with a message may run, or the oldest
@@ -212,6 +230,7 @@ inductive SysStep {σ μ : Type} (beh : EBehavior σ μ) (sig : Signals σ μ) :
   | run (s : Sys σ μ) (p : Pid) (s' : Sys σ μ) (h : Sys.runE beh s p = some s') : SysStep beh sig s s'
   | signal (s s' : Sys σ μ) (h : Sys.signalE sig s = some s') : SysStep beh sig s s'
   | down (s s' : Sys σ μ) (h : Sys.downE sig s = some s') : SysStep beh sig s s'
+  | timer (s : Sys σ μ) (i : Nat) (s' : Sys σ μ) (h : Sys.timerE s i = some s') : SysStep beh sig s s'
 
 inductive SysReach {σ μ : Type} (beh : EBehavior σ μ) (sig : Signals σ μ) : Sys σ μ → Sys σ μ → Prop
   | refl (s) : SysReach beh sig s s
@@ -222,6 +241,7 @@ inductive SysChoice
   | run (p : Pid)
   | signal
   | down
+  | timer (i : Nat)
   deriving Repr, DecidableEq
 
 /-- Executable schedule. Stops at the first choice that is not enabled. -/
@@ -235,6 +255,9 @@ def runSys {σ μ : Type} (beh : EBehavior σ μ) (sig : Signals σ μ) :
     | some s' => runSys beh sig s' ch
     | none => s
   | s, .down :: ch => match Sys.downE sig s with
+    | some s' => runSys beh sig s' ch
+    | none => s
+  | s, .timer i :: ch => match Sys.timerE s i with
     | some s' => runSys beh sig s' ch
     | none => s
 
@@ -266,6 +289,11 @@ theorem runSys_sound {σ μ : Type} (beh : EBehavior σ μ) (sig : Signals σ μ
       cases h : Sys.downE sig s with
       | none => exact .refl s
       | some s' => exact .step (.down s s' h) (ih s')
+    | timer i =>
+      simp only [runSys]
+      cases h : Sys.timerE s i with
+      | none => exact .refl s
+      | some s' => exact .step (.timer s i s' h) (ih s')
 
 /-! ## Conservativity: message-only behaviours -/
 
@@ -285,7 +313,7 @@ theorem Sys.applyEffects_sends {σ μ : Type} (p : Pid) (s : Sys σ μ) (l : Lis
 
 /-- On a system with no links and no signals, the old `step` is the new `runE`. -/
 theorem runE_lift {σ μ : Type} (beh : Behavior σ μ) (c : Config σ μ) (n : Pid) (p : Pid) :
-    Sys.runE (lift beh) ⟨c, n, [], [], [], []⟩ p = (step beh c p).map fun c' => ⟨c', n, [], [], [], []⟩ := by
+    Sys.runE (lift beh) ⟨c, n, [], [], [], [], []⟩ p = (step beh c p).map fun c' => ⟨c', n, [], [], [], [], []⟩ := by
   unfold Sys.runE step
   cases hg : c.get p with
   | none => rfl

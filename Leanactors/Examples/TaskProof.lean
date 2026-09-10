@@ -300,6 +300,24 @@ theorem Inv.step {a b : Sys St Msg} (h : SysStep beh sig a b) (hi : Inv a) : Inv
     unfold signalE at hsig
     rw [hsg] at hsig
     cases hsig
+  | timer i _ htimer =>
+    unfold timerE at htimer
+    cases ht : a.timers[i]? with
+    | none => simp [ht] at htimer
+    | some tm =>
+      obtain ⟨to, m⟩ := tm
+      simp only [ht] at htimer
+      obtain rfl := Option.some.inj htimer
+      apply Inv.frame hi
+      · exact Nat.le_refl _
+      · exact hl
+      · exact hsg
+      · exact stateOf_deliver _ _ _ _
+      · intro c h; rw [isSome_deliver]; exact h
+      · intro _ h; exact h
+      · intro _ _ h; exact Or.inl h
+      · intro _ _ _ _; rw [mcount_deliver]; omega
+      · intro _ _ _ _; rw [mcount_deliver]; omega
   | down _ hdown =>
     unfold downE at hdown
     cases hd : a.downs with

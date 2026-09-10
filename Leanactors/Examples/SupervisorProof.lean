@@ -154,7 +154,7 @@ theorem Inv.step {a b : Sys St Msg} (h : SysStep beh sig a b) (hi : Inv a) : Inv
           have spawn_case : ∀ k'' (rest' : List Msg),
               Inv { cfg := (a.cfg.set p ⟨.sup (some a.next) k'', rest'⟩).set a.next ⟨.worker 0, []⟩,
                     next := a.next + 1, links := (p, a.next) :: a.links, signals := a.signals,
-                    monitors := a.monitors, downs := a.downs } := by
+                    monitors := a.monitors, downs := a.downs, timers := a.timers } := by
             intro k'' rest'
             by_cases hp : p = 0
             · subst hp
@@ -326,6 +326,22 @@ theorem Inv.step {a b : Sys St Msg} (h : SysStep beh sig a b) (hi : Inv a) : Inv
               · cases h; exact absurd rfl hq0
               · exact h
             · intro _ _; exact Nat.le_refl _
+  | timer i _ htimer =>
+    -- a timer fires: one delivery, nothing else changes
+    unfold timerE at htimer
+    cases ht : a.timers[i]? with
+    | none => simp [ht] at htimer
+    | some tm =>
+      obtain ⟨to, m⟩ := tm
+      simp only [ht] at htimer
+      obtain rfl := Option.some.inj htimer
+      apply Inv.frame hi
+      · exact Nat.le_refl _
+      · exact stateOf_deliver _ _ _ _
+      · intro c h; rw [isSome_deliver]; exact h
+      · intro _ h; exact h
+      · intro _ _ h; exact Or.inl h
+      · intro _ _ _ _; rw [mcount_deliver]; omega
   | down _ hdown =>
     -- this program declares no DOWN codec, so notifications are dropped
     unfold downE at hdown
