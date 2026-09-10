@@ -1,4 +1,4 @@
-import Leanactors.Sys
+import Leanactors.Explore
 import Leanactors.Gen.Watchdog
 /-!
 # Leanactors.Examples.Watchdog
@@ -59,9 +59,6 @@ structure Inv (s : Sys St Msg) : Prop where
 
 /-! ## Bounded model check -/
 
-def livePids (s : Sys St Msg) : List Pid :=
-  (List.range s.next).filter fun p => (s.cfg.get p).isSome
-
 def checkInv (s : Sys St Msg) : Bool :=
   match s.cfg.stateOf 0 with
   | some (.watchdog none _) => true
@@ -71,31 +68,14 @@ def checkInv (s : Sys St Msg) : Bool :=
     [Reason.normal, .error].any (fun r => 0 < s.cfg.mcount 0 (.EXIT w r))
   | _ => false
 
-partial def explore (b : EBehavior St Msg) (sg : Signals St Msg) (s : Sys St Msg)
-    (depth env : Nat) (path : List String := []) : Nat × Option (List String) :=
-  if !checkInv s then (1, some path.reverse)
-  else if depth = 0 then (1, none)
-  else
-    let runs := (livePids s).filterMap fun p => (runE b s p).map fun s' => (s', env, s!"run {p}")
-    let sigs := (signalE sg s).map (fun s' => [(s', env, "signal")]) |>.getD []
-    let timers := (List.range s.timers.length).filterMap fun i =>
-      (timerE s i).map fun s' => (s', env, s!"timer {i}")
-    let envs := if env = 0 then [] else
-      (livePids s).map fun p => ({ s with cfg := s.cfg.deliver p .hang }, env - 1, s!"env hang -> {p}")
-    (runs ++ sigs ++ timers ++ envs).foldl (fun (n, bad) (s', e, lbl) =>
-      match bad with
-      | some _ => (n, bad)
-      | none =>
-        let (n', bad') := explore b sg s' (depth - 1) e (lbl :: path)
-        (n + n', bad')) (1, none)
-
-#eval explore beh sig init 8 2
+-- The environment may hang any live pid (the watchdog ignores `hang`).
+#eval explore beh sig checkInv [.hang] init 8 2
 
 /-! An unhandled cast crashes a GenServer, and the translator models that
 as `.exit .error`. With `handle_cast(:pong, {w, true})` as the *only*
 `:pong` clause the generated behaviour gained
 `| _, _, .watchdog s_0 s_1, .pong => (.watchdog s_0 s_1, [.exit .error])`
-and `explore Gen.Watchdog.beh sig init 8 2` found the violation after 742
+and `explore Gen.Watchdog.beh sig checkInv [.hang] init 8 2` found the violation after 742
 configurations:
 
   `["run 0", "run 1", "run 0", "timer 0", "run 0", "run 1", "run 0"]`
@@ -112,7 +92,7 @@ replaced, though the invariant does not see that (the worker is alive and
 linked). What *does* break the invariant: forgetting `trap_exit`. -/
 def sigNoTrap : Signals St Msg := { sig with traps := fun _ => false }
 
-#eval explore beh sigNoTrap init 8 2
+#eval explore beh sigNoTrap checkInv [.hang] init 8 2
 
 /-- A concrete trace: start, ping/pong, the worker hangs, the timeout
 fires, the kill signal lands, the EXIT arrives, the watchdog restarts. -/

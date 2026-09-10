@@ -1,4 +1,4 @@
-import Leanactors.Sys
+import Leanactors.Explore
 import Leanactors.Gen.Supervisor
 /-!
 # Leanactors.Examples.Supervisor
@@ -81,9 +81,6 @@ structure Inv (s : Sys St Msg) : Prop where
 
 /-! ## Bounded model check -/
 
-def livePids (s : Sys St Msg) : List Pid :=
-  (List.range s.next).filter fun p => (s.cfg.get p).isSome
-
 def checkInv (s : Sys St Msg) : Bool :=
   match s.cfg.stateOf 0 with
   | some (.sup none _) => true
@@ -93,32 +90,14 @@ def checkInv (s : Sys St Msg) : Bool :=
     [Reason.normal, .error].any (fun r => 0 < s.cfg.mcount 0 (.EXIT c r))
   | _ => false
 
-/-- Every interleaving of actor runs, signal deliveries and environment
-messages (`job`/`crash`/`stop` to any live pid), to a depth bound. -/
-partial def explore (b : EBehavior St Msg) (sg : Signals St Msg) (s : Sys St Msg)
-    (depth env : Nat) (path : List String := []) : Nat × Option (List String) :=
-  if !checkInv s then (1, some path.reverse)
-  else if depth = 0 then (1, none)
-  else
-    let runs := (livePids s).filterMap fun p => (runE b s p).map fun s' => (s', env, s!"run {p}")
-    let sigs := (signalE sg s).map (fun s' => [(s', env, "signal")]) |>.getD []
-    let envs := if env = 0 then [] else
-      (livePids s).flatMap fun p =>
-        [(.job : Msg), .crash, .stop].map fun m =>
-          ({ s with cfg := s.cfg.deliver p m }, env - 1, s!"env {repr m} -> {p}")
-    (runs ++ sigs ++ envs).foldl (fun (n, bad) (s', e, lbl) =>
-      match bad with
-      | some _ => (n, bad)
-      | none =>
-        let (n', bad') := explore b sg s' (depth - 1) e (lbl :: path)
-        (n + n', bad')) (1, none)
-
-#eval explore beh sig init 9 4
+-- Every interleaving of actor runs, signal deliveries and environment
+-- messages (`job`/`crash`/`stop` to any live pid), to a depth bound.
+#eval explore beh sig checkInv [.job, .crash, .stop] init 9 4
 
 /-- **Mutant**: the supervisor forgets `Process.flag(:trap_exit, true)`. -/
 def sigNoTrap : Signals St Msg := { sig with traps := fun _ => false }
 
-#eval explore beh sigNoTrap init 9 4
+#eval explore beh sigNoTrap checkInv [.job, .crash, .stop] init 9 4
 
 /-- A concrete trace: start, one job, a crash, the signal, the restart. -/
 def trace : Sys St Msg :=
