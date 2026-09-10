@@ -35,7 +35,7 @@ def beh : Behavior St Msg
   | _, .lock h q, .acquire from_ => (.lock h (q ++ [from_]), [])
   | _, .lock (some p') [], .release p => if p = p' then (.lock none [], []) else (.lock (some p') [], [])
   | _, .lock (some p') (n :: rest), .release p => if p = p' then (.lock (some n) rest, [(n, .reply .ok)]) else (.lock (some p') (n :: rest), [])
-  | _, .lock s_0 s_1, .release _ => (.lock s_0 s_1, [])
+  | _, .lock s_0 s_1, .release _w0 => (.lock s_0 s_1, [])
   | me, .client .idle, .tick => (.client_await0, [(server, .acquire me)])
   | me, .client .holding, .tick => (.client .idle, [(server, .release me)])
   | _, .client_await0, .reply .ok => (.client .holding, [])

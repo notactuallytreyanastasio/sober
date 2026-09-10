@@ -33,8 +33,8 @@ def sig : Signals St Msg where
 
 def beh : EBehavior St Msg
   | me, fresh, .caller none r, .go => (.caller (some fresh) r, [.spawn (.worker me 0), .monitor fresh])
-  | _, _, .caller _ r, .reply _ => (.caller none (r + 1), [])
-  | _, _, .caller (some w') r, .DOWN w _ => if w = w' then (.caller none r, []) else (.caller (some w') r, [])
+  | _, _, .caller _w1 r, .reply _w0 => (.caller none (r + 1), [])
+  | _, _, .caller (some w') r, .DOWN w _w0 => if w = w' then (.caller none r, []) else (.caller (some w') r, [])
   | _, _, .caller s_0 s_1, _ => (.caller s_0 s_1, [])
   | _, _, .worker parent n, .compute => (.worker parent n, [.send parent (.reply (n + 1)), .exit .normal])
   | _, _, .worker s_0 s_1, .crash => (.worker s_0 s_1, [.exit .error])

@@ -31,7 +31,7 @@ def sig : Signals St Msg where
 
 def beh : EBehavior St Msg
   | _, fresh, .sup none k, .start => (.sup (some fresh) k, [.spawnLink (.worker 0)])
-  | _, fresh, .sup (some c') k, .EXIT c _ => if c = c' then (.sup (some fresh) (k + 1), [.spawnLink (.worker 0)]) else (.sup (some c') k, [])
+  | _, fresh, .sup (some c') k, .EXIT c _w0 => if c = c' then (.sup (some fresh) (k + 1), [.spawnLink (.worker 0)]) else (.sup (some c') k, [])
   | _, _, .sup s_0 s_1, _ => (.sup s_0 s_1, [])
   | _, _, .worker n, .job => (.worker (n + 1), [])
   | _, _, .worker n, .crash => (.worker n, [.exit .error])

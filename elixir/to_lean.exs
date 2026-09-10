@@ -27,7 +27,8 @@
 defmodule ToLean do
   defmodule Ctx do
     defstruct types: %{}, msg_ctors: [], st_ctors: [], pids: %{}, enums: %{}, ns: "Gen", warnings: [],
-              extra: [], awaits: %{}, reply_type: nil, effects: false, traps: %{}
+              extra: [], awaits: %{}, reply_type: nil, effects: false, traps: %{}, pid_vars: [],
+              covered: []
   end
 
   # ---------- entry ----------
@@ -69,7 +70,8 @@ defmodule ToLean do
   defp effects_in?(body) do
     {_, found} = Macro.prewalk(body, false, fn
       {{:., _, [{:__aliases__, _, [:GenServer]}, f]}, _, _} = n, _ when f in [:start_link, :start] -> {n, true}
-      {{:., _, [{:__aliases__, _, [:Process]}, :monitor]}, _, _} = n, _ -> {n, true}
+      {{:., _, [{:__aliases__, _, [:Process]}, f]}, _, _} = n, _ when f in [:monitor, :send_after, :exit] -> {n, true}
+      {:{}, _, [:noreply, _, _]} = n, _ -> {n, true}
       {:exit, _, [_]} = n, _ -> {n, true}
       {:{}, _, [:stop, _, _]} = n, _ -> {n, true}
       n, acc -> {n, acc}
@@ -285,18 +287,17 @@ defmodule ToLean do
           String.trim_trailing("  | #{name} " <> Enum.map_join(fields, " ", fn {f, t} -> "(#{f} : #{t})" end))
         end) <> "\n  deriving Repr, DecidableEq\n"
 
-    beh =
-      if ctx.effects do
-        "def beh : EBehavior St Msg\n" <>
-          Enum.join(beh_clauses ++ ctx.extra, "\n") <>
-          "\n  -- Unmatched message: GenServer would crash (cast) or ignore (info). Modelled as ignore.\n" <>
-          "  | _, _, s, _ => (s, [])\n"
+    all_covered = Enum.all?(ctx.st_ctors, fn {name, _} -> name in ctx.covered end)
+    catch_all =
+      if all_covered do
+        "\n"
       else
-        "def beh : Behavior St Msg\n" <>
-          Enum.join(beh_clauses ++ ctx.extra, "\n") <>
-          "\n  -- Unmatched message: GenServer would crash (cast) or ignore (info). Modelled as ignore.\n" <>
-          "  | _, s, _ => (s, [])\n"
+        "\n  -- Unmatched message: GenServer would crash (cast) or ignore (info). Modelled as ignore.\n" <>
+          if(ctx.effects, do: "  | _, _, s, _ => (s, [])\n", else: "  | _, s, _ => (s, [])\n")
       end
+    beh =
+      "def beh : #{if ctx.effects, do: "EBehavior", else: "Behavior"} St Msg\n" <>
+        Enum.join(beh_clauses ++ ctx.extra, "\n") <> catch_all
 
 
     """
@@ -337,6 +338,10 @@ defmodule ToLean do
             {fallback, c} = fallthrough(c, clauses, i, env, sp)
             {"if #{Enum.join(gs, " ∧ ")} then #{body_str} else #{fallback}", c}
         end
+      c =
+        if cl.guard == nil and bare?(cl.mpat) and bare?(cl.spat),
+          do: %{c | covered: [ctor_name(cl.mod) | c.covered]},
+          else: c
       header =
         if c.effects,
           do: "  | #{self_name(env)}, #{fresh_name(env)}, #{sp}, #{mp}",
@@ -344,6 +349,9 @@ defmodule ToLean do
       {"#{header} => #{rhs}", c}
     end)
   end
+
+  defp bare?({v, _, nil}) when is_atom(v), do: true
+  defp bare?(_), do: false
 
   defp self_name(env), do: if(Map.has_key?(env, :__self__), do: "me", else: "_")
   defp fresh_name(env), do: if(Map.has_key?(env, :__fresh__), do: "fresh", else: "_")
@@ -362,6 +370,7 @@ defmodule ToLean do
   defp uses_self?(cl) do
     {_, found} = Macro.prewalk(cl.body, false, fn
       {:self, _, []} = n, _ -> {n, true}
+      {:{}, _, [:noreply, _, _]} = n, _ -> {n, true}
       n, acc -> {n, acc || blocking_call?(n)}
     end)
     found
@@ -421,8 +430,20 @@ defmodule ToLean do
   end
   defp whole_alias(_, _, env), do: env
 
+  # Variables the body uses where a pid is required.
+  defp pid_uses(body) do
+    {_, vs} = Macro.prewalk(body, [], fn
+      {:send, _, [{v, _, nil}, _]} = n, acc when is_atom(v) -> {n, [v | acc]}
+      {{:., _, [{:__aliases__, _, [:Process]}, f]}, _, [{v, _, nil} | _]} = n, acc when is_atom(v) and f in [:exit, :send_after, :monitor] -> {n, [v | acc]}
+      {{:., _, [{:__aliases__, _, [:GenServer]}, :reply]}, _, [{v, _, nil}, _]} = n, acc when is_atom(v) -> {n, [v | acc]}
+      n, acc -> {n, acc}
+    end)
+    Enum.uniq(vs)
+  end
+
   # Translate both patterns. Returns {env, msg_pat, state_pat, equality_guards}.
   defp patterns(ctx, cl) do
+    ctx = %{ctx | pid_vars: pid_uses(cl.body)}
     {mp, env, gs} =
       case cl.mpat do
         {v, _, nil} when is_atom(v) ->
@@ -484,7 +505,10 @@ defmodule ToLean do
   end
 
   # pattern -> {lean_pattern, env, guards}; type-directed
-  defp pat(_ctx, {:_, _, nil}, _t, env, gs), do: {"_", env, gs}
+  defp pat(_ctx, {:_, _, nil}, _t, env, gs) do
+    i = Map.get(env, :__wild__, 0)
+    {"_w#{i}", Map.put(env, :__wild__, i + 1), gs}
+  end
   # a GenServer.from() value {pid, ref} matched at a Pid position: keep the pid
   defp pat(ctx, {x, {r, _, nil}}, t, env, gs) when t in ["Pid", "Option Pid"] and is_atom(r) do
     String.starts_with?(Atom.to_string(r), "_") || fail("ref in from-pattern must be a wildcard")
@@ -497,6 +521,7 @@ defmodule ToLean do
     {ts, env, gs} = pat(ctx, t, lt, env, gs)
     {"(#{hs} :: #{ts})", env, gs}
   end
+  defp pat(_ctx, b, "Bool", env, gs) when is_boolean(b), do: {"#{b}", env, gs}
   defp pat(_ctx, a, t, env, gs) when is_atom(a) and a not in [nil, true, false] do
     if enum_type?(t), do: {".#{a}", env, gs}, else: fail("atom #{a} at non-enum position #{t}")
   end
@@ -524,8 +549,10 @@ defmodule ToLean do
           t == "Option " <> paren_or(bound_t) -> {"(some #{fresh})", Map.put(env, fresh, bound_t), gs ++ [{:eq, name, fresh}]}
           true -> fail("variable #{name} bound at #{bound_t} reused at #{t}")
         end
+      t == "Option Pid" and v in ctx.pid_vars ->
+        # the body sends to it, so the clause only makes sense when it is a pid
+        {"(some #{name})", Map.put(env, name, "Pid"), gs}
       true ->
-        _ = ctx
         {name, Map.put(env, name, t), gs}
     end
   end
@@ -595,7 +622,7 @@ defmodule ToLean do
       end
     rest_vars = free_vars({:__block__, [], rest}) |> Enum.reject(&(&1 == lhs_var))
     captured = Enum.filter(rest_vars, &Map.has_key?(env, &1)) |> Enum.map(&{&1, env[&1]})
-    ctx = %{ctx | st_ctors: ctx.st_ctors ++ [{await, captured}]}
+    ctx = %{ctx | st_ctors: ctx.st_ctors ++ [{await, captured}], covered: [await | ctx.covered]}
     cap_str = Enum.map_join(captured, "", fn {n, _} -> " " <> n end)
     # the request: a call message with `me` as the from field
     {tag, args} = msg_shape(m)
@@ -634,7 +661,16 @@ defmodule ToLean do
     {strs, {c, e}} =
       Enum.map_reduce(stmts, {ctx, env}, fn s, {c, e} ->
         case s do
+          {:send, _, [{:__aliases__, _, [target]}, m]} ->
+            const = Map.get(c.pids, Atom.to_string(target)) || fail("no --pid mapping for #{target}")
+            {send_str(c, const, msg_expr(c, e, m)), {c, e}}
           {:send, _, [to, m]} -> {send_str(c, expr(e, to, "Pid"), msg_expr(c, e, m)), {c, e}}
+          {{:., _, [{:__aliases__, _, [:Process]}, :send_after]}, _, [to, m, _t]} ->
+            c.effects || fail("send_after outside effects mode")
+            {".sendAfter #{paren_or(expr(e, to, "Pid"))} #{paren_or(msg_expr(c, e, m))}", {c, e}}
+          {{:., _, [{:__aliases__, _, [:Process]}, :exit]}, _, [to, r]} ->
+            c.effects || fail("Process.exit outside effects mode")
+            {".signal #{paren_or(expr(e, to, "Pid"))} #{reason_str(r)}", {c, e}}
           {{:., _, [{:__aliases__, _, [:GenServer]}, :cast]}, _, [{:__aliases__, _, [target]}, m]} ->
             const = Map.get(c.pids, Atom.to_string(target)) || fail("no --pid mapping for #{target}")
             {send_str(c, const, msg_expr(c, e, m)), {c, e}}
@@ -674,6 +710,10 @@ defmodule ToLean do
         {:{}, _, [:reply, r, e]} ->
           from = env[:__from__] || fail("{:reply, ...} outside handle_call")
           {state_expr(env, e, ctor, fields), [send_str(ctx, from, ".reply #{paren_or(expr(env, r, ctx.reply_type))}")]}
+        {:{}, _, [:noreply, e, _t]} ->
+          ctx.effects || fail("{:noreply, s, timeout} outside effects mode")
+          List.keymember?(ctx.msg_ctors, :timeout, 0) || fail("GenServer timeout used but :timeout not in @type msg")
+          {state_expr(env, e, ctor, fields), [".sendAfter me .timeout"]}
         {:{}, _, [:stop, r, e]} ->
           ctx.effects || fail("{:stop, ...} outside effects mode")
           {state_expr(env, e, ctor, fields), [".exit #{reason_str(r)}"]}
@@ -734,6 +774,7 @@ defmodule ToLean do
     end
   end
   defp expr(_env, {:self, _, []}, _t), do: "me"
+  defp expr(_env, b, _t) when is_boolean(b), do: "#{b}"
   defp expr(_env, a, _t) when is_atom(a) and a not in [nil, true, false], do: ".#{a}"
   defp expr(_env, n, _t) when is_integer(n), do: "#{n}"
   defp expr(_env, [], _t), do: "[]"
