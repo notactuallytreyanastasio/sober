@@ -12,6 +12,7 @@ import Leanactors.Examples.LockMutants
 import Leanactors.Gen.Lock
 import Leanactors.Gen.Bank
 import Leanactors.Examples.LockFcfs
+import Leanactors.Examples.LockLive
 import Leanactors.Examples.Supervisor
 import Leanactors.Examples.SupervisorProof
 import Leanactors.Gen.Task
