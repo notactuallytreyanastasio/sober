@@ -1,5 +1,6 @@
-# expect: error no --pid mapping for Sink
-# A send to a registered name needs a --pid mapping.
+# expect: error no registered name for Sink
+# A send to a registered name needs a --pid mapping or a registration
+# (name: __MODULE__ / Process.register) somewhere in the source.
 defmodule Source do
   use GenServer
 

@@ -680,7 +680,7 @@ defmodule ToLean do
       # a deferring fallback re-enqueues the whole message: name the pattern
       {me, mp} = if deferred, do: {"me", "#{msg_name(env)}@(#{mp})"}, else: {self_name(env), mp}
       header = "  | #{me}, #{fresh_name(env)}, #{sp}, #{mp}"
-      {{cl, lean_total?(cl, env), "#{header} => #{rhs}"}, c}
+      {{cl, {env[:__sparts__] || [], env[:__mparts__] || []}, "#{header} => #{rhs}"}, c}
     end)
     {strs, ctx} = insert_crashes(ctx, rendered)
     # selective receive: a raw process without a catch-all clause re-enqueues
@@ -690,28 +690,96 @@ defmodule ToLean do
     {strs, ctx}
   end
 
-  # Is the clause's Lean pattern total for its tag: every message argument
-  # and every state field a plain variable or wildcard? Judged on the Lean
-  # parts, not the Elixir ones, because a pid-narrowed variable renders as
-  # `(some w)` and leaves the `none` case to a later clause.
-  defp lean_total?(cl, env) do
-    (bare?(cl.mpat) or Enum.all?(env[:__mparts__] || [], &plain?/1)) and
-      Enum.all?(env[:__sparts__] || [], &plain?/1)
+  # Which message tags the given rendered clauses cover exhaustively, judged
+  # on the Lean pattern parts (not the Elixir ones, because a pid-narrowed
+  # variable renders as `(some w)` and leaves the `none` case to a later
+  # clause): a tag is covered when the rows of its clauses, plus the rows of
+  # any bare-message clause widened to the tag's arity, are exhaustive over
+  # the state fields and message arguments. `:all` when the bare-message
+  # clauses alone cover every state.
+  defp covered_tags(ctx, mod, entries) do
+    {_, fields} = List.keyfind(ctx.st_ctors, ctor_name(mod), 0)
+    ftypes = Enum.map(fields, &elem(&1, 1))
+    bare = for {cl, {sp, _}, _} <- entries, bare?(cl.mpat), do: sp
+    tagged = for {cl, {sp, mp}, _} <- entries, not bare?(cl.mpat), do: {elem(msg_shape(cl.mpat), 0), sp ++ mp}
+    tags =
+      for {tag, ts} <- ctx.msg_ctors,
+          rows = for({^tag, row} <- tagged, do: row) ++ for(sp <- bare, do: sp ++ List.duplicate("_", length(ts))),
+          rows != [] and exhaustive?(ctx, rows, ftypes ++ ts),
+          do: tag
+    if bare != [] and exhaustive?(ctx, bare, ftypes), do: [:all | tags], else: tags
   end
+
+  # Usefulness check: do the rows (lists of Lean pattern parts, one per
+  # column of the given types) cover every value? Bool, Option, List and
+  # generated enum columns have a complete signature; a literal or anything
+  # unrecognised is an opaque constructor that never completes one, so the
+  # answer errs towards "not exhaustive" (an extra crash clause that Lean
+  # then rejects as redundant) and never towards a silently ignored case.
+  defp exhaustive?(_ctx, [], _types), do: false
+  defp exhaustive?(_ctx, _rows, []), do: true
+  defp exhaustive?(ctx, rows, [t | ts]) do
+    heads = Enum.map(rows, &head_of(hd(&1)))
+    sig = signature(ctx, t)
+    cond do
+      Enum.all?(heads, &(&1 == :var)) ->
+        exhaustive?(ctx, Enum.map(rows, &tl/1), ts)
+      sig != nil and Enum.all?(sig, fn {c, _} -> c in heads end) ->
+        Enum.all?(sig, fn {c, subts} ->
+          spec =
+            for [h | rest] <- rows, head_of(h) in [:var, c],
+                do: if(head_of(h) == :var, do: List.duplicate("_", length(subts)), else: sub_parts(h, c)) ++ rest
+          exhaustive?(ctx, spec, subts ++ ts)
+        end)
+      true ->
+        exhaustive?(ctx, for([h | rest] <- rows, head_of(h) == :var, do: rest), ts)
+    end
+  end
+
+  defp head_of("true"), do: :true
+  defp head_of("false"), do: :false
+  defp head_of("none"), do: :none
+  defp head_of("(some " <> _), do: :some
+  defp head_of("[]"), do: :nil
+  defp head_of("." <> name), do: {:enum, name}
+  defp head_of("(" <> _ = p), do: if(length(split_cons(p)) == 2, do: :cons, else: {:opaque, p})
+  defp head_of(p), do: if(plain?(p) or p == "_", do: :var, else: {:opaque, p})
+
+  defp signature(_ctx, "Bool"), do: [{:true, []}, {:false, []}]
+  defp signature(_ctx, "Option " <> inner), do: [{:none, []}, {:some, [unparen(inner)]}]
+  defp signature(_ctx, "List " <> inner = t), do: [{:nil, []}, {:cons, [unparen(inner), t]}]
+  defp signature(ctx, t) do
+    case Enum.find(ctx.types, fn {{_, n}, _} -> n |> Atom.to_string() |> String.capitalize() == t end) do
+      {_, u} -> if(enum_type?(t), do: for(a <- union(u), do: {{:enum, Atom.to_string(a)}, []}), else: nil)
+      nil -> nil
+    end
+  end
+
+  defp sub_parts("(some " <> rest, :some), do: [String.replace_suffix(rest, ")", "")]
+  defp sub_parts(p, :cons), do: split_cons(p)
+  defp sub_parts(_, _), do: []
+
+  # `(h :: t)` -> ["h", "t"], splitting at the top-level `::` only
+  defp split_cons("(" <> rest), do: rest |> String.replace_suffix(")", "") |> split_top(0, "")
+  defp split_top("", _, acc), do: [acc]
+  defp split_top(" :: " <> rest, 0, acc), do: [acc | split_top(rest, 0, "")]
+  defp split_top("(" <> rest, d, acc), do: split_top(rest, d + 1, acc <> "(")
+  defp split_top(")" <> rest, d, acc), do: split_top(rest, d - 1, acc <> ")")
+  defp split_top(<<c::utf8, rest::binary>>, d, acc), do: split_top(rest, d, acc <> <<c::utf8>>)
 
   defp plain?(part), do: part =~ ~r/^[A-Za-z_][A-Za-z0-9_']*$/ and part not in ["none", "true", "false"]
 
   # Per module: cast/call clauses, then one crash clause for each cast or
-  # call tag no total clause of the module covers, then info clauses, then
-  # (raw process without a catch-all, unless its arms are already
-  # exhaustive) the defer clause. A bare message variable in a cast/call
-  # clause covers every tag. A receive loop has only info-kind clauses, so
-  # it never gets crash clauses.
+  # call tag the module's clauses do not cover exhaustively, then info
+  # clauses, then (raw process without a catch-all, unless its arms are
+  # already exhaustive) the defer clause. A bare message variable in a
+  # cast/call clause covers every tag. A receive loop has only info-kind
+  # clauses, so it never gets crash clauses.
   defp insert_crashes(ctx, rendered) do
     Enum.map_reduce(ctx.mods, ctx, fn mod, c ->
       chunk = Enum.filter(rendered, fn {cl, _, _} -> cl.mod == mod end)
       {ci, info} = Enum.split_with(chunk, fn {cl, _, _} -> cl.kind != :handle_info end)
-      covered = for {cl, true, _} <- ci, do: if(bare?(cl.mpat), do: :all, else: elem(msg_shape(cl.mpat), 0))
+      covered = covered_tags(c, mod, ci)
       needed =
         if :all in covered do
           []
@@ -722,10 +790,10 @@ defmodule ToLean do
               do: tag
         end
       crash = Enum.map(needed, &crash_clause(c, mod, &1))
-      # Every tag has a total clause (or a crash clause): the module's arms
-      # are exhaustive, so a trailing defer clause or the global catch-all
-      # would be a redundant alternative, which Lean rejects.
-      total = for {cl, true, _} <- chunk, do: if(bare?(cl.mpat), do: :all, else: elem(msg_shape(cl.mpat), 0))
+      # Every tag is covered (or gets a crash clause): the module's arms are
+      # exhaustive, so a trailing defer clause or the global catch-all would
+      # be a redundant alternative, which Lean rejects.
+      total = covered_tags(c, mod, chunk)
       exhaustive = :all in total or Enum.all?(c.msg_ctors, fn {tag, _} -> tag in total or tag in needed end)
       c = if exhaustive, do: %{c | covered: [ctor_name(mod) | c.covered]}, else: c
       defer = if mod in c.defers and not exhaustive, do: [defer_clause(c, mod)], else: []

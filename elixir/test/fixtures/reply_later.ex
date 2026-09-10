@@ -1,10 +1,9 @@
 # expect: ok
-# warn: not handled in every state
 # lean: check
 # handle_call stores the caller and answers later with GenServer.reply/2
 # from a cast. The cast's state variable is narrowed to `some w` because the
-# body replies to it, which leaves the `none` state uncovered: in message
-# mode that is a warning, not a crash clause.
+# body replies to it, which leaves the `none` state uncovered: a `:release`
+# in the `none` state gets a crash clause (FunctionClauseError on the BEAM).
 defmodule Waiter do
   use GenServer
 

@@ -21,7 +21,7 @@ def sig : Signals St Msg where
   traps := fun
     | .killer _ => false
   -- no module declares {:EXIT, ...}; nobody traps, so this codec is never used
-  exitMsg := fun _ _ => .kill 0
+  exitMsg := fun p _ => .kill p
 
 def beh : EBehavior St Msg
   | _, _, .killer n, .kill p => (.killer (n + 1), [.signal p .error])

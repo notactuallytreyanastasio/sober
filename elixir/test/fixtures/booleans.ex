@@ -1,9 +1,10 @@
 # expect: ok
 # lean: check
 # boolean() is Bool: true/false as patterns and as expressions, a bare Bool
-# variable as a guard, and an `if` around a whole body. `Other` leaves a tag
-# unhandled by `Flag` so the global catch-all is reachable: the translator
-# does not detect that `{true, n}` and `{false, n}` together are exhaustive.
+# variable as a guard, and an `if` around a whole body. `{true, n}` and
+# `{false, n}` together cover `:flip`, so `Flag` gets no crash clause;
+# `Other` leaves its info tag without a total clause so the global catch-all
+# is still reachable.
 defmodule Flag do
   use GenServer
 
