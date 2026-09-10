@@ -11,3 +11,6 @@ import Leanactors.Gen.Bank
 import Leanactors.Examples.LockFcfs
 import Leanactors.Examples.Supervisor
 import Leanactors.Examples.SupervisorProof
+import Leanactors.Gen.Task
+import Leanactors.Examples.Task
+import Leanactors.Examples.TaskProof
