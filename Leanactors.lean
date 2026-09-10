@@ -2,6 +2,7 @@ import Leanactors.Core
 import Leanactors.Props
 import Leanactors.Count
 import Leanactors.Sys
+import Leanactors.SysProps
 import Leanactors.Examples.Bank
 import Leanactors.Examples.Lock
 import Leanactors.Examples.LockProof
@@ -17,3 +18,4 @@ import Leanactors.Examples.TaskProof
 import Leanactors.Gen.Watchdog
 import Leanactors.Examples.Watchdog
 import Leanactors.Examples.WatchdogProof
+import Leanactors.Examples.SysPropsDemo
