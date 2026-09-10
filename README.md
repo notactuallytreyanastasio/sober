@@ -14,12 +14,50 @@ for a pure subset of Elixir/BEAM programs. No Mathlib.
 | `Leanactors/Examples/Lock.lean` | Cross-actor invariant: lock server + clients, token invariant, bounded model checker |
 | `Leanactors/Examples/LockProof.lean` | The invariant is inductive; `mutex_forever` under any scheduler and any environment ticks |
 | `Leanactors/Examples/LockMutants.lean` | Three protocol bugs: two caught with witness traces, one shown unreachable |
-| `elixir/bank.exs` | The bank as an Elixir GenServer; runs the same stimulus and checks it matches the Lean trace |
-| `elixir/lock.exs` | The lock as Elixir processes; chaos ticks; event log checked for overlapping critical sections |
+| `Leanactors/Gen/*.lean` | Generated from `elixir/src/*.ex` by the translator; do not edit |
+| `elixir/src/bank.ex`, `elixir/src/lock.ex` | The Elixir source of truth: executed on the BEAM and translated to Lean |
+| `elixir/to_lean.exs` | The translator: `@type`-directed, small subset, unverified |
+| `elixir/bank.exs` | Driver: runs the bank with the Lean stimulus and checks the trace matches |
+| `elixir/lock.exs` | Driver: runs the lock under chaos ticks; event log checked for overlapping critical sections |
+
+## Pipeline: Elixir source to Lean theorem
+
+```
+elixir/src/lock.ex          ordinary GenServer modules with @type msg / @type state
+      │
+      ├── elixir/lock.exs     runs them on the BEAM under chaos ticks (property test)
+      │
+      └── elixir/to_lean.exs  reads the @types, emits Leanactors/Gen/Lock.lean:
+                              inductive Msg / St / Phase and `def beh : Behavior St Msg`
+                                    │
+                                    ▼
+Leanactors/Examples/Lock.lean       `theorem beh_eq_gen : Gen.Lock.beh = beh` (funext + cases + rfl)
+Leanactors/Examples/LockProof.lean  `Inv.step`, `mutex_forever` about `beh`
+```
+
+The `@type` declarations are the type oracle for the translation. They
+decide when a pattern variable at a `pid() | nil` position needs `some`,
+when `nil` is `none`, that `[pid()]` is `List Pid`, that an atom union is an
+enum, and how the non-linear pattern `{:release, p}, {p, [n | rest]}`
+becomes a Lean pattern plus an equality guard. Nothing in the translator
+inspects values; every decision is type-directed. That is the division of
+labour the original question asked about: Elixir's set-theoretic types fix
+the shapes, Lean proves the interleavings.
+
+The translator is unverified and supports a small subset (see its header).
+The equivalence theorem is what makes that acceptable: if the translation
+is wrong, `beh_eq_gen` fails to typecheck.
 
 ## Build
 
 ```sh
+./check.sh              # regenerate Gen/, verify it is unchanged, lake build, run both drivers
+```
+
+or piecewise:
+
+```sh
+elixir elixir/to_lean.exs elixir/src/lock.ex Leanactors.Gen.Lock --pid Lock=server > Leanactors/Gen/Lock.lean
 lake build              # checks every proof and runs the bounded checkers
 elixir elixir/bank.exs  # exits 1 on mismatch with the Lean trace
 elixir elixir/lock.exs 20 20000   # exits 1 if two clients ever hold at once
