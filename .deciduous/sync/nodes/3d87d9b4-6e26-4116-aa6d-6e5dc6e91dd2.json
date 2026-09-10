@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "3d87d9b4-6e26-4116-aa6d-6e5dc6e91dd2",
+  "created_at": "2026-09-10T15:35:54.515694-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 75
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Four builders: kinds+crash (translator), after-generations+Ttl proof (translator+Lean), kill semantics (core+SysProps+proofs), generic explorer (Lean); shared-graph protocol; integrator + verifier",
+  "updated_at": "2026-09-10T15:35:54.515694-04:00"
+}
