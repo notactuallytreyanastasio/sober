@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "71a88367-a83c-4537-8324-9396fe8ece27",
+  "created_at": "2026-09-10T13:25:31.222913-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Init: Worker.init(parent) -> {:ok, {parent, 0}} in task.ex; translator reads init bodies",
+  "updated_at": "2026-09-10T13:25:31.222913-04:00"
+}

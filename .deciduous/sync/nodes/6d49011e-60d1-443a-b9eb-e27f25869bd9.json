@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "6d49011e-60d1-443a-b9eb-e27f25869bd9",
+  "created_at": "2026-09-10T13:27:59.369088-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 75
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Run the workflow: pieces are conflict-free except the translator file, which one integrator resolves; each piece demonstrated on a different existing example (task, watchdog, supervisor)",
+  "updated_at": "2026-09-10T13:27:59.369088-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "1e699079-e6ec-4c20-b161-e0e06f9a0018",
+  "created_at": "2026-09-10T13:25:31.109549-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 75
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Do init, crash, receive, in that order, each demonstrated on an existing example; real time and multi-node stay out of scope",
+  "updated_at": "2026-09-10T13:25:31.109549-04:00"
+}

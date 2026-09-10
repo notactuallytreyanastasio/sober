@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "9184b179-62d1-4717-af94-46cf48e212f0",
+  "created_at": "2026-09-10T13:27:59.435573-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 70
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Workflow wf_3cbfd058: Build (5 worktree agents) -> Integrate -> Verify",
+  "updated_at": "2026-09-10T13:27:59.435573-04:00"
+}

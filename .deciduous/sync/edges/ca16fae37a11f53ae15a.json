@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T13:27:59.406349-04:00",
+  "edge_id": "ca16fae37a11f53ae15a",
+  "edge_type": "leads_to",
+  "from_change_id": "70a06410-7a3e-404a-a151-158c9258b106",
+  "rationale": "rejected: user explicitly asked for parallel agents",
+  "to_change_id": "6d49011e-60d1-443a-b9eb-e27f25869bd9",
+  "weight": 1.0
+}

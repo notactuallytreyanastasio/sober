@@ -1396,6 +1396,138 @@
       "created_at": "2026-09-10T13:11:03.765993-04:00",
       "updated_at": "2026-09-10T13:11:03.765993-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":85}"
+    },
+    {
+      "id": 128,
+      "change_id": "583c4518-0db7-41f6-bd3c-f355410a6cbd",
+      "node_type": "goal",
+      "title": "Close the semantic gaps: non-identity init, unhandled cast/call crashes, raw receive loops with selective receive",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T13:25:30.840293-04:00",
+      "updated_at": "2026-09-10T13:25:30.840293-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":65,\"prompt\":\"now lets continue on to the rest\"}"
+    },
+    {
+      "id": 129,
+      "change_id": "beb4923e-6c72-40ec-b739-dde90932e232",
+      "node_type": "option",
+      "title": "Init: translate the child's init/1 body as a pure state expression over its argument",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T13:25:30.899362-04:00",
+      "updated_at": "2026-09-10T13:25:30.899362-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":80}"
+    },
+    {
+      "id": 130,
+      "change_id": "dd36ec6d-1e57-4b79-83a3-add2c6458594",
+      "node_type": "option",
+      "title": "Crash: classify tags by the callback that handles them; emit an exit-error clause per cast/call tag not fully covered; require kind-disjoint tags",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T13:25:30.931064-04:00",
+      "updated_at": "2026-09-10T13:25:30.931064-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":75}"
+    },
+    {
+      "id": 131,
+      "change_id": "c79a885b-8b22-4db3-a647-eb20566a78c6",
+      "node_type": "option",
+      "title": "Receive: translate def f(pat) do receive ... end end loops as handler clauses; tail call = noreply, exit = exit, fall-through = exit normal; add a re-enqueue defer clause when the receive has no catch-all",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T13:25:30.966821-04:00",
+      "updated_at": "2026-09-10T13:25:30.966821-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":70}"
+    },
+    {
+      "id": 132,
+      "change_id": "6b28cde9-fe7d-4584-995e-92074aff28c1",
+      "node_type": "option",
+      "title": "Real time and multi-node",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T13:25:30.998473-04:00",
+      "updated_at": "2026-09-10T13:25:30.998473-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":10}"
+    },
+    {
+      "id": 133,
+      "change_id": "1e699079-e6ec-4c20-b161-e0e06f9a0018",
+      "node_type": "decision",
+      "title": "Do init, crash, receive, in that order, each demonstrated on an existing example; real time and multi-node stay out of scope",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T13:25:31.109549-04:00",
+      "updated_at": "2026-09-10T13:25:31.109549-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":75}"
+    },
+    {
+      "id": 134,
+      "change_id": "71a88367-a83c-4537-8324-9396fe8ece27",
+      "node_type": "action",
+      "title": "Init: Worker.init(parent) -> {:ok, {parent, 0}} in task.ex; translator reads init bodies",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T13:25:31.222913-04:00",
+      "updated_at": "2026-09-10T13:25:31.222913-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":80}"
+    },
+    {
+      "id": 135,
+      "change_id": "70a06410-7a3e-404a-a151-158c9258b106",
+      "node_type": "option",
+      "title": "Serial: implement init, crash, receive one after another in the main checkout",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T13:27:59.257471-04:00",
+      "updated_at": "2026-09-10T13:27:59.257471-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":40}"
+    },
+    {
+      "id": 136,
+      "change_id": "60aec0ae-f1b7-407a-92a3-710baaae814a",
+      "node_type": "option",
+      "title": "Workflow: five agents in isolated worktrees (init, crash, receive, Sys metatheory, design notes), then an integrator merges branches and a verifier checks independently",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T13:27:59.294519-04:00",
+      "updated_at": "2026-09-10T13:27:59.294519-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":75}"
+    },
+    {
+      "id": 137,
+      "change_id": "6d49011e-60d1-443a-b9eb-e27f25869bd9",
+      "node_type": "decision",
+      "title": "Run the workflow: pieces are conflict-free except the translator file, which one integrator resolves; each piece demonstrated on a different existing example (task, watchdog, supervisor)",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T13:27:59.369088-04:00",
+      "updated_at": "2026-09-10T13:27:59.369088-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":75}"
+    },
+    {
+      "id": 138,
+      "change_id": "9184b179-62d1-4717-af94-46cf48e212f0",
+      "node_type": "action",
+      "title": "Workflow wf_3cbfd058: Build (5 worktree agents) -> Integrate -> Verify",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T13:27:59.435573-04:00",
+      "updated_at": "2026-09-10T13:27:59.435573-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":70}"
+    },
+    {
+      "id": 139,
+      "change_id": "d8215146-1e98-4cb4-8f0e-2aa720e118dc",
+      "node_type": "observation",
+      "title": "First workflow run: all five builders failed at startup because the harness's worktree isolation still saw the session as 'not a git repository' (git init happened after session start). Integrator and verifier correctly reported nothing to merge. Fix: builders create their own worktrees with plain git under ../lean_analysis-wf/",
+      "description": "Harness limitation, not a repo problem. check.sh on main stayed green throughout. Resumed the same run with resumeFromRunId; the two non-isolated agents' prompts changed because their input (the empty build list) changed, so they re-run rather than replay.",
+      "status": "pending",
+      "created_at": "2026-09-10T13:30:21.415319-04:00",
+      "updated_at": "2026-09-10T13:30:21.415319-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":90}"
     }
   ],
   "edges": [
@@ -2993,6 +3125,182 @@
       "weight": 1.0,
       "rationale": "state of the toolbox",
       "created_at": "2026-09-10T13:11:03.783994-04:00"
+    },
+    {
+      "id": 146,
+      "from_node_id": 127,
+      "to_node_id": 128,
+      "from_change_id": "f12ba718-c9ea-42a8-a151-9096a5e8491b",
+      "to_change_id": "583c4518-0db7-41f6-bd3c-f355410a6cbd",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "the gaps listed in the README",
+      "created_at": "2026-09-10T13:25:30.864748-04:00"
+    },
+    {
+      "id": 147,
+      "from_node_id": 128,
+      "to_node_id": 129,
+      "from_change_id": "583c4518-0db7-41f6-bd3c-f355410a6cbd",
+      "to_change_id": "beb4923e-6c72-40ec-b739-dde90932e232",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T13:25:31.020967-04:00"
+    },
+    {
+      "id": 148,
+      "from_node_id": 128,
+      "to_node_id": 130,
+      "from_change_id": "583c4518-0db7-41f6-bd3c-f355410a6cbd",
+      "to_change_id": "dd36ec6d-1e57-4b79-83a3-add2c6458594",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T13:25:31.041020-04:00"
+    },
+    {
+      "id": 149,
+      "from_node_id": 128,
+      "to_node_id": 131,
+      "from_change_id": "583c4518-0db7-41f6-bd3c-f355410a6cbd",
+      "to_change_id": "c79a885b-8b22-4db3-a647-eb20566a78c6",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T13:25:31.060493-04:00"
+    },
+    {
+      "id": 150,
+      "from_node_id": 128,
+      "to_node_id": 132,
+      "from_change_id": "583c4518-0db7-41f6-bd3c-f355410a6cbd",
+      "to_change_id": "6b28cde9-fe7d-4584-995e-92074aff28c1",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T13:25:31.079318-04:00"
+    },
+    {
+      "id": 151,
+      "from_node_id": 129,
+      "to_node_id": 133,
+      "from_change_id": "beb4923e-6c72-40ec-b739-dde90932e232",
+      "to_change_id": "1e699079-e6ec-4c20-b161-e0e06f9a0018",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "chosen",
+      "created_at": "2026-09-10T13:25:31.130563-04:00"
+    },
+    {
+      "id": 152,
+      "from_node_id": 130,
+      "to_node_id": 133,
+      "from_change_id": "dd36ec6d-1e57-4b79-83a3-add2c6458594",
+      "to_change_id": "1e699079-e6ec-4c20-b161-e0e06f9a0018",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "chosen",
+      "created_at": "2026-09-10T13:25:31.150078-04:00"
+    },
+    {
+      "id": 153,
+      "from_node_id": 131,
+      "to_node_id": 133,
+      "from_change_id": "c79a885b-8b22-4db3-a647-eb20566a78c6",
+      "to_change_id": "1e699079-e6ec-4c20-b161-e0e06f9a0018",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "chosen",
+      "created_at": "2026-09-10T13:25:31.170946-04:00"
+    },
+    {
+      "id": 154,
+      "from_node_id": 132,
+      "to_node_id": 133,
+      "from_change_id": "6b28cde9-fe7d-4584-995e-92074aff28c1",
+      "to_change_id": "1e699079-e6ec-4c20-b161-e0e06f9a0018",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "rejected: needs a different core",
+      "created_at": "2026-09-10T13:25:31.192242-04:00"
+    },
+    {
+      "id": 155,
+      "from_node_id": 133,
+      "to_node_id": 134,
+      "from_change_id": "1e699079-e6ec-4c20-b161-e0e06f9a0018",
+      "to_change_id": "71a88367-a83c-4537-8324-9396fe8ece27",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "step 1",
+      "created_at": "2026-09-10T13:25:31.242655-04:00"
+    },
+    {
+      "id": 156,
+      "from_node_id": 128,
+      "to_node_id": 135,
+      "from_change_id": "583c4518-0db7-41f6-bd3c-f355410a6cbd",
+      "to_change_id": "70a06410-7a3e-404a-a151-158c9258b106",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T13:27:59.313609-04:00"
+    },
+    {
+      "id": 157,
+      "from_node_id": 128,
+      "to_node_id": 136,
+      "from_change_id": "583c4518-0db7-41f6-bd3c-f355410a6cbd",
+      "to_change_id": "60aec0ae-f1b7-407a-92a3-710baaae814a",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered (user asked for a multi-agent workflow)",
+      "created_at": "2026-09-10T13:27:59.338394-04:00"
+    },
+    {
+      "id": 158,
+      "from_node_id": 136,
+      "to_node_id": 137,
+      "from_change_id": "60aec0ae-f1b7-407a-92a3-710baaae814a",
+      "to_change_id": "6d49011e-60d1-443a-b9eb-e27f25869bd9",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "chosen",
+      "created_at": "2026-09-10T13:27:59.388161-04:00"
+    },
+    {
+      "id": 159,
+      "from_node_id": 135,
+      "to_node_id": 137,
+      "from_change_id": "70a06410-7a3e-404a-a151-158c9258b106",
+      "to_change_id": "6d49011e-60d1-443a-b9eb-e27f25869bd9",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "rejected: user explicitly asked for parallel agents",
+      "created_at": "2026-09-10T13:27:59.406349-04:00"
+    },
+    {
+      "id": 160,
+      "from_node_id": 137,
+      "to_node_id": 138,
+      "from_change_id": "6d49011e-60d1-443a-b9eb-e27f25869bd9",
+      "to_change_id": "9184b179-62d1-4717-af94-46cf48e212f0",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "launched",
+      "created_at": "2026-09-10T13:27:59.453259-04:00"
+    },
+    {
+      "id": 161,
+      "from_node_id": 138,
+      "to_node_id": 139,
+      "from_change_id": "9184b179-62d1-4717-af94-46cf48e212f0",
+      "to_change_id": "d8215146-1e98-4cb4-8f0e-2aa720e118dc",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "first attempt",
+      "created_at": "2026-09-10T13:30:21.437248-04:00"
     }
   ]
 }
