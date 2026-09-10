@@ -53,12 +53,14 @@ def mcount (c : Config σ μ) (q : Pid) (m : μ) : Nat :=
   | some a => a.mailbox.count m
   | none => 0
 
+omit [DecidableEq μ] in
 theorem stateOf_set (c : Config σ μ) (p q : Pid) (a : Actor σ μ) :
     (c.set p a).stateOf q = if q = p then some a.state else c.stateOf q := by
   by_cases h : q = p
   · subst h; simp [stateOf, get_set_self]
   · simp [stateOf, get_set_ne _ _ h, h]
 
+omit [DecidableEq μ] in
 theorem isSome_set (c : Config σ μ) (p q : Pid) (a : Actor σ μ) :
     ((c.set p a).get q).isSome = if q = p then true else (c.get q).isSome := by
   by_cases h : q = p
@@ -71,6 +73,7 @@ theorem mcount_set (c : Config σ μ) (p q : Pid) (a : Actor σ μ) (m : μ) :
   · subst h; simp [mcount, get_set_self]
   · simp [mcount, get_set_ne _ _ h, h]
 
+omit [DecidableEq μ] in
 theorem isSome_deliver (c : Config σ μ) (p q : Pid) (m : μ) :
     ((c.deliver p m).get q).isSome = (c.get q).isSome := by
   have h := stateOf_deliver c p q m

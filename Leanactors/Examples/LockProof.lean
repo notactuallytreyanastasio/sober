@@ -10,6 +10,9 @@ case reduces, via `Step.chars`, to linear arithmetic over the six
 per-pid counters, discharged by `omega`.
 -/
 
+-- The proofs below pass lemma sets that are needed in some branches and not others.
+set_option linter.unusedSimpArgs false
+
 namespace Leanactors.Examples.Lock
 
 open Leanactors Config
@@ -558,5 +561,93 @@ theorem Inv.step {c c' : Config St Msg} (h : Step beh c c') (hi : Inv c) : Inv c
           have hrx := hr_pop x
           simp at hrx
           omega
+
+
+/-! ### Environment ticks preserve the invariant -/
+
+theorem Inv.env {c c' : Config St Msg} (h : EnvStep c c') (hi : Inv c) : Inv c' := by
+  cases h with
+  | tick p =>
+    have hst : ∀ y, (c.deliver p .tick).stateOf y = c.stateOf y := fun y => stateOf_deliver c p y _
+    have hcnt : ∀ y m, m ≠ Msg.tick → (c.deliver p .tick).mcount y m = c.mcount y m := by
+      intro y m hm
+      rw [mcount_deliver]
+      simp [Ne.symm hm]
+    apply Inv.frame hi (hst server)
+    · intro y me ph hy; rw [hst] at hy; exact hi.cli y me ph hy
+    · intro y h q hy; rw [hst] at hy; exact hi.only_srv y h q hy
+    · intro y; simp [phaseOf, hst]
+    · intro y; exact hcnt y .grant (by simp)
+    · intro y; exact hcnt server (.acquire y) (by simp)
+    · intro y; exact hcnt server (.release y) (by simp)
+
+/-! ### The initial configuration satisfies the invariant -/
+
+theorem initCfg_stateOf (n p : Pid) :
+    (initCfg n).stateOf p =
+      if p = server then some (.srv none []) else if p ≤ n then some (.cli p .idle) else none := by
+  unfold stateOf Config.get initCfg
+  by_cases h0 : p = server
+  · simp [h0]
+  · by_cases hn : p ≤ n <;> simp [h0, hn]
+
+theorem initCfg_mcount (n p : Pid) (m : Msg) : (initCfg n).mcount p m = 0 := by
+  unfold mcount Config.get initCfg
+  by_cases h0 : p = server
+  · simp [h0]
+  · by_cases hn : p ≤ n <;> simp [h0, hn]
+
+theorem initCfg_inv (n : Nat) : Inv (initCfg n) := by
+  have hs : (initCfg n).stateOf server = some (.srv none []) := by simp [initCfg_stateOf]
+  have hw : ∀ p, w (initCfg n) p = 0 := by
+    intro p; unfold w phaseOf; rw [initCfg_stateOf]
+    by_cases h0 : p = server
+    · simp [h0]
+    · by_cases hn : p ≤ n <;> simp [h0, hn]
+  have hhd : ∀ p, hd (initCfg n) p = 0 := by
+    intro p; unfold hd phaseOf; rw [initCfg_stateOf]
+    by_cases h0 : p = server
+    · simp [h0]
+    · by_cases hn : p ≤ n <;> simp [h0, hn]
+  refine ⟨⟨none, [], hs⟩, ?_, ?_, ?_, ?_⟩
+  · intro p me ph h
+    rw [initCfg_stateOf] at h
+    by_cases h0 : p = server
+    · simp [h0] at h
+    · by_cases hn : p ≤ n <;> simp [h0, hn] at h
+      exact h.1.symm
+  · intro p h q hpq
+    rw [initCfg_stateOf] at hpq
+    by_cases h0 : p = server
+    · exact h0
+    · by_cases hn : p ≤ n <;> simp [h0, hn] at hpq
+  · intro h q hsq p _
+    rw [hs] at hsq
+    simp at hsq
+    obtain ⟨rfl, rfl⟩ := hsq
+    simp [g, a, r, initCfg_mcount, hhd, hw]
+  · intro h q hsq
+    rw [hs] at hsq
+    simp at hsq
+
+/-! ### End-to-end: mutual exclusion under every scheduler and environment -/
+
+theorem ReachEnv.inv {c c' : Config St Msg} (h : ReachEnv c c') (hi : Inv c) : Inv c' := by
+  induction h with
+  | refl => exact hi
+  | step hs _ ih => exact ih (Inv.step hs hi)
+  | env he _ ih => exact ih (Inv.env he hi)
+
+/-- **Main theorem.** Starting from a server and `n` idle clients, under
+any interleaving of actor steps and environment ticks, no two clients are
+ever `holding` at the same time. -/
+theorem mutex_forever (n : Nat) {c : Config St Msg} (hr : ReachEnv (initCfg n) c) :
+    ∀ p q, c.stateOf p = some (.cli p .holding) → c.stateOf q = some (.cli q .holding) → p = q := by
+  intro p q hp hq
+  have hi := hr.inv (initCfg_inv n)
+  have hp' := (w_hd_of_state hp).2
+  have hq' := (w_hd_of_state hq).2
+  simp at hp' hq'
+  exact hi.mutex p q hp' hq'
 
 end Leanactors.Examples.Lock

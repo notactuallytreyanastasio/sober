@@ -130,8 +130,24 @@ depth bound, including environment ticks delivered at arbitrary times.
 This is cheap insurance against an invariant that is *true* but not
 *inductive*. -/
 
+/-- Server at pid 0, idle clients at pids `1..n`, all mailboxes empty. -/
 def initCfg (n : Nat) : Config St Msg :=
-  Config.ofList ((server, .srv none []) :: (List.range n).map fun i => (i + 1, .cli (i + 1) .idle))
+  ⟨fun p => if p = server then some ⟨.srv none [], []⟩
+            else if p ≤ n then some ⟨.cli p .idle, []⟩ else none⟩
+
+/-! ## Environment
+
+Ticks are external stimulus (a timer, a user, a shell). They may arrive at
+any pid at any time. `ReachEnv` interleaves environment ticks with actor
+steps; it is the honest reachability relation for this system. -/
+
+inductive EnvStep : Config St Msg → Config St Msg → Prop
+  | tick (c : Config St Msg) (p : Pid) : EnvStep c (c.deliver p .tick)
+
+inductive ReachEnv : Config St Msg → Config St Msg → Prop
+  | refl (c) : ReachEnv c c
+  | step {a b c} : Step beh a b → ReachEnv b c → ReachEnv a c
+  | env {a b c} : EnvStep a b → ReachEnv b c → ReachEnv a c
 
 instance : DecidableEq (Option Phase) := inferInstance
 
