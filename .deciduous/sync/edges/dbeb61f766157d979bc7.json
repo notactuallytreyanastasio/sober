@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T16:57:39.821333-04:00",
+  "edge_id": "dbeb61f766157d979bc7",
+  "edge_type": "leads_to",
+  "from_change_id": "234aac90-877b-4080-bbdb-477ef65f8457",
+  "rationale": "rejected: a vacuous headline theorem is not acceptable",
+  "to_change_id": "a97934a2-b4d0-45d9-bb01-04e14d8ce9db",
+  "weight": 1.0
+}

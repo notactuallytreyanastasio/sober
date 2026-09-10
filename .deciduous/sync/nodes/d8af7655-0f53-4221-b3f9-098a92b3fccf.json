@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "d8af7655-0f53-4221-b3f9-098a92b3fccf",
+  "created_at": "2026-09-10T16:21:46.468116-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Continue inlined at the Elixir AST level before rendering: substitute handle_continue's arg/state patterns with the clause's expressions, prepend the clause's statements (and a __reply__ marker for the reply form), recurse on the tail up to depth 3",
+  "updated_at": "2026-09-10T16:21:46.468116-04:00"
+}

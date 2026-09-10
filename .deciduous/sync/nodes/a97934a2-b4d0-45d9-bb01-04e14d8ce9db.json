@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "a97934a2-b4d0-45d9-bb01-04e14d8ce9db",
+  "created_at": "2026-09-10T16:57:07.148592-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Fix the vacuity in Fair.lean by an idle step in both CRun and SysRun (ch : Nat -> Option choice, none stutters); statements of every wrapper lemma unchanged so SupervisorLive/LockLive compile as they are",
+  "updated_at": "2026-09-10T16:57:07.148592-04:00"
+}

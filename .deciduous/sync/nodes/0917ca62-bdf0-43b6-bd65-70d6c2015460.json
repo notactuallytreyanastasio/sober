@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "0917ca62-bdf0-43b6-bd65-70d6c2015460",
+  "created_at": "2026-09-10T16:44:40.143983-04:00",
+  "description": "README Layout table row to add after SupervisorProof: | Leanactors/Examples/SupervisorLive.lean | Liveness: under weak fairness of the signal step and of run 0, a dead child is eventually replaced (restart_eventually); two rank_leads_to stages on the position of the pending signal in the FIFO signal queue and of the EXIT in the supervisor's mailbox | . README status: file count +1, theorem count +~25 (SupervisorLive has 24 theorems + 8 defs). Suggested README paragraph under the Fair framework section: 'The supervisor is the first liveness result on Sys: restart_in_flight says the restart is in flight, SupervisorLive.restart_eventually says it arrives. The run must be weakly fair for signal and for run 0; nothing is assumed about down, timers or kills (NoKillTo 0 is an invariant from init). Stage A ranks the pending (0, c, _) signal by its position in the FIFO queue (a run only appends signals, a signal step pops the head), stage B ranks EXIT c _ by its position in the supervisor mailbox (every other step only appends to it, run 0 pops the head and either spawns or leaves the state alone). Both are SysRun.rank_leads_to through rank_leads_to_of_step, whose single hypothesis is one labelled-step lemma.' NOTES finding: the two-stage shape needed a wrapper because rank_leads_to's hnoinc/hdec quantify over P b even when Q b also holds (e.g. the EXIT is delivered and a second (0,c,_) signal is still queued): proving LeadsTo (P ∧ ¬Q) Q and discharging P → (P ∧ ¬Q) ∨ Q avoids proving the signals to c are unique.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "README/NOTES replacement text for SupervisorLive (do not edit docs here)",
+  "updated_at": "2026-09-10T16:44:40.143983-04:00"
+}

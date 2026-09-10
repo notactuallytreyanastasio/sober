@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "50348be1-54d3-47c1-bbe3-2d73a64b754a",
+  "created_at": "2026-09-10T16:51:40.660965-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85,
+    "prompt": "Integrator step for round 4: merge four builder branches --no-ff in order, regenerate Gen/fixtures, check.sh, README Liveness paragraph + translator paragraphs + file table + counts, NOTES Round 4, deciduous sync, remove worktrees, push"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Integrate round 4: merge wf4/translator, wf4/fair, wf4/sup-live, wf4/lock-live into main; docs; sync; push",
+  "updated_at": "2026-09-10T16:51:40.660965-04:00"
+}

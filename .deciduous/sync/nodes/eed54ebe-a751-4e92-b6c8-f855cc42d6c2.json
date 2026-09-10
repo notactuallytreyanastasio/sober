@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "eed54ebe-a751-4e92-b6c8-f855cc42d6c2",
+  "created_at": "2026-09-10T17:02:49.597253-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Second gap in the supervisor liveness statement: with h0 : ρ.st 0 = init and closed Sys runs (no environment), the worker never dies (it exits only on :crash/:stop, which only the environment sends), so the premise 'child dead at t' is never met along a run from init. Same closedness already affects the safety theorem restart_in_flight (SysReach init has no dead child). Fix: state restart_eventually from any Good start state (Inv ∧ NoKillTo 0), prove Good closed under environment deliveries and SysReachEnv init ⊆ Good; keep the init form as a corollary. Runs with environment steps interleaved are left for a later round (recorded).",
+  "updated_at": "2026-09-10T17:02:49.597253-04:00"
+}

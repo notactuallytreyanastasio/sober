@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T16:34:05.356303-04:00",
+  "edge_id": "9a52c244cf43627ea8e9",
+  "edge_type": "leads_to",
+  "from_change_id": "5b021674-65bf-458a-900a-a7380953f1d0",
+  "rationale": "round 4 piece: lock liveness",
+  "to_change_id": "d5e4a6d4-5266-4259-8632-6d2f1f11dd32",
+  "weight": 1.0
+}

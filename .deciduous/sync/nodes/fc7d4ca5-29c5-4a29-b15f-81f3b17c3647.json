@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "fc7d4ca5-29c5-4a29-b15f-81f3b17c3647",
+  "created_at": "2026-09-10T16:44:31.311185-04:00",
+  "description": "New file Leanactors/Examples/SupervisorLive.lean (imports Leanactors.Fair, Leanactors.Examples.SupervisorProof); Leanactors.lean gains 'import Leanactors.Examples.SupervisorLive' after SupervisorProof. Main theorem, namespace Leanactors.Examples.Supervisor: restart_eventually (ρ : SysRun beh sig) (h0 : ρ.st 0 = init) (hsig : ρ.WeakFair .signal) (hrun : ρ.WeakFair (.run 0)) : ∀ t c k, (ρ.st t).cfg.stateOf 0 = some (.sup (some c) k) → ((ρ.st t).cfg.get c).isSome = false → ∃ t' ≥ t, ∃ c' k', (ρ.st t').cfg.stateOf 0 = some (.sup (some c') k') ∧ ((ρ.st t').cfg.get c').isSome = true. STRONGER than requested: no WeakFair .down needed (no monitors), NoKillTo 0 is derived from init (reach_good), not assumed. No weakening: the pending signal may be anywhere in the FIFO queue (rank = List.findIdx position), the mailbox is unbounded (rank = position of first EXIT c _). Supporting defs: Live, SupChild, SigPending, MsgPending, isSig, isExit, rankSig, rankMsg; lemmas reach_good, SupChild.get, SupChild.mboxOf, sup_run_cases (run-0 step is spawn-on-EXIT-c or pure pop), Live.spawn, sup_signal_cases (signal step: state 0 kept, head popped + appended, mailbox 0 gains exactly EXIT src r iff addressed to 0), sigPending_step, sigPending_leadsTo (stage A), msgPending_grow, msgPending_step, msgPending_leadsTo (stage B). Generic (namespace Leanactors / Leanactors.Sys / Leanactors.SysRun, any σ μ; candidates to move into SysProps/Fair): List.findIdx_append_of_mem, List.findIdx_cons_of_false, Config.mboxOf_remove_ne, Sys.mboxOf_applyEffect_append, mboxOf_foldl_applyEffect_append, mboxOf_applyEffects_append, mboxOf_runE_append (q ≠ p, q < s.next), signals_applyEffect_append, signals_foldl_applyEffect_append, signals_applyEffects_append, runE_signals_append, mboxOf_downE_append, mboxOf_timerE_append, SysRun.rank_leads_to_of_step (rank_leads_to driven by one labelled-step lemma returning Q b ∨ (P b ∧ f b ≤ f a ∧ (ch = c → f b < f a)); internally uses P ∧ ¬Q so Q b and P b overlapping is harmless).",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Integrator notes for wf4/sup-live (SupervisorLive.lean)",
+  "updated_at": "2026-09-10T16:44:31.311185-04:00"
+}

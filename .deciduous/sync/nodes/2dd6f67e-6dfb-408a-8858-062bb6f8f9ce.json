@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "2dd6f67e-6dfb-408a-8858-062bb6f8f9ce",
+  "created_at": "2026-09-10T16:50:11.071442-04:00",
+  "description": "(1) Dot-notation with a leading explicit Inv argument (HolderIs.srv hi hh) must be parenthesised when passed as an argument: hh.srv hi inside an application parses as (hh.srv) hi. (2) A local config named a shadows the counter def a; use unfold Lock.a. (3) Lemmas meant for dot-notation on Leanactors types (ReachE, CStepL) must be declared _root_.Leanactors.X.y inside the Lock namespace. (4) subst with p = server replaces p by server, so later references must say server. (5) The concurrent-agent node-id race: capture the id printed by deciduous add rather than assuming N+1 (one wrong edge 398->399 created and unlinked).",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Toolchain notes from LockLive",
+  "updated_at": "2026-09-10T16:50:11.071442-04:00"
+}

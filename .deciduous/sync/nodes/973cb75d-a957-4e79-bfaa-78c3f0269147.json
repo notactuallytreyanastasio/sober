@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "973cb75d-a957-4e79-bfaa-78c3f0269147",
+  "created_at": "2026-09-10T16:59:40.266547-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 92
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Fair.lean idle step in: lake build clean, SupervisorLive.lean and LockLive.lean compile unchanged; Fair.lean 1,103 lines / 76 theorems; CRun.idle and SysRun.idle witness that a run exists from every configuration, so restart_eventually and eventually_holds quantify over non-empty sets",
+  "updated_at": "2026-09-10T16:59:40.266547-04:00"
+}

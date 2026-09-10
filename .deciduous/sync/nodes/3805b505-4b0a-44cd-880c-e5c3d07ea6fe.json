@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "3805b505-4b0a-44cd-880c-e5c3d07ea6fe",
+  "created_at": "2026-09-10T16:48:57.068878-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "LockLive.lean compiles: full eventually_holds proved (46 theorems, 1037 lines), zero errors/warnings, no sorry",
+  "updated_at": "2026-09-10T16:48:57.068878-04:00"
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "6ccb5546-2127-429b-858b-b136c2c6a728",
+  "created_at": "2026-09-10T16:56:16.662116-04:00",
+  "description": "Checked Fair.lean SysStepL/SysRun and Supervisor.lean init/beh: init = sup at 0 with [.start], next 1, no timers; run 0 spawns worker 1 with empty mailbox; every SysStepL constructor is then disabled (SysEnabled_iff).",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "SURPRISE: restart_eventually is vacuous as merged. SysRun has only run/signal/down/timer steps (no env, no idle); from Supervisor.init the only step is run 0 on :start, after which nothing is enabled, so no infinite SysRun from init exists and the theorem quantifies over an empty set. The lock is fine: EnvStep (tick p) is always enabled so CRuns from initCfg exist. Fix needed before documenting.",
+  "updated_at": "2026-09-10T16:56:16.662116-04:00"
+}

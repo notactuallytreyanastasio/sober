@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T16:49:01.989543-04:00",
+  "edge_id": "ba1f2cdad3c76866a458",
+  "edge_type": "leads_to",
+  "from_change_id": "ffd2434d-8486-4aaa-8864-26d729a82c3c",
+  "rationale": "lake env lean clean on first full assembly",
+  "to_change_id": "3805b505-4b0a-44cd-880c-e5c3d07ea6fe",
+  "weight": 1.0
+}

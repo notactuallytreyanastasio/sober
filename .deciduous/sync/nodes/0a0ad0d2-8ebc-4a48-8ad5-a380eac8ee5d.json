@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "0a0ad0d2-8ebc-4a48-8ad5-a380eac8ee5d",
+  "created_at": "2026-09-10T16:18:19.988468-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90,
+    "prompt": "Leanactors/Fair.lean: runs, labelled steps, Enabled, WeakFair, EnvFair, Eventually/Always/LeadsTo, stable_until, rank_leads_to, sanity example; branch wf4/fair"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Fair.lean: fairness framework for liveness on both layers",
+  "updated_at": "2026-09-10T16:18:19.988468-04:00"
+}

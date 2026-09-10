@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "04d2c54a-28b1-4fb8-b1f3-916d08cd091a",
+  "created_at": "2026-09-10T16:39:21.210249-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Write Leanactors/Examples/SupervisorLive.lean: generic mailbox/signals append lemmas, rank_leads_to_of_step wrapper, sup_run_cases/sup_signal_cases, two stages, restart_eventually; wire into Leanactors.lean",
+  "updated_at": "2026-09-10T16:39:21.210249-04:00"
+}

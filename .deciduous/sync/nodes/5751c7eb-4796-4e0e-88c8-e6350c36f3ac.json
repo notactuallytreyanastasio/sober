@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5751c7eb-4796-4e0e-88c8-e6350c36f3ac",
+  "created_at": "2026-09-10T16:39:04.576546-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 40
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Weaker theorem: assume signal at head / bounded mailbox",
+  "updated_at": "2026-09-10T16:39:04.576546-04:00"
+}

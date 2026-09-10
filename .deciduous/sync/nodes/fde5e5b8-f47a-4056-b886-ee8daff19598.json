@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "fde5e5b8-f47a-4056-b886-ee8daff19598",
+  "created_at": "2026-09-10T16:34:14.141626-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Integrator notes for wf4/translator (commits f82924e, 769647d on branch wf4/translator, worktree /Users/bg/code/lean_analysis-wf/wf4-translator). Files: elixir/to_lean.exs (1,445 -> 1,678 lines; header paragraphs on GenServer return forms and handle_continue; new defps continues_of, inline_continues, inline_tail, continue_into, static_match?, bind_pat, bind_continue_state, tuple_parts, all_vars, prepend_stmts, prune_clause, reply_str; @not_enums adds :continue; uses_self? sees {:reply,_,_,t}; sends/3 renders the __reply__ marker; plain_body gains :hibernate, reply+timeout and stop+reply tails), fixtures continue.ex / error_continue_deep.ex / reply_timeout.ex / stop_reply.ex (new) and stop_kill.ex (+exit(:kill) in a GenServer), expected/*.lean regenerated; Leanactors/Examples/Ttl.lean (Explore import, envMsgs, explore := exploreWith). Six Gen files byte-identical. README replacements: fixture counts '31' -> '35', '25 expect: ok, 6 expect: error' -> '28 ok, 7 error', '31 translator fixtures' -> '35' (Build section and table); Ttl row 'Checker configurations 16,723' -> '16,093' and the receive-after paragraph 'explore visits 16,723 configurations at depth 7' -> '16,093'; generic-explorer paragraph 'Ttl.lean and Lock.lean keep local explorers (the lock's core is Config, not Sys)' -> 'Lock.lean keeps a local explorer (its core is Config, not Sys); Ttl.lean calls exploreWith with per-pid environment messages (16,093 configurations: the old local explorer also counted no-op deliveries to the dead cache)'; fixture-list sentence should add 'handle_continue inlining, reply with timeout, stop with reply' and the error list 'a continue chain deeper than three'. NOTES section 8 'Ttl and Lock keep local explorers' likewise; round-4 bullet: continue is inlined, not a message (a self-send would queue behind the mailbox); translator ~1,680 lines; check.sh runs 35 fixtures (28 ok, 7 error).",
+  "updated_at": "2026-09-10T16:34:14.141626-04:00"
+}

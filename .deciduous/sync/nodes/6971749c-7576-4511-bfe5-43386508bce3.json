@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "6971749c-7576-4511-bfe5-43386508bce3",
+  "created_at": "2026-09-10T16:34:14.104565-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Piece (3) needed no translator change: reason_str already maps :normal to .normal and :kill to .kill for Process.exit/2, {:stop, r, s} and exit/1 alike (process_exit.ex covers .signal p .normal and .signal p .kill; stop_kill.ex covers .exit .kill). Added only a GenServer handle_info(:bye, n), do: exit(:kill) clause to stop_kill.ex (renders .exit .kill) so the self-kill from a callback, not just from a raw loop, is pinned by a fixture.",
+  "updated_at": "2026-09-10T16:34:14.104565-04:00"
+}

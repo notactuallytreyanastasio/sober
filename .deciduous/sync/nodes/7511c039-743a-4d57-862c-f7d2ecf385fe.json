@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "7511c039-743a-4d57-862c-f7d2ecf385fe",
+  "created_at": "2026-09-10T17:05:14.382509-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 92
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "SysReachEnv + Good-based restart_eventually build clean; restart_eventually_env / restart_eventually_init corollaries; dead_child_reachable witness (run 0, env :crash -> 1, run 1) proves the premise is reachable. Statement strengthened (any Good start), not weakened.",
+  "updated_at": "2026-09-10T17:05:14.382509-04:00"
+}

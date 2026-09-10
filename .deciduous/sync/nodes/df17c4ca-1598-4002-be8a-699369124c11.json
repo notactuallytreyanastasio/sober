@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "df17c4ca-1598-4002-be8a-699369124c11",
+  "created_at": "2026-09-10T16:34:06.753423-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85,
+    "prompt": "Prove in Leanactors/Examples/SupervisorLive.lean that for a fair run of the supervisor (WeakFair signal/down/run 0, NoKillTo 0), a dead child eventually has a live replacement"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Supervisor liveness: restart_eventually under fairness (wf4/sup-live)",
+  "updated_at": "2026-09-10T16:34:06.753423-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "dd942abb-4791-412a-98a8-9a523b19f6b3",
+  "created_at": "2026-09-10T16:21:46.507908-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Inline handle_continue bodies by AST substitution (exact BEAM order: reply, then continue effects); reply-timeout and stop-with-reply as new plain_body tails; reason_str already renders .normal/.kill so (3) is fixture coverage only; Ttl moves to Sys.exploreWith with per-pid envMsgs",
+  "updated_at": "2026-09-10T16:21:46.507908-04:00"
+}

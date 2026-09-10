@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T16:20:55.049166-04:00",
+  "edge_id": "eef821e98eb79560dd8d",
+  "edge_type": "leads_to",
+  "from_change_id": "d45fffb5-9614-454a-8f3e-146e858653ff",
+  "rationale": "rejected: duplicated proofs, and the env-fairness case would need a third copy",
+  "to_change_id": "aef0e05b-9a92-4074-b9d6-3cf8a5f8d8df",
+  "weight": 1.0
+}

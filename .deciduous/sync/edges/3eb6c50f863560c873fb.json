@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T16:56:16.691538-04:00",
+  "edge_id": "3eb6c50f863560c873fb",
+  "edge_type": "leads_to",
+  "from_change_id": "8c10831d-02ec-4bc9-996e-cc016847c0d4",
+  "rationale": "found while reviewing the merged theorem statements for the README",
+  "to_change_id": "6ccb5546-2127-429b-858b-b136c2c6a728",
+  "weight": 1.0
+}

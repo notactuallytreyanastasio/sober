@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "6d0c15ab-90ff-4762-96fd-d67735ce6d1a",
+  "created_at": "2026-09-10T16:39:08.650021-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Go for the full theorem: rank_leads_to with P := P ∧ ¬Q wrapper; generic mailbox/signals append lemmas; no ChildLt needed (c's liveness irrelevant after t)",
+  "updated_at": "2026-09-10T16:39:08.650021-04:00"
+}

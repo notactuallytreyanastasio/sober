@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "c00c6bac-21a5-494f-a45a-8819b78e518e",
+  "created_at": "2026-09-10T16:43:54.362561-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "SupervisorLive.lean compiles: zero errors/warnings, no sorry; restart_eventually proved in full (no head-of-queue or bounded-mailbox assumption); lake build green",
+  "updated_at": "2026-09-10T16:43:54.362561-04:00"
+}

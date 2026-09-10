@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "d5a322a8-5be8-4e43-9357-b377bc169306",
+  "created_at": "2026-09-10T16:44:46.002202-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Surprise: obtain ⟨rfl, rfl⟩ on (q = 0 ∧ src = c) substituted the theorem variable c away (subst eliminates the rhs variable); used subst q; subst src instead. Also 'fun _ h => nomatch h, ?_' inside ⟨…⟩ parses the comma as a second nomatch discriminant — parenthesise.",
+  "updated_at": "2026-09-10T16:44:46.002202-04:00"
+}

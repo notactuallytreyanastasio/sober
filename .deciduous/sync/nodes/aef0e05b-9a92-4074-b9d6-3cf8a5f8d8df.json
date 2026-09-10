@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "aef0e05b-9a92-4074-b9d6-3cf8a5f8d8df",
+  "created_at": "2026-09-10T16:20:50.373156-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 88
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Generic core (Eventually/Always/LeadsTo/WeakFairOn/stable_until/rank) over Nat -> α, layer instances CRun/SysRun with state-level, reachability-guarded wrappers",
+  "updated_at": "2026-09-10T16:20:50.373156-04:00"
+}

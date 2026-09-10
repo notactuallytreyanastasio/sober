@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T16:32:24.958687-04:00",
+  "edge_id": "22aeb63bec67a26dd1b2",
+  "edge_type": "leads_to",
+  "from_change_id": "4f72d80a-15d4-4275-8fe6-191abfa67231",
+  "rationale": "what the integrator and downstream builders need",
+  "to_change_id": "ce9b9439-f07e-4ad6-b787-7ae82d4ff488",
+  "weight": 1.0
+}

@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T16:40:20.559574-04:00",
+  "edge_id": "0191cfe594f4808d5fad",
+  "edge_type": "leads_to",
+  "from_change_id": "d5e4a6d4-5266-4259-8632-6d2f1f11dd32",
+  "rationale": "each stage has one fair choice; rank_leads_to_run/stable_until_env per stage; LeadsTo.rank_induction over queue rank",
+  "to_change_id": "7edc7375-77e1-4601-895e-bb40b1995f0a",
+  "weight": 1.0
+}

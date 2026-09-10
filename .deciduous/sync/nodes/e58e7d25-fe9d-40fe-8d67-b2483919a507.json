@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e58e7d25-fe9d-40fe-8d67-b2483919a507",
+  "created_at": "2026-09-10T16:20:55.085102-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Write Leanactors/Fair.lean: generic core, CRun (CChoice/CStepL/ReachE/CEnabled/WeakFair/EnvFair), SysRun (SysStepL/SysEnabled/WeakFair), wrappers, sanity example",
+  "updated_at": "2026-09-10T16:20:55.085102-04:00"
+}

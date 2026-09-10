@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "67224ef0-f886-4aec-92e4-feb2b22d2ec8",
+  "created_at": "2026-09-10T16:52:06.054789-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Regenerate Gen/ files and fixture expectations with check.sh commands and regen_expected.sh; lake build; ./check.sh",
+  "updated_at": "2026-09-10T16:52:06.054789-04:00"
+}

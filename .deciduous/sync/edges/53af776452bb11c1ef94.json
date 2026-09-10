@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T16:21:53.172702-04:00",
+  "edge_id": "53af776452bb11c1ef94",
+  "edge_type": "leads_to",
+  "from_change_id": "4e554c73-a6f5-47c8-bb03-678c11082660",
+  "rationale": "rejected: handle_continue runs before any queued message on the BEAM",
+  "to_change_id": "dd942abb-4791-412a-98a8-9a523b19f6b3",
+  "weight": 1.0
+}

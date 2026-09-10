@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T16:40:20.526259-04:00",
+  "edge_id": "a1ddbe0820426705e0fb",
+  "edge_type": "leads_to",
+  "from_change_id": "d5e4a6d4-5266-4259-8632-6d2f1f11dd32",
+  "rationale": "rejected: stages need different fair choices (server run, holder tick, holder run, x run)",
+  "to_change_id": "e172da02-1027-43eb-afe0-11b18ff4c92f",
+  "weight": 1.0
+}

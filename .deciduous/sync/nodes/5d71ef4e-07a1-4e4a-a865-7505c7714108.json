@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5d71ef4e-07a1-4e4a-a865-7505c7714108",
+  "created_at": "2026-09-10T17:04:19.732819-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Fair.lean: SysReachEnv (steps + environment deliveries) with inv/of_reach/trans; SupervisorLive.lean: Good := Inv ∧ NoKillTo 0 with step/deliver/init, reach_good from any Good start, reachEnv_good, restart_eventually from Good (ρ.st 0), corollaries restart_eventually_env / restart_eventually_init",
+  "updated_at": "2026-09-10T17:04:19.732819-04:00"
+}
