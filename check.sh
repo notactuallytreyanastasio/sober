@@ -17,6 +17,9 @@ diff -q /tmp/Gen.Task.lean Leanactors/Gen/Task.lean
 diff -q /tmp/Gen.Watchdog.lean Leanactors/Gen/Watchdog.lean
 echo "   generated files are up to date"
 
+echo "== translator fixtures"
+elixir elixir/test/run_fixtures.exs | grep -v "^PASS "
+
 echo "== prove"
 lake build 2>&1 | grep -E "^(error|warning)" && exit 1 || true
 grep -rl sorry Leanactors && { echo "sorry found"; exit 1; } || true
