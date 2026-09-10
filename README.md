@@ -10,11 +10,13 @@ for a pure subset of Elixir/BEAM programs. No Mathlib.
 | `Leanactors/Core.lean` | `Behavior`, `Config`, `Step` (relational), `step`/`run` (executable) |
 | `Leanactors/Props.lean` | Frame rule, domain preservation, mailbox-queue lemma, per-actor invariant induction, `run_sound` |
 | `Leanactors/Count.lean` | Message counting, `Step.chars` (a step as arithmetic over counts), config-level invariant induction, FIFO corollary |
-| `Leanactors/Sys.lean` | Spawn, links, monitors, exits: effects, fresh-pid counter, link and monitor lists, asynchronous exit signals and DOWN notifications; `runE_lift` shows message-only behaviours are unchanged |
+| `Leanactors/Sys.lean` | Spawn, links, monitors, exits, timers, remote exit signals: effects, fresh-pid counter, link and monitor lists, asynchronous exit signals and DOWN notifications, untimed timers; `runE_lift` shows message-only behaviours are unchanged |
 | `Leanactors/Examples/Supervisor.lean` | One-for-one supervisor translated from `elixir/src/supervisor.ex`; bounded checker; the no-`trap_exit` mutant |
 | `Leanactors/Examples/SupervisorProof.lean` | The supervisor never dies and a missing child always has its restart in flight |
 | `Leanactors/Examples/Task.lean` | Async task translated from `elixir/src/task.ex`: caller spawns and monitors a worker; checker; the no-monitor mutant |
 | `Leanactors/Examples/TaskProof.lean` | A pending job is never lost: the reply or the DOWN is always on its way |
+| `Leanactors/Examples/Watchdog.lean` | Watchdog translated from `elixir/src/watchdog.ex`: GenServer timeout, `Process.exit/2`, restart on EXIT; checker; the no-`trap_exit` mutant |
+| `Leanactors/Examples/WatchdogProof.lean` | The watchdog never dies and a dead worker always has its restart in flight |
 | `Leanactors/Examples/Bank.lean` | Per-actor invariant: a bank's balance never goes negative under any scheduler |
 | `Leanactors/Examples/Lock.lean` | Cross-actor invariant: lock server + clients blocking in `GenServer.call`, token invariant, bounded model checker |
 | `Leanactors/Examples/LockProof.lean` | The invariant is inductive; `mutex_forever` and `progress_forever` under any scheduler and any environment ticks |
@@ -27,6 +29,7 @@ for a pure subset of Elixir/BEAM programs. No Mathlib.
 | `elixir/lock.exs` | Driver: clients block in `GenServer.call` under chaos ticks; event log checked for overlapping critical sections |
 | `elixir/supervisor.exs` | Driver: crashes the worker on the BEAM and checks the supervisor survived and restarted it |
 | `elixir/task.exs` | Driver: one job completes, one worker crashes; the caller clears both |
+| `elixir/watchdog.exs` | Driver: hangs the worker, lets the timeout kill it, checks the replacement is running |
 
 ## Pipeline: Elixir source to Lean theorem
 
@@ -69,6 +72,17 @@ dropped. Termination queues one DOWN per watcher; a separate step delivers
 it as a message. The task example's invariant has four disjuncts (alive
 and monitored, DOWN queued, reply in mailbox, DOWN in mailbox) and the
 mutant that forgets `Process.monitor` loses the job at the crash.
+
+**Timers and remote exits.** `{:noreply, state, t}` arms a self-timer for
+`:timeout`, `Process.send_after(p, m, t)` arms a timer for `m` at `p`, and
+`Process.exit(p, reason)` queues an exit signal to `p`. Timers are untimed:
+any pending timer may fire at any step, so a GenServer timeout may fire in
+the model even though a message arrived first. That over-approximates the
+BEAM, which is the sound direction for safety. The watchdog example may
+therefore kill a healthy worker, and its property does not care why a
+worker died. One thing the untimed model hides: on the BEAM *any* message
+resets a GenServer timeout, including `:sys.get_state` polls, which is why
+the driver sleeps instead of polling.
 
 **Synchronous calls.** `handle_call/3` is supported on both sides. On the
 server, `@type call` alternatives become message constructors with a leading
@@ -165,6 +179,7 @@ termination lemma for the two places an actor dies.
 
 ## Not modelled yet
 
-Selective `receive` beyond the call-reply encoding, timeouts, multi-node
-delivery, and `GenServer.start`/`start_link` children whose `init` is not
-the identity.
+Selective `receive` beyond the call-reply encoding, real time (timers are
+untimed), multi-node delivery, unhandled `handle_cast` messages crashing
+the process (modelled as ignored), and `GenServer.start`/`start_link`
+children whose `init` is not the identity.

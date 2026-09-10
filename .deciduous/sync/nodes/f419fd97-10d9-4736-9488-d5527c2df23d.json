@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "f419fd97-10d9-4736-9488-d5527c2df23d",
+  "created_at": "2026-09-10T13:11:03.714250-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "WatchdogProof done: frame lets the flag change while the child is preserved; spawn shape with three effects; flag_case handles no-op and pong (deliver) and timeout (signal queued); all cases green on the 3rd build. watchdog_alive and restart_in_flight from init. Chain passes with five examples",
+  "updated_at": "2026-09-10T13:11:03.714250-04:00"
+}

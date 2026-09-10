@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "22294e34-8a73-4a4e-8572-fdb0964ddeb3",
+  "created_at": "2026-09-10T13:04:38.163956-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 65
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Watchdog example: pings a linked worker with a GenServer timeout, Process.exit(w, :kill) on timeout, restart on EXIT; translator: send to registered name, {:noreply, s, t}, Process.send_after, Process.exit, booleans",
+  "updated_at": "2026-09-10T13:04:38.163956-04:00"
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5b1cd8f3-055b-4134-a194-9f7da179d0db",
+  "created_at": "2026-09-10T13:08:41.389810-04:00",
+  "description": "Untimed timers over-approximate: the model admits a timeout firing after a pong. The real system under-fires when the mailbox is busy. Safety proofs hold in both; liveness of the watchdog (a hung worker is eventually replaced) would need the timer to actually fire, i.e. a fairness assumption on timers plus quiet mailboxes.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "BEAM subtlety the untimed model hides: any message resets a GenServer timeout, including :sys.get_state polls. The driver never saw the timeout until it stopped polling. In the model a timeout may fire regardless, which is the safe direction",
+  "updated_at": "2026-09-10T13:08:41.389810-04:00"
+}

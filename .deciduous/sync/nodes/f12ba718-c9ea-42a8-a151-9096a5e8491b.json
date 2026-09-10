@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "f12ba718-c9ea-42a8-a151-9096a5e8491b",
+  "created_at": "2026-09-10T13:11:03.765993-04:00",
+  "description": "Remaining fidelity gaps are semantic, not syntactic: crash-on-unhandled-cast, real time, selective receive beyond call/reply, non-identity init, multi-node. All are recorded in the README.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Five translated examples cover the everyday BEAM toolbox: cast, call, reply, spawn/spawn_link, link, monitor, trap_exit, exit, Process.exit, send_after/timeouts. Each proof follows the frame+terminate recipe; the per-example novelty is one lemma",
+  "updated_at": "2026-09-10T13:11:03.765993-04:00"
+}
