@@ -464,9 +464,15 @@ defmodule ToLean do
           end)
         down = if List.keymember?(ctx.msg_ctors, :DOWN, 0), do: "  downMsg := some fun p r => .DOWN p r\n", else: ""
         exit_line =
-          if List.keymember?(ctx.msg_ctors, :EXIT, 0),
-            do: "  exitMsg := fun p r => .EXIT p r\n",
-            else: "  -- no module declares {:EXIT, ...}; nobody traps, so this codec is never used\n  exitMsg := fun _ _ => .go\n"
+          if List.keymember?(ctx.msg_ctors, :EXIT, 0) do
+            "  exitMsg := fun p r => .EXIT p r\n"
+          else
+            # any message will do for a codec that is never consulted: the
+            # first nullary constructor, else the first constructor with dummy arguments
+            {tag, ts} = Enum.find(ctx.msg_ctors, &match?({_, []}, &1)) || hd(ctx.msg_ctors)
+            m = ".#{tag}" <> Enum.map_join(ts, "", &(" " <> dummy(ctx, &1)))
+            "  -- no module declares {:EXIT, ...}; nobody traps, so this codec is never used\n  exitMsg := fun _ _ => #{m}\n"
+          end
         "/-- Who traps exits (from `Process.flag(:trap_exit, true)`), the EXIT message, the DOWN message. -/\n" <>
           "def sig : Signals St Msg where\n  traps := fun\n#{trap_arms}\n" <> exit_line <> down <> "\n"
       else
@@ -508,6 +514,24 @@ defmodule ToLean do
     end #{ctx.ns}
     """
     |> then(&{&1, ctx})
+  end
+
+  # a closed value of a Lean type, for a codec that is never consulted
+  defp dummy(ctx, t) do
+    case t do
+      "Pid" -> "0"
+      "Nat" -> "0"
+      "Int" -> "0"
+      "Bool" -> "false"
+      "Reason" -> ".normal"
+      "List " <> _ -> "[]"
+      "Option " <> _ -> "none"
+      enum ->
+        case Enum.find(ctx.types, fn {{_, n}, _} -> n |> Atom.to_string() |> String.capitalize() == enum end) do
+          {_, u} -> ".#{hd(union(u))}"
+          nil -> fail("no dummy value of type #{enum} for the unused exit codec")
+        end
+    end
   end
 
   defp render_clauses(ctx, clauses) do
@@ -571,9 +595,10 @@ defmodule ToLean do
 
   # Per module: cast/call clauses, then one crash clause for each cast or
   # call tag no total clause of the module covers, then info clauses, then
-  # (raw process without a catch-all) the defer clause. A bare message
-  # variable in a cast/call clause covers every tag. A receive loop has only
-  # info-kind clauses, so it never gets crash clauses.
+  # (raw process without a catch-all, unless its arms are already
+  # exhaustive) the defer clause. A bare message variable in a cast/call
+  # clause covers every tag. A receive loop has only info-kind clauses, so
+  # it never gets crash clauses.
   defp insert_crashes(ctx, rendered) do
     Enum.map_reduce(ctx.mods, ctx, fn mod, c ->
       chunk = Enum.filter(rendered, fn {cl, _, _} -> cl.mod == mod end)
@@ -598,7 +623,14 @@ defmodule ToLean do
                     "an unmatched cast or call crashes on the BEAM, modelled as ignored (no exit effect in message mode)"
           {[], %{c | warnings: c.warnings ++ warnings}}
         end
-      defer = if mod in c.defers, do: [defer_clause(c, mod)], else: []
+      # Every tag has a total clause (or a crash clause): the module's arms
+      # are exhaustive, so a trailing defer clause or the global catch-all
+      # would be a redundant alternative, which Lean rejects.
+      total = for {cl, true, _} <- chunk, do: if(bare?(cl.mpat), do: :all, else: elem(msg_shape(cl.mpat), 0))
+      crashed = if c.effects, do: needed, else: []
+      exhaustive = :all in total or Enum.all?(c.msg_ctors, fn {tag, _} -> tag in total or tag in crashed end)
+      c = if exhaustive, do: %{c | covered: [ctor_name(mod) | c.covered]}, else: c
+      defer = if mod in c.defers and not exhaustive, do: [defer_clause(c, mod)], else: []
       strs = fn xs -> Enum.map(xs, &elem(&1, 2)) end
       {strs.(ci) ++ crash ++ strs.(info) ++ defer, c}
     end)
@@ -676,7 +708,8 @@ defmodule ToLean do
         end
       {c, _} ->
         env2 = aliases(c.mpat, cl.mpat, env, %{__msg_parts__: env[:__mparts__]})
-        env2 = whole_alias(c.spat, sp, env2)
+        {_, fields} = List.keyfind(ctx.st_ctors, ctor_name(cl.mod), 0)
+        env2 = whole_alias(c.spat, sp, fields, env2)
         env2 = if uses_self?(c), do: Map.put(env2, :__self__, true), else: env2
         {b, ctx} = body(ctx, c.mod, env2, c.body)
         if c.guard, do: fail("chained guards are not supported (clause #{i})")
@@ -684,9 +717,12 @@ defmodule ToLean do
     end
   end
 
-  # is `general` at least as general as `specific`? (var/_ or identical)
+  # is `general` at least as general as `specific`? (var/_ or identical; a
+  # tuple whose parts are all variables matches everything a variable does)
   defp general?({v, _, nil}, _) when is_atom(v), do: true
   defp general?(a, a), do: true
+  defp general?({:{}, _, xs}, {v, _, nil}) when is_atom(v), do: Enum.all?(xs, &bare?/1)
+  defp general?({a, b}, {v, _, nil}) when is_atom(v), do: bare?(a) and bare?(b)
   defp general?({:{}, _, xs}, {:{}, _, ys}) when length(xs) == length(ys), do: Enum.zip(xs, ys) |> Enum.all?(fn {x, y} -> general?(x, y) end)
   defp general?({a, b}, {c, d}), do: general?(a, c) and general?(b, d)
   defp general?(_, _), do: false
@@ -709,14 +745,27 @@ defmodule ToLean do
     end)
   end
 
-  defp whole_alias({v, _, nil}, sp, env) when is_atom(v) do
-    target = case env[:__sparts__] do
-      [single] -> single
-      _ -> sp
+  # alias the general clause's state variables to the specific clause's Lean
+  # state parts: a whole-state variable to the single part (typed as the
+  # field, so an `Option` part such as `(some p')` is used as is) or to the
+  # rebuilt constructor; a tuple of variables field by field
+  defp whole_alias({v, _, nil}, sp, fields, env) when is_atom(v) do
+    case {env[:__sparts__], fields} do
+      {[single], [{_, t}]} -> env |> Map.put({:alias, Atom.to_string(v)}, single) |> Map.put(lean_ident(Atom.to_string(v)), t)
+      _ -> Map.put(env, {:alias, Atom.to_string(v)}, sp)
     end
-    Map.put(env, {:alias, Atom.to_string(v)}, target)
   end
-  defp whole_alias(_, _, env), do: env
+  defp whole_alias({a, b}, sp, fields, env), do: whole_alias({:{}, [], [a, b]}, sp, fields, env)
+  defp whole_alias({:{}, _, xs}, _sp, fields, env) when length(xs) == length(fields) do
+    Enum.zip([xs, env[:__sparts__] || [], fields])
+    |> Enum.reduce(env, fn
+      {{v, _, nil}, part, {_, t}}, e when is_atom(v) ->
+        name = Atom.to_string(v)
+        if String.starts_with?(name, "_"), do: e, else: e |> Map.put({:alias, name}, part) |> Map.put(lean_ident(name), t)
+      _, e -> e
+    end)
+  end
+  defp whole_alias(_, _, _, env), do: env
 
   # Variables the body uses where a pid is required.
   defp pid_uses(body) do
