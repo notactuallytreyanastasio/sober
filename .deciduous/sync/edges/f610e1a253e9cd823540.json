@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T11:58:26.412447-04:00",
+  "edge_id": "f610e1a253e9cd823540",
+  "edge_type": "leads_to",
+  "from_change_id": "94cc3022-a9e2-4487-a086-099c9bc626de",
+  "rationale": "rejected: the lock needed pattern-LHS calls and GenServer.reply anyway",
+  "to_change_id": "58dc75de-907b-4399-92ff-3ad4cf4e3bed",
+  "weight": 1.0
+}

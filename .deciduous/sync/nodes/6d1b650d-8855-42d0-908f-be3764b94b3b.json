@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "6d1b650d-8855-42d0-908f-be3764b94b3b",
+  "created_at": "2026-09-10T11:56:59.832917-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Sys.lean built first try: Effect/EBehavior/Signals/Sys, runE/signalE, SysStep/SysReach, runSys_sound, lift + runE_lift conservativity",
+  "updated_at": "2026-09-10T11:56:59.832917-04:00"
+}

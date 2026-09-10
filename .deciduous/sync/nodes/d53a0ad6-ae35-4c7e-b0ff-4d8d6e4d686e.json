@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "d53a0ad6-ae35-4c7e-b0ff-4d8d6e4d686e",
+  "created_at": "2026-09-10T11:56:59.878508-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 75
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Supervisor example: one-for-one with trapping sup, worker exit error/normal, Inv = sup alive ∧ (child alive+linked ∨ signal pending ∨ EXIT in mailbox); bounded checker over runs, signals, env",
+  "updated_at": "2026-09-10T11:56:59.878508-04:00"
+}

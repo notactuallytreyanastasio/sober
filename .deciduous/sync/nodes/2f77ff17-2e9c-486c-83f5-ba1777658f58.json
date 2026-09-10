@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "2f77ff17-2e9c-486c-83f5-ba1777658f58",
+  "created_at": "2026-09-10T12:03:42.242326-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Translator does not yet emit spawn_link/trap_exit/exit; the supervisor is hand-modelled. Next translator increment: Process.flag(:trap_exit) -> Signals.traps, spawn_link(Mod, f, args) -> spawnLink with the module's state constructor, exit(reason) -> exit",
+  "updated_at": "2026-09-10T12:03:42.242326-04:00"
+}

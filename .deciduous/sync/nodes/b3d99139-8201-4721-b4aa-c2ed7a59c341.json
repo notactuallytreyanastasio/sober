@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b3d99139-8201-4721-b4aa-c2ed7a59c341",
+  "created_at": "2026-09-10T12:03:42.146117-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "SupervisorProof done: Inv.frame (monotone) + Inv.terminate_ne cover every SysStep case; supervisor_alive and restart_in_flight from init. Zero sorry, zero warnings, chain passes",
+  "updated_at": "2026-09-10T12:03:42.146117-04:00"
+}

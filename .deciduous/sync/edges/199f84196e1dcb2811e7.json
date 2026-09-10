@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T11:54:00.183842-04:00",
+  "edge_id": "199f84196e1dcb2811e7",
+  "edge_type": "leads_to",
+  "from_change_id": "1949a029-b824-4d2e-9d50-7fc08e2a26a7",
+  "rationale": "chosen: matches BEAM signal semantics, bounded steps, existing 3000 lines untouched",
+  "to_change_id": "ae9127ff-8ff2-445c-8658-beddb14815e1",
+  "weight": 1.0
+}

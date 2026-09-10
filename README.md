@@ -10,6 +10,9 @@ for a pure subset of Elixir/BEAM programs. No Mathlib.
 | `Leanactors/Core.lean` | `Behavior`, `Config`, `Step` (relational), `step`/`run` (executable) |
 | `Leanactors/Props.lean` | Frame rule, domain preservation, mailbox-queue lemma, per-actor invariant induction, `run_sound` |
 | `Leanactors/Count.lean` | Message counting, `Step.chars` (a step as arithmetic over counts), config-level invariant induction, FIFO corollary |
+| `Leanactors/Sys.lean` | Spawn, links, exits: effects, fresh-pid counter, link list, asynchronous exit signals; `runE_lift` shows message-only behaviours are unchanged |
+| `Leanactors/Examples/Supervisor.lean` | One-for-one supervisor with a trapping parent and a crashing worker; bounded checker; the no-`trap_exit` mutant |
+| `Leanactors/Examples/SupervisorProof.lean` | The supervisor never dies and a missing child always has its restart in flight |
 | `Leanactors/Examples/Bank.lean` | Per-actor invariant: a bank's balance never goes negative under any scheduler |
 | `Leanactors/Examples/Lock.lean` | Cross-actor invariant: lock server + clients blocking in `GenServer.call`, token invariant, bounded model checker |
 | `Leanactors/Examples/LockProof.lean` | The invariant is inductive; `mutex_forever` and `progress_forever` under any scheduler and any environment ticks |
@@ -118,8 +121,27 @@ holder, which is exactly the reorder above. Two invariant fields exclude it:
 `holder_not_queued`. Both are inductive only because sends append at the
 tail of a mailbox, which is the per-pair FIFO guarantee the BEAM makes.
 
+**Spawn, links and exits are a layer, not a rewrite.** `Sys` wraps a
+`Config` with a fresh-pid counter, a link list and a FIFO of pending exit
+signals. A behaviour returns effects (`send`, `spawn`, `spawnLink`, `link`,
+`exit`) and receives the next fresh pid so a parent knows its child's pid.
+Exits propagate the way the BEAM does it: terminating an actor queues one
+signal per link, and a separate step delivers the oldest signal, either as
+a message to a trapping target or by terminating a non-trapping one, which
+queues more signals. No recursion, every step is a function, and
+`runE_lift` proves the old `step` is exactly the new one for behaviours
+that only send, so the bank and lock results carry over untouched.
+
+The supervisor example uses every new effect. Its invariant says the parent
+is alive and its current child is either alive and linked, or has an exit
+signal pending, or has its `EXIT` message already in the parent's mailbox.
+The checker validates it on 236,220 configurations, catches the mutant
+that forgets `Process.flag(:trap_exit, true)` in 40, and the proof is two
+reusable lemmas: a monotone frame for steps that only add, and a
+termination lemma for the two places an actor dies.
+
 ## Not modelled yet
 
-Spawn, links, monitors, exits, supervisors, selective `receive`, timeouts,
-and multi-node delivery. Each is a new `Step` constructor; selective
-receive is the one that breaks the pop-the-head mailbox lemma.
+Monitors, selective `receive` beyond the call-reply encoding, timeouts,
+multi-node delivery, and translator support for `spawn_link` and
+`trap_exit` (the supervisor is hand-modelled, not translated).
