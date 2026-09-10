@@ -25,6 +25,10 @@ by hand; this file states them once.
   `applyEffects_mcount`, `applyEffects_mem_links`, …, are the projections).
 * `applyEffects_snd_none`: no `exit` in the list means no pending exit;
   `applyEffects_snd_some`: a pending exit came from an `exit` effect.
+* `Effect.isolated` (everything but `link`, `spawnLink`, `signal`) and
+  `applyEffects_links_signals_of_isolated`: such effects leave `links` and
+  `signals` exactly as they were (a behaviour that never links keeps an
+  invariant's `links = []` and `signals = []`).
 
 ## Termination (`Sys.terminate`)
 
@@ -57,8 +61,11 @@ by hand; this file states them once.
 * `signalE_cases`, `signalE_frame`, `signalE_next`, `signalE_stateOf`:
   delivering a signal to `q` is a `Frame q` from the system minus that
   signal, and `q` either keeps its state or dies of an `error` signal.
-* `downE_cases`, `downE_grows`, `downE_next`, `downE_stateOf`;
-  `timerE_cases`, `timerE_grows`, `timerE_next`, `timerE_stateOf`.
+* `downE_cases`, `downE_grows`, `downE_next`, `downE_stateOf`,
+  `downE_links`, `downE_signals`; `downE_of_codec`: with a DOWN codec the
+  step is always one `deliver` (a dead watcher drops it inside `deliver`);
+  `timerE_cases`, `timerE_grows`, `timerE_next`, `timerE_stateOf`,
+  `timerE_links`, `timerE_signals`.
 * `SysStep.next_mono`, `SysReach.next_mono`; `SysStep.stateOf_cases`: a pid
   below `next` is unchanged, dead, or the actor that ran;
   `SysStep.stateOf_none`, `SysReach.stateOf_none`: no resurrection.
@@ -137,6 +144,13 @@ theorem mem_unmonitor_iff {monitors : List (Pid × Pid)} {a b p : Pid} :
   unfold unmonitor
   rw [List.mem_filter]
   simp
+
+/-- A delivery to a dead pid is dropped (`Config.deliver` matches on the actor). -/
+theorem deliver_of_get_none (c : Config σ μ) {q : Pid} (hq : c.get q = none) (m : μ) :
+    c.deliver q m = c := by
+  unfold deliver
+  have hq' : c.actors q = none := hq
+  rw [hq']
 
 namespace Sys
 
@@ -390,6 +404,50 @@ theorem applyEffects_snd_some (p : Pid) (s : Sys σ μ) (effs : List (Effect σ 
   rcases foldl_applyEffect_snd_some p effs s none h with h1 | h1
   · cases h1
   · exact h1
+
+/-! ### Effects that never touch `links` or `signals` -/
+
+end Sys
+
+/-- Everything but `link`, `spawnLink` and `signal` (a `link` to a dead pid
+queues a `noproc` signal, so it is excluded too). -/
+def Effect.isolated : Effect σ μ → Bool
+  | .link _ | .spawnLink _ | .signal _ _ => false
+  | _ => true
+
+namespace Sys
+
+theorem applyEffect_links_signals_of_isolated (p : Pid) (s : Sys σ μ) (d : Option Reason)
+    {e : Effect σ μ} (he : e.isolated = true) :
+    (applyEffect p (s, d) e).1.links = s.links ∧ (applyEffect p (s, d) e).1.signals = s.signals := by
+  cases e with
+  | link q => cases he
+  | spawnLink init => cases he
+  | signal q r => cases he
+  | monitor q => simp only [applyEffect]; split <;> exact ⟨rfl, rfl⟩
+  | _ => exact ⟨rfl, rfl⟩
+
+theorem foldl_applyEffect_links_signals_of_isolated (p : Pid) {effs : List (Effect σ μ)}
+    (h : ∀ e ∈ effs, e.isolated = true) (s : Sys σ μ) (d : Option Reason) :
+    (effs.foldl (applyEffect p) (s, d)).1.links = s.links ∧
+    (effs.foldl (applyEffect p) (s, d)).1.signals = s.signals := by
+  induction effs generalizing s d with
+  | nil => exact ⟨rfl, rfl⟩
+  | cons e rest ih =>
+    rw [List.foldl_cons]
+    have he := applyEffect_links_signals_of_isolated p s d (h e List.mem_cons_self)
+    revert he
+    generalize applyEffect p (s, d) e = x
+    obtain ⟨s1, d1⟩ := x
+    intro he
+    obtain ⟨h1, h2⟩ := ih (fun e' he' => h e' (List.mem_cons_of_mem _ he')) s1 d1
+    exact ⟨h1.trans he.1, h2.trans he.2⟩
+
+/-- A behaviour that never links or signals leaves `links` and `signals` alone. -/
+theorem applyEffects_links_signals_of_isolated (p : Pid) (s : Sys σ μ) {effs : List (Effect σ μ)}
+    (h : ∀ e ∈ effs, e.isolated = true) :
+    (applyEffects p s effs).1.links = s.links ∧ (applyEffects p s effs).1.signals = s.signals :=
+  foldl_applyEffect_links_signals_of_isolated p h s none
 
 /-! ## Termination -/
 
@@ -729,6 +787,33 @@ theorem downE_next {sig : Signals σ μ} {s s' : Sys σ μ} (h : downE sig s = s
   obtain ⟨_, _, _, _, _, hg⟩ := downE_grows h
   exact hg.next
 
+theorem downE_links {sig : Signals σ μ} {s s' : Sys σ μ} (h : downE sig s = some s') :
+    s'.links = s.links := by
+  obtain ⟨_, _, _, _, _, hc⟩ := downE_cases h
+  rcases hc with ⟨_, _, _, rfl⟩ | rfl <;> rfl
+
+theorem downE_signals {sig : Signals σ μ} {s s' : Sys σ μ} (h : downE sig s = some s') :
+    s'.signals = s.signals := by
+  obtain ⟨_, _, _, _, _, hc⟩ := downE_cases h
+  rcases hc with ⟨_, _, _, rfl⟩ | rfl <;> rfl
+
+/-- With a DOWN codec the step is always one delivery: `deliver` itself
+drops the message when the watcher is dead. -/
+theorem downE_of_codec {sig : Signals σ μ} {codec : Pid → Reason → μ} (hc : sig.downMsg = some codec)
+    {s s' : Sys σ μ} (h : downE sig s = some s') :
+    ∃ w t r rest, s.downs = (w, t, r) :: rest ∧
+      s' = { s with downs := rest, cfg := s.cfg.deliver w (codec t r) } := by
+  unfold downE at h
+  split at h
+  · cases h
+  · rename_i w t r rest hd
+    refine ⟨w, t, r, rest, hd, ?_⟩
+    obtain rfl := Option.some.inj h
+    rw [hc]
+    cases hw : s.cfg.get w with
+    | none => simp [deliver_of_get_none _ hw]
+    | some a => simp
+
 /-! ## `timerE` -/
 
 theorem timerE_cases {s s' : Sys σ μ} {i : Nat} (h : timerE s i = some s') :
@@ -753,6 +838,15 @@ theorem timerE_stateOf {s s' : Sys σ μ} {i : Nat} (h : timerE s i = some s') (
 theorem timerE_next {s s' : Sys σ μ} {i : Nat} (h : timerE s i = some s') : s.next ≤ s'.next := by
   obtain ⟨to, m, _, rfl⟩ := timerE_cases h
   exact Nat.le_refl _
+
+theorem timerE_links {s s' : Sys σ μ} {i : Nat} (h : timerE s i = some s') : s'.links = s.links := by
+  obtain ⟨to, m, _, rfl⟩ := timerE_cases h
+  rfl
+
+theorem timerE_signals {s s' : Sys σ μ} {i : Nat} (h : timerE s i = some s') :
+    s'.signals = s.signals := by
+  obtain ⟨to, m, _, rfl⟩ := timerE_cases h
+  rfl
 
 end Sys
 
