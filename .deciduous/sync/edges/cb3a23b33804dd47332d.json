@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T11:01:27.736448-04:00",
+  "edge_id": "cb3a23b33804dd47332d",
+  "edge_type": "leads_to",
+  "from_change_id": "6bee685b-816e-43d4-83f8-d669bad42498",
+  "rationale": "rejected: breaks Step.queue and every count lemma",
+  "to_change_id": "c942602a-5e4c-4e89-ab01-ff93d50c98bb",
+  "weight": 1.0
+}

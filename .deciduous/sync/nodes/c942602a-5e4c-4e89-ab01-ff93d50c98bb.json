@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "c942602a-5e4c-4e89-ab01-ff93d50c98bb",
+  "created_at": "2026-09-10T11:01:27.668590-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 70
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Both server and client side via CPS split with re-enqueue deferral; keep the core mailbox model unchanged",
+  "updated_at": "2026-09-10T11:01:27.668590-04:00"
+}

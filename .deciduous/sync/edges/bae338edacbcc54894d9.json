@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T11:01:27.690653-04:00",
+  "edge_id": "bae338edacbcc54894d9",
+  "edge_type": "leads_to",
+  "from_change_id": "d82a9b57-9b02-4f2c-beaf-6a4941838101",
+  "rationale": "chosen: real callers block, re-enqueue is the standard encoding of selective receive in FIFO mailboxes",
+  "to_change_id": "c942602a-5e4c-4e89-ab01-ff93d50c98bb",
+  "weight": 1.0
+}

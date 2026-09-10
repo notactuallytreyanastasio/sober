@@ -626,6 +626,105 @@
       "created_at": "2026-09-10T10:36:31.785027-04:00",
       "updated_at": "2026-09-10T10:36:31.785027-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":80}"
+    },
+    {
+      "id": 58,
+      "change_id": "d9cad2c0-7ed3-49ef-bd4c-a66e3e996e46",
+      "node_type": "goal",
+      "title": "handle_call support in the translator: server replies and client-side blocking calls",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T11:01:27.412822-04:00",
+      "updated_at": "2026-09-10T11:01:27.412822-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":75,\"prompt\":\"lets get to handle_call support yeah\"}"
+    },
+    {
+      "id": 59,
+      "change_id": "67cc2113-1630-4e4c-9d8c-06d8fa49d4de",
+      "node_type": "option",
+      "title": "Server side only: handle_call/3 + {:reply,r,s} -> message with from pid + reply message; callers must be async",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T11:01:27.481456-04:00",
+      "updated_at": "2026-09-10T11:01:27.481456-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":60}"
+    },
+    {
+      "id": 60,
+      "change_id": "d82a9b57-9b02-4f2c-beaf-6a4941838101",
+      "node_type": "option",
+      "title": "Also client side: split a clause at GenServer.call into an await state + resume-on-reply clause; defer other messages by re-enqueue to self",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T11:01:27.521737-04:00",
+      "updated_at": "2026-09-10T11:01:27.521737-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":70}"
+    },
+    {
+      "id": 61,
+      "change_id": "6bee685b-816e-43d4-83f8-d669bad42498",
+      "node_type": "option",
+      "title": "Add selective receive to the core Step relation",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T11:01:27.559730-04:00",
+      "updated_at": "2026-09-10T11:01:27.559730-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":25}"
+    },
+    {
+      "id": 62,
+      "change_id": "c942602a-5e4c-4e89-ab01-ff93d50c98bb",
+      "node_type": "decision",
+      "title": "Both server and client side via CPS split with re-enqueue deferral; keep the core mailbox model unchanged",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T11:01:27.668590-04:00",
+      "updated_at": "2026-09-10T11:01:27.668590-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":70}"
+    },
+    {
+      "id": 63,
+      "change_id": "2b0304cc-bebe-436f-950c-95f7d8351255",
+      "node_type": "action",
+      "title": "Extend to_lean.exs: @type call/reply, handle_call clauses, {:reply,..}, v = GenServer.call(...) CPS split, await constructors",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T11:01:27.771178-04:00",
+      "updated_at": "2026-09-10T11:01:27.771178-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":65}"
+    },
+    {
+      "id": 64,
+      "change_id": "335cd9ae-de96-47a5-bfec-d7d5eff91a7d",
+      "node_type": "outcome",
+      "title": "handle_call works end to end: bank.ex uses handle_call/3 and a client blocking in GenServer.call; translated, beh_eq_gen holds, driver matches Lean trace (0, 9, 0); deferred-tick run ends at 15 on both bank and client",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T11:05:32.654234-04:00",
+      "updated_at": "2026-09-10T11:05:32.654234-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":90}"
+    },
+    {
+      "id": 65,
+      "change_id": "c79faab5-02f5-4519-816d-ca4be35fe9a6",
+      "node_type": "observation",
+      "title": "Await states are generated St constructors carrying the continuation's free variables; the reply type is a single shared Msg.reply. Limits: one @type reply per program, call must be an assignment statement, continuation cannot itself block (no nested awaits yet)",
+      "description": "CPS split implemented in cps_split/6: captured = free vars of the rest that are bound in env. Nested/second blocking calls in the continuation would need recursion into plain_body with a fresh await index; not implemented. Also 'from' is a Lean keyword: added lean_ident sanitizer.",
+      "status": "pending",
+      "created_at": "2026-09-10T11:05:32.717441-04:00",
+      "updated_at": "2026-09-10T11:05:32.717441-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":80}"
+    },
+    {
+      "id": 66,
+      "change_id": "7e25bc47-76f1-4215-8e4c-fd2a07dd828e",
+      "node_type": "observation",
+      "title": "Re-enqueue deferral spins under an unfair scheduler (tick bounces until the reply lands). Harmless for safety proofs, blows up bounded exploration depth, and would need a fairness assumption for liveness",
+      "description": "Alternative encodings: a per-actor deferred list in the Actor structure (closer to BEAM's save queue) would keep Step.queue but change Config; rejected for now to keep all existing proofs intact.",
+      "status": "pending",
+      "created_at": "2026-09-10T11:05:32.777816-04:00",
+      "updated_at": "2026-09-10T11:05:32.777816-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":75}"
     }
   ],
   "edges": [
@@ -1332,6 +1431,127 @@
       "weight": 1.0,
       "rationale": "revised earlier prediction",
       "created_at": "2026-09-10T10:36:31.808896-04:00"
+    },
+    {
+      "id": 65,
+      "from_node_id": 57,
+      "to_node_id": 58,
+      "from_change_id": "85d65e3d-3a06-41ac-a4ba-4604f824a539",
+      "to_change_id": "d9cad2c0-7ed3-49ef-bd4c-a66e3e996e46",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "next translator increment",
+      "created_at": "2026-09-10T11:01:27.441246-04:00"
+    },
+    {
+      "id": 66,
+      "from_node_id": 58,
+      "to_node_id": 59,
+      "from_change_id": "d9cad2c0-7ed3-49ef-bd4c-a66e3e996e46",
+      "to_change_id": "67cc2113-1630-4e4c-9d8c-06d8fa49d4de",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T11:01:27.586763-04:00"
+    },
+    {
+      "id": 67,
+      "from_node_id": 58,
+      "to_node_id": 60,
+      "from_change_id": "d9cad2c0-7ed3-49ef-bd4c-a66e3e996e46",
+      "to_change_id": "d82a9b57-9b02-4f2c-beaf-6a4941838101",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T11:01:27.610013-04:00"
+    },
+    {
+      "id": 68,
+      "from_node_id": 58,
+      "to_node_id": 61,
+      "from_change_id": "d9cad2c0-7ed3-49ef-bd4c-a66e3e996e46",
+      "to_change_id": "6bee685b-816e-43d4-83f8-d669bad42498",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T11:01:27.633284-04:00"
+    },
+    {
+      "id": 69,
+      "from_node_id": 60,
+      "to_node_id": 62,
+      "from_change_id": "d82a9b57-9b02-4f2c-beaf-6a4941838101",
+      "to_change_id": "c942602a-5e4c-4e89-ab01-ff93d50c98bb",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "chosen: real callers block, re-enqueue is the standard encoding of selective receive in FIFO mailboxes",
+      "created_at": "2026-09-10T11:01:27.690653-04:00"
+    },
+    {
+      "id": 70,
+      "from_node_id": 59,
+      "to_node_id": 62,
+      "from_change_id": "67cc2113-1630-4e4c-9d8c-06d8fa49d4de",
+      "to_change_id": "c942602a-5e4c-4e89-ab01-ff93d50c98bb",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "subsumed",
+      "created_at": "2026-09-10T11:01:27.712326-04:00"
+    },
+    {
+      "id": 71,
+      "from_node_id": 61,
+      "to_node_id": 62,
+      "from_change_id": "6bee685b-816e-43d4-83f8-d669bad42498",
+      "to_change_id": "c942602a-5e4c-4e89-ab01-ff93d50c98bb",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "rejected: breaks Step.queue and every count lemma",
+      "created_at": "2026-09-10T11:01:27.736448-04:00"
+    },
+    {
+      "id": 72,
+      "from_node_id": 62,
+      "to_node_id": 63,
+      "from_change_id": "c942602a-5e4c-4e89-ab01-ff93d50c98bb",
+      "to_change_id": "2b0304cc-bebe-436f-950c-95f7d8351255",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "implement",
+      "created_at": "2026-09-10T11:01:27.793823-04:00"
+    },
+    {
+      "id": 73,
+      "from_node_id": 63,
+      "to_node_id": 64,
+      "from_change_id": "2b0304cc-bebe-436f-950c-95f7d8351255",
+      "to_change_id": "335cd9ae-de96-47a5-bfec-d7d5eff91a7d",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "succeeded",
+      "created_at": "2026-09-10T11:05:32.680631-04:00"
+    },
+    {
+      "id": 74,
+      "from_node_id": 64,
+      "to_node_id": 65,
+      "from_change_id": "335cd9ae-de96-47a5-bfec-d7d5eff91a7d",
+      "to_change_id": "c79faab5-02f5-4519-816d-ca4be35fe9a6",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "limits of the encoding",
+      "created_at": "2026-09-10T11:05:32.740924-04:00"
+    },
+    {
+      "id": 75,
+      "from_node_id": 64,
+      "to_node_id": 66,
+      "from_change_id": "335cd9ae-de96-47a5-bfec-d7d5eff91a7d",
+      "to_change_id": "7e25bc47-76f1-4215-8e4c-fd2a07dd828e",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "cost of keeping the core unchanged",
+      "created_at": "2026-09-10T11:05:32.801737-04:00"
     }
   ]
 }

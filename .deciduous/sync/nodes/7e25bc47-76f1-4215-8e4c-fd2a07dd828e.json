@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "7e25bc47-76f1-4215-8e4c-fd2a07dd828e",
+  "created_at": "2026-09-10T11:05:32.777816-04:00",
+  "description": "Alternative encodings: a per-actor deferred list in the Actor structure (closer to BEAM's save queue) would keep Step.queue but change Config; rejected for now to keep all existing proofs intact.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 75
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Re-enqueue deferral spins under an unfair scheduler (tick bounces until the reply lands). Harmless for safety proofs, blows up bounded exploration depth, and would need a fairness assumption for liveness",
+  "updated_at": "2026-09-10T11:05:32.777816-04:00"
+}

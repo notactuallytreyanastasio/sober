@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "335cd9ae-de96-47a5-bfec-d7d5eff91a7d",
+  "created_at": "2026-09-10T11:05:32.654234-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "handle_call works end to end: bank.ex uses handle_call/3 and a client blocking in GenServer.call; translated, beh_eq_gen holds, driver matches Lean trace (0, 9, 0); deferred-tick run ends at 15 on both bank and client",
+  "updated_at": "2026-09-10T11:05:32.654234-04:00"
+}
