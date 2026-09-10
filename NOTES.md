@@ -6,10 +6,12 @@ and what was learned along the way. The README is the reference; this is
 the narrative. Node ids in parentheses refer to the decision graph exported
 in `docs/graph-data.json` (127 nodes when these notes were written; the
 workflow that merged the pieces described below added its own subtree
-under node 138, and the second round (section 7) its own under node 219;
-types goal/option/decision/action/outcome/observation), which was kept in
+under node 138, the second round (section 7) its own under node 219 and
+the third (section 8) under node 300; types
+goal/option/decision/action/outcome/observation), which was kept in
 real time as the work was done. Line counts and spans in sections 2-4
-were re-measured after round 2; section 7 lists what that round changed.
+were re-measured after round 2 and the file totals after round 3;
+sections 7 and 8 list what each round changed.
 
 ## 1. The question and the thesis
 
@@ -99,7 +101,7 @@ and then reason with `simp` and `omega`. `Reach.inv` is the configuration-
 level induction principle. The mailbox clause was added later (node 77),
 when the FCFS proof needed the list and not just its counts.
 
-### Sys (`Leanactors/Sys.lean`, about 328 lines)
+### Sys (`Leanactors/Sys.lean`, about 355 lines)
 
 Spawning, links, monitors, exits and timers are a layer over `Config`, not
 a rewrite of it (decision at node 86; the in-place rewrite was rejected as
@@ -117,7 +119,10 @@ one DOWN per watcher. Separate steps `signalE` and `downE` deliver the
 oldest pending signal or notification: a trapping target receives the exit
 as a message through the `Signals.exitMsg` codec, a non-trapping target
 ignores `normal` and is itself terminated by `error`, which queues more
-signals. No recursion, every step is a plain function. `SysStep` has four
+signals, and a `kill` terminates its target whether or not it traps, its
+links and monitors seeing `error` (round 3; `Reason.kill`,
+`Reason.propagated`, and `signalE` matches the reason before the trap
+flag). No recursion, every step is a plain function. `SysStep` has four
 constructors (`run`, `signal`, `down`, `timer`), `SysReach.inv` is the
 induction principle, and `runSys_sound` is the executable counterpart.
 
@@ -126,7 +131,7 @@ links, signals, monitors, downs or timers, running the lifted message-only
 behaviour is exactly the old `step`. The bank and lock results never had to
 be touched when `Sys` arrived (node 88).
 
-### SysProps (`Leanactors/SysProps.lean`, about 1,079 lines)
+### SysProps (`Leanactors/SysProps.lean`, about 1,373 lines)
 
 The example proofs each re-derived the same `Sys`-level facts by hand:
 steps that only add preserve everything, a termination touches only the
@@ -143,7 +148,12 @@ preserved by every step, which turns the `q < next` side conditions of a
 frame into "q is alive". Round 2 added `Effect.isolated` (everything but
 `link`, `spawnLink`, `signal`) with `applyEffects_links_signals_of_isolated`,
 `deliver_of_get_none`, `downE_of_codec` and the `links`/`signals`
-projections of `downE` and `timerE` (node 250). `Examples/SysPropsDemo.lean`
+projections of `downE` and `timerE` (node 250). Round 3 added the kill
+case (`signalE_cases` five-way, `signalE_stateOf`, `runE_cases` with
+`reason.propagated`), the provenance lemmas `applyEffects_mem_signals_cases`
+and `Effect.init?` / `applyEffects_stateOf_cases` /
+`SysStep.stateOf_spawn_cases`, and `Sys.NoKillTo p` with its per-step
+preservation (nodes 320-322). `Examples/SysPropsDemo.lean`
 shows three supervisor cases in one line each as `example`s (nodes
 151-161; since round 2 the lemmas themselves live in `SupervisorProof`).
 Writing it exposed a
@@ -158,7 +168,7 @@ v4.33.1, so pid arithmetic there uses `Nat.lt_of_lt_of_le` and
 
 ## 3. The translator
 
-`elixir/to_lean.exs` (about 1,340 lines, one module `ToLean`) reads a file
+`elixir/to_lean.exs` (about 1,445 lines, one module `ToLean`) reads a file
 of `GenServer` modules and emits one Lean file per source into
 `Leanactors/Gen/`. The invocation is fixed by `check.sh`, for example
 
@@ -171,7 +181,7 @@ constant pid `server` (0 in the generated file). Without any `--pid` flag
 the names are derived from the source (`name: __MODULE__`,
 `Process.register/2`; section 7), which is how `ttl.ex` is translated. The
 generated files are committed, and `check.sh` regenerates all six and
-fails if any differs; it then runs the 25 translator fixtures under
+fails if any differs; it then runs the 31 translator fixtures under
 `elixir/test/` (section 7).
 
 ### Conventions
@@ -180,6 +190,11 @@ fails if any differs; it then runs the 25 translator fixtures under
   `Msg` constructor. `@type call` alternatives become constructors with a
   leading `caller : Pid`; `@type reply` becomes the single constructor
   `Msg.reply`. All modules in one file share one `Msg` and one `St`.
+  Optional `@type cast` and `@type info` unions declare a tag's kind
+  directly (a cast/call tag with no clause crashes, an info tag with no
+  clause is ignored; a tag in two of msg/cast/info/call or a clause of
+  the wrong kind is an error); `msg` stays cast-or-info by handling
+  callback (round 3).
 * `@type state` gives one `St` constructor per module, named after the
   module in lowercase, with positional fields `f0, f1, ...` for tuples or
   `s` for a scalar. `pid()` and `GenServer.from()` are `Pid`, `integer()`
@@ -278,7 +293,7 @@ Lean `#eval` trace; the others check the proven property on a real run.
 | `elixir/src/supervisor.ex` | `--pid Sup=sup` | `trap_exit`, `start_link` as `spawnLink`, `EXIT` typing, `{:stop, :boom, s}` and `{:stop, :normal, s}` as `exit`, a raw `receive` worker with a defer clause |
 | `elixir/src/task.ex` | `--pid Caller=caller` | `GenServer.start` as `spawn`, `Process.monitor`, `DOWN` typing and the `downMsg` codec, a send before `{:stop, :normal, _}`, non-identity `init` |
 | `elixir/src/watchdog.ex` | `--pid Watchdog=watchdog` | `{:noreply, s, t}` as a self-timer, `Process.exit(w, :kill)` as `signal`, send to a registered name, booleans, named wildcards, pid-narrowed `Option` patterns |
-| `elixir/src/ttl.ex` | derived (`Process.register`) | `receive ... after` as the self-timer `after_run` armed on every re-entry and at the spawn site, `raise` in tail position as `.exit .error`, a raw process with an `Option Nat` state |
+| `elixir/src/ttl.ex` | derived (`Process.register`) | `receive ... after` as the generation-counted self-timer `after_run g` (hidden `gen` state field, re-armed at every re-entry with `gen + 1`, stale generations consumed and ignored), `raise` in tail position as `.exit .error`, a raw process with an `Option Nat` state |
 
 The generated files are 42 to 56 lines each; the sources are 55 to 85.
 
@@ -290,10 +305,12 @@ termination lemma, and one example-specific shape. The line counts below
 are from the files at this commit.
 
 **Bounded check first.** Each example file defines `checkInv` (a `Bool`
-version of the invariant) and an `explore` function that enumerates every
-interleaving of actor steps, signal deliveries, timer firings and
-environment stimulus up to a depth, returning the number of configurations
-visited and the first violating path if any. `#eval explore ...` runs at
+version of the invariant) and calls the shared `Sys.explore`
+(`Leanactors/Explore.lean`, round 3; the lock and the TTL cache keep a
+local one), which enumerates every interleaving of actor steps, signal
+and DOWN deliveries, timer firings and environment stimulus up to a
+depth, returning the number of configurations visited and the first
+violating path if any. `#eval explore ...` runs at
 `lake build` time. Recorded counts: the lock invariant on 77,925 and 23,281
 configurations (nodes 71, 78); the supervisor on 236,220 (node 90); the task
 on 243,526 (node 112); the watchdog on 10,365 (node 123; 10,411 since
@@ -431,7 +448,10 @@ watchdog; the fix is one `handle_cast(:pong, s)` ignore clause (nodes
 179-181). The init piece (nodes 162-172) and the receive piece (nodes
 188-199) closed non-identity `init` and selective receive beyond
 call/reply. Round 2 removed message mode altogether, so the crash arm is
-emitted for every file (section 7). Real time and multi-node remain.
+emitted for every file (section 7). Round 3 closed the last syntactic
+corner, a `@type msg` tag no clause mentions, by letting `@type cast` and
+`@type info` declare the kind (section 8). Real time and multi-node
+remain.
 
 ## 6. Known approximations and their direction
 
@@ -449,18 +469,27 @@ modelled behaviours); liveness is where they hurt.
 * Re-enqueue deferral for blocking calls adds self-message steps the BEAM
   does not take (it uses a save queue). Extra steps, same reachable states
   for the counted messages.
-* Exit reasons collapse to `normal | error`. Anything non-normal, including
-  `:kill`, is `error`. On the BEAM `:kill` is untrappable; in the model a
-  trapping target would receive it as a message. None of the current
-  sources send `:kill` to a trapping process, but this is the one place the
-  collapse is an under-approximation rather than an over-approximation.
+* Exit reasons are `normal`, `error` and `kill` (round 3).
+  `Process.exit(p, :kill)` is the untrappable kill it is on the BEAM: the
+  target dies whatever it traps and its links and monitors see `error`
+  (`:killed`). A remote `Process.exit(p, :normal)` is ignored by a
+  non-trapping target and is an `EXIT` message to a trapping one. Any
+  other reason is `error`, so a trapping process cannot tell `:shutdown`
+  from `:boom`; that collapse is harmless for the properties proved so far
+  (no handler inspects the reason). One remaining approximation: a process
+  that exits *itself* with `:kill` (`exit(:kill)`, `{:stop, :kill, s}`)
+  is reported to its links as `error`; on the BEAM such a link-propagated
+  kill is trappable and a trapping link sees `{:EXIT, p, :kill}`, a
+  non-trapping one dies with `:killed`. The model agrees on who dies and
+  differs only in the reason atom a trapping link would see.
 
 Under-approximations omit behaviours the BEAM has. A safety proof over the
 model says nothing about the omitted paths.
 
 * Closed message world: only `@type msg` alternatives exist. `:sys` messages,
   stray sends and typos are not modelled. A tag no callback of a module
-  mentions is not classified and gets no crash arm (node 246).
+  mentions is not classified and gets no crash arm (node 246) unless it
+  is declared under `@type cast` or `@type info` (round 3).
 * Handler bodies are pure. The only exception the model knows is an
   uncaught one in tail position: `raise`/`throw` as the last statement is
   `.exit .error` with the state unchanged (round 2). A `raise` anywhere
@@ -474,10 +503,14 @@ model says nothing about the omitted paths.
 * Raw processes: exactly one `receive` loop per module, one parameter, at
   most one `after` clause; a guard that fails re-enqueues the message to
   self, which adds self-message steps the BEAM does not take (same as the
-  call deferral). An `after` timeout is an untimed self-timer armed on
-  every re-entry and never cancelled, so timers accumulate and a stale one
-  may fire late (an over-approximation: the BEAM resets the timeout on any
-  message); the bounded checkers keep the depth modest because of it.
+  call deferral). An `after` timeout is an untimed self-timer with a
+  generation: the state carries `gen`, every re-entry arms `gen + 1`, and
+  only the current generation runs the after body, so a processed message
+  cancels the timeout as on the BEAM (round 3); what remains approximate
+  is timing (the live timer may fire at any step) and that a skipped
+  message re-arms instead of keeping the old timeout. Stale entries stay
+  in `timers` until they fire and are ignored. `gen` is a reserved name
+  in such a module and a blocking call inside the loop is rejected.
 * Registered names are constant pids, fixed by `--pid` or derived from
   `name: __MODULE__` / `Process.register/2` (no registry, no registration
   races); monitor refs are dropped (no `demonitor`, `DOWN` matched on pid);
@@ -541,10 +574,97 @@ generated lines in six, 275 theorems, no `sorry`, no `axiom`; the
 translator is about 1,340 lines; `check.sh` runs six translations, 25
 fixtures, `lake build` and six drivers.
 
-## 8. What to try first
+## 8. Round 3
+
+Four builders again, each on a worktree and a `wf3/*` branch, writing
+into the graph under node 300; the integrator merged explore, kill,
+kinds and after in that order with `--no-ff` (nodes 347-360). No merge
+had a textual conflict, and the six regenerated `Gen/` files and the
+regenerated fixture expectations were byte-identical to the merge
+result; the only hand fix was in `TtlProof.lean`, whose `rcases` on
+`signalE_cases` and `runE_cases` had been written against the pre-kill
+shapes (one more alternative, `reason` becomes `_`). What changed:
+
+* **Exact `:kill` and remote `:normal`** (goal 303, decision 320).
+  `Reason` gains `kill`; `Reason.propagated` sends `kill` to `error`;
+  `signalE` matches the reason before consulting `traps` (kill: terminate
+  the live target with `error` whatever it traps; normal: `EXIT` message
+  if trapping, else no-op; error: message if trapping, else terminate);
+  `runE` reports a self-exit as `reason.propagated`. The translator's only
+  change is `reason_str(:kill) -> .kill`; `Gen/Watchdog.lean` now reads
+  `.signal w .kill`. The decision was to keep `Sys.terminate` general and
+  normalise at the callers (option 319 over 318) and to prove
+  kill-freedom as a separate `Sys.NoKillTo 0` conjunct beside `Inv`
+  rather than an `Inv` field, which would have re-threaded every `Grows`
+  call: `SupervisorProof` adds `beh_no_signal`, `WatchdogProof` adds
+  `ChildNe` (no watchdog at any pid names 0 as its worker, carried through
+  the new `SysStep.stateOf_spawn_cases`). Every theorem statement is
+  unchanged; `SysProps.lean` 1,079 to 1,373 lines, `SupervisorProof` 290
+  to 315, `WatchdogProof` 287 to 361, `TaskProof` 313. The checkers
+  enumerate `[.normal, .error, .kill]` and no count moved (a kill to a
+  non-trapping worker was already a termination). Fixtures
+  `process_exit.ex` (now `.signal p .kill` and `.signal p .normal`) and
+  `stop_kill.ex` (`.exit .kill`, `:shutdown` as `error`). The self-kill
+  reason atom is the one approximation kept (section 6).
+* **Exact `receive ... after` and the Ttl proof** (goal 304, decision
+  326). `to_lean.exs` gives an after-loop's state a hidden trailing
+  `gen : Nat`, makes `after_<loop>` carry a generation, bumps and re-arms
+  on every re-entry (loop tail, defer clause, failed guard, after body),
+  starts a spawned child at generation 0, and renders the after clause as
+  `if gen' = gen then <body> else (<state>, [])`. Scheme A (state `gen` =
+  generation of the live timer, node 324) was chosen over an off-by-one
+  variant (node 325). `Gen/Ttl.lean` and `Examples/Ttl.lean` changed
+  accordingly (16,723 configurations at depth 7/3, the store-0 mutant
+  caught in 29 after two live expiries and a `put 0`); the other five Gen
+  files are byte-identical; fixture `receive_after.ex` covers the guard,
+  the exit, the defer clause, the after arm and the spawn site. The old
+  accumulation approximation (a stale expiry firing after later messages)
+  is gone; timers remain untimed and a skipped message re-arms where the
+  BEAM keeps the old timeout (node 344). `TtlProof.lean` (266 lines, 17
+  theorems) states `Inv` for every pid (no cache holds `some 0`, no
+  mailbox or timer carries `value (some 0)`), proves `Inv.run` clause by
+  clause from the concrete effect lists and the rest from
+  `signalE_cases`/`downE_cases`/`timerE_cases`, and ends in
+  `cache_never_zero`, `no_zero_in_flight` and `cache_never_zero_gen`. One
+  Lean note: with `export Leanactors.Gen.Ttl (St)` the spelling `St.cache
+  v g` in a `have` does not resolve; `(.cache v g : St)` does. All six
+  examples are now proved.
+* **Declared message kinds** (goal 302, decision 307). Optional `@type
+  cast` and `@type info` unions; `classify/2` seeds `ctx.kinds` from the
+  declarations (call, cast, info) before the clause scan, so an
+  uncovered cast or call tag gets a crash clause through the existing
+  `insert_crashes` path and an uncovered info tag is ignored via the
+  catch-all; `@type msg` keeps its cast-or-info-by-callback semantics and
+  may be omitted when another union is declared. The alternative of
+  defaulting every unclassified `msg` tag to cast (node 306, the node 246
+  suggestion) was rejected as guessing. Errors: a tag under two of
+  msg/cast/info/call, a clause of the wrong declared kind, a msg tag
+  handled by two kinds, `@type cast`/`call` in a raw process. The six Gen
+  files are byte-identical; fixtures `kind_cast_uncovered.ex`,
+  `kind_info_uncovered.ex`, `error_kind_conflict.ex`,
+  `error_kind_mismatch.ex`. Constructor order per module is msg, cast,
+  info, `after_<loop>`, call, reply (node 329).
+* **Generic explorer** (goal 301, decision 311). `Leanactors/Explore.lean`
+  in namespace `Leanactors.Sys`: `livePids`, `exploreWith` (`envMsgs :
+  Pid -> List μ`) and `explore` (one list for every live pid), steps in
+  the order runs, signal, down, timers, env with labels `run p`,
+  `signal`, `down`, `timer i`, `env <repr m> -> p`. Supervisor, Task and
+  Watchdog call it with byte-identical `#eval` output (the watchdog's
+  env label changed from the hand-written `env hang` to the `repr`, but
+  no recorded witness has an env step). Ttl and Lock keep local
+  explorers: the current namespace beats the opened `Sys` one, so no
+  ambiguity (node 315).
+
+Counts after the round: 5,610 lines of hand-written Lean in 20 files
+under `Leanactors/`, 288 generated lines in six, 322 theorems, no
+`sorry`, no `axiom`; the translator is about 1,445 lines; `check.sh` runs
+six translations, 31 fixtures (25 ok, 6 error), `lake build` and six
+drivers.
+
+## 9. What to try first
 
 1. `./check.sh` from the repo root (with `export PATH="$HOME/.elan/bin:$PATH"`).
-   It regenerates the six `Gen/` files and diffs them, runs the 25
+   It regenerates the six `Gen/` files and diffs them, runs the 31
    translator fixtures, runs `lake build` (which runs every `#eval
    explore`), greps for `sorry`, and runs the six drivers on the BEAM.
    First build takes a few minutes.
