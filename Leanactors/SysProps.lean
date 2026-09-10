@@ -60,7 +60,8 @@ by hand; this file states them once.
   links, monitors and timers.
 * `signalE_cases`, `signalE_frame`, `signalE_next`, `signalE_stateOf`:
   delivering a signal to `q` is a `Frame q` from the system minus that
-  signal, and `q` either keeps its state or dies of an `error` signal.
+  signal, and `q` either keeps its state or dies of an `error` or `kill`
+  signal (`kill` ignores `traps`).
 * `downE_cases`, `downE_grows`, `downE_next`, `downE_stateOf`,
   `downE_links`, `downE_signals`; `downE_of_codec`: with a DOWN codec the
   step is always one `deliver` (a dead watcher drops it inside `deliver`);
@@ -74,6 +75,24 @@ by hand; this file states them once.
   `Fresh.lt_next`, `Frame.stateOf_of_fresh`, `Frame.mcount_of_fresh`,
   `Grows.stateOf_of_fresh`, `Grows.mcount_of_fresh` trade the `q < next`
   side conditions for liveness.
+
+## Where signals and actors come from
+
+* `applyEffects_mem_signals_cases`: a signal after a step's effects is an old
+  one, a `noproc` error from `link`, or a `signal` effect of the step.
+* `Effect.init?` and `applyEffects_stateOf_cases`,
+  `runE_stateOf_spawn_cases`, `SysStep.stateOf_spawn_cases`: every actor
+  after a step is unchanged, dead, the actor that ran, or freshly spawned
+  in the initial state of one of that step's effects (no `q < next` bound,
+  unlike `SysStep.stateOf_cases`).
+* `Sys.NoKillTo p`: no pending `kill` is addressed to `p`. Since a `kill`
+  terminates even a trapping actor, a proof that `p` never dies needs it;
+  `NoKillTo.runE` (given that no popped message makes anyone `signal p
+  .kill`), `NoKillTo.signalE`, `NoKillTo.downE`, `NoKillTo.timerE` and
+  `SysStep.noKillTo` preserve it. `runE` reports a self-exit as
+  `reason.propagated`, never `kill` (`Reason.propagated_ne_kill`), and a
+  killed actor's links see `error`, so only a `signal` effect can create
+  a `kill` signal.
 
 `Leanactors.Examples.SysPropsDemo` re-proves the timer, DOWN and no-exit
 worker cases of the supervisor's `Inv.step` with these lemmas.
@@ -449,6 +468,108 @@ theorem applyEffects_links_signals_of_isolated (p : Pid) (s : Sys σ μ) {effs :
     (applyEffects p s effs).1.links = s.links ∧ (applyEffects p s effs).1.signals = s.signals :=
   foldl_applyEffect_links_signals_of_isolated p h s none
 
+/-! ### Where signals come from -/
+
+/-- A signal after one effect of `p` is an old one, a `noproc` error to `p`
+from a `link` to a dead pid, or the `signal` effect itself. -/
+theorem applyEffect_mem_signals_cases (p : Pid) (s : Sys σ μ) (d : Option Reason) (e : Effect σ μ)
+    {x : Pid × Pid × Reason} (hx : x ∈ (applyEffect p (s, d) e).1.signals) :
+    x ∈ s.signals ∨ (∃ q, x = (p, q, .error)) ∨ ∃ q r, x = (q, p, r) ∧ e = .signal q r := by
+  cases e with
+  | link q =>
+    simp only [applyEffect] at hx
+    split at hx
+    · exact Or.inl hx
+    · rcases List.mem_append.mp hx with h | h
+      · exact Or.inl h
+      · exact Or.inr (Or.inl ⟨q, by simpa using h⟩)
+  | monitor q => simp only [applyEffect] at hx; split at hx <;> exact Or.inl hx
+  | signal q r =>
+    rcases List.mem_append.mp hx with h | h
+    · exact Or.inl h
+    · exact Or.inr (Or.inr ⟨q, r, by simpa using h, rfl⟩)
+  | _ => exact Or.inl hx
+
+theorem foldl_applyEffect_mem_signals_cases (p : Pid) (effs : List (Effect σ μ)) (s : Sys σ μ)
+    (d : Option Reason) {x : Pid × Pid × Reason}
+    (hx : x ∈ (effs.foldl (applyEffect p) (s, d)).1.signals) :
+    x ∈ s.signals ∨ (∃ q, x = (p, q, .error)) ∨ ∃ q r, x = (q, p, r) ∧ Effect.signal q r ∈ effs := by
+  induction effs generalizing s d with
+  | nil => exact Or.inl hx
+  | cons e rest ih =>
+    rw [List.foldl_cons] at hx
+    have hstep := @applyEffect_mem_signals_cases σ μ p s d e
+    revert hx hstep
+    generalize applyEffect p (s, d) e = y
+    obtain ⟨s1, d1⟩ := y
+    intro hx hstep
+    rcases ih s1 d1 hx with h1 | h1 | ⟨q, r, hxe, he⟩
+    · rcases hstep h1 with h2 | h2 | ⟨q, r, hxe, he⟩
+      · exact Or.inl h2
+      · exact Or.inr (Or.inl h2)
+      · exact Or.inr (Or.inr ⟨q, r, hxe, he ▸ List.mem_cons_self⟩)
+    · exact Or.inr (Or.inl h1)
+    · exact Or.inr (Or.inr ⟨q, r, hxe, List.mem_cons_of_mem _ he⟩)
+
+/-- A signal after a step's effects is an old one, a `noproc` error, or one
+of the step's `signal` effects. In particular a `kill` signal can only come
+from `signal q .kill`. -/
+theorem applyEffects_mem_signals_cases (p : Pid) (s : Sys σ μ) (effs : List (Effect σ μ))
+    {x : Pid × Pid × Reason} (hx : x ∈ (applyEffects p s effs).1.signals) :
+    x ∈ s.signals ∨ (∃ q, x = (p, q, .error)) ∨ ∃ q r, x = (q, p, r) ∧ Effect.signal q r ∈ effs :=
+  foldl_applyEffect_mem_signals_cases p effs s none hx
+
+/-! ### Where actors come from -/
+
+end Sys
+
+/-- The initial state a spawning effect creates. -/
+def Effect.init? : Effect σ μ → Option σ
+  | .spawn i | .spawnLink i | .spawnMonitor i => some i
+  | _ => none
+
+namespace Sys
+
+theorem applyEffect_stateOf (p : Pid) (s : Sys σ μ) (d : Option Reason) (e : Effect σ μ) (q : Pid) :
+    (applyEffect p (s, d) e).1.cfg.stateOf q = s.cfg.stateOf q ∨
+      e.init? = (applyEffect p (s, d) e).1.cfg.stateOf q := by
+  cases e with
+  | send to m => exact Or.inl (stateOf_deliver _ _ _ _)
+  | spawn init | spawnLink init | spawnMonitor init =>
+    by_cases hq : q = s.next
+    · subst hq
+      exact Or.inr (by simp [applyEffect, Effect.init?, stateOf_set])
+    · exact Or.inl (by simp [applyEffect, stateOf_set, hq])
+  | link q' => simp only [applyEffect]; split <;> exact Or.inl rfl
+  | monitor q' => simp only [applyEffect]; split <;> exact Or.inl rfl
+  | _ => exact Or.inl rfl
+
+theorem foldl_applyEffect_stateOf (p : Pid) (effs : List (Effect σ μ)) (s : Sys σ μ)
+    (d : Option Reason) (q : Pid) :
+    (effs.foldl (applyEffect p) (s, d)).1.cfg.stateOf q = s.cfg.stateOf q ∨
+      ∃ e ∈ effs, e.init? = (effs.foldl (applyEffect p) (s, d)).1.cfg.stateOf q := by
+  induction effs generalizing s d with
+  | nil => exact Or.inl rfl
+  | cons e rest ih =>
+    rw [List.foldl_cons]
+    have hstep := applyEffect_stateOf p s d e q
+    revert hstep
+    generalize applyEffect p (s, d) e = y
+    obtain ⟨s1, d1⟩ := y
+    intro hstep
+    rcases ih s1 d1 with h1 | ⟨e', he', h1⟩
+    · rcases hstep with h2 | h2
+      · exact Or.inl (h1.trans h2)
+      · exact Or.inr ⟨e, List.mem_cons_self, h2.trans h1.symm⟩
+    · exact Or.inr ⟨e', List.mem_cons_of_mem _ he', h1⟩
+
+/-- Every actor after a step's effects is an old one or was spawned by one
+of the effects, in that effect's initial state. -/
+theorem applyEffects_stateOf_cases (p : Pid) (s : Sys σ μ) (effs : List (Effect σ μ)) (q : Pid) :
+    (applyEffects p s effs).1.cfg.stateOf q = s.cfg.stateOf q ∨
+      ∃ e ∈ effs, e.init? = (applyEffects p s effs).1.cfg.stateOf q :=
+  foldl_applyEffect_stateOf p effs s none q
+
 /-! ## Termination -/
 
 section terminate
@@ -581,12 +702,14 @@ end terminate
 /-! ## `runE` -/
 
 /-- Unpacking a successful `runE`: the popped message, the effects, and the
-two ways the step can end. -/
+two ways the step can end (a self-exit with `reason` is reported to links
+and monitors as `reason.propagated`). -/
 theorem runE_cases {beh : EBehavior σ μ} {s s' : Sys σ μ} {p : Pid} (h : runE beh s p = some s') :
     ∃ st m rest, s.cfg.get p = some ⟨st, m :: rest⟩ ∧
       let out := beh p s.next st m
       let r := applyEffects p { s with cfg := s.cfg.set p ⟨out.1, rest⟩ } out.2
-      (r.2 = none ∧ s' = r.1) ∨ (∃ reason, r.2 = some reason ∧ s' = r.1.terminate p reason) := by
+      (r.2 = none ∧ s' = r.1) ∨
+      (∃ reason, r.2 = some reason ∧ s' = r.1.terminate p reason.propagated) := by
   unfold runE at h
   split at h
   · rename_i st m rest hget
@@ -609,7 +732,7 @@ theorem runE_frame {beh : EBehavior σ μ} {s s' : Sys σ μ} {p : Pid} (h : run
     (beh p s.next st m).2
   rcases hs' with ⟨_, rfl⟩ | ⟨reason, _, rfl⟩
   · exact h1.trans_grows h2
-  · exact (h1.trans_grows h2).trans (terminate_frame _ p reason)
+  · exact (h1.trans_grows h2).trans (terminate_frame _ p _)
 
 theorem runE_next {beh : EBehavior σ μ} {s s' : Sys σ μ} {p : Pid} (h : runE beh s p = some s') :
     s.next ≤ s'.next := (runE_frame h).next
@@ -644,7 +767,7 @@ theorem runE_stateOf_self {beh : EBehavior σ μ} {s s' : Sys σ μ} {p : Pid}
     rw [hg.stateOf p hp]
     simp [stateOf_set]
   · right
-    exact terminate_stateOf_self _ p reason
+    exact terminate_stateOf_self _ p _
 
 /-- The running actor does not die if its behaviour emits no `exit`. -/
 theorem runE_stateOf_self_of_no_exit {beh : EBehavior σ μ} {s s' : Sys σ μ} {p : Pid}
@@ -682,19 +805,60 @@ theorem runE_of_no_exit {beh : EBehavior σ μ} {s s' : Sys σ μ} {p : Pid}
     split <;> simp [hq]
   · exact absurd (applyEffects_snd_some _ _ _ hr) (hexit st m rest hget reason)
 
+/-- **Every actor after a `runE` step**, with no bound on the pid: unchanged,
+dead, the actor that ran in the state its behaviour returned, or freshly
+spawned by one of the step's effects in that effect's initial state. -/
+theorem runE_stateOf_spawn_cases {beh : EBehavior σ μ} {s s' : Sys σ μ} {p : Pid}
+    (h : runE beh s p = some s') (q : Pid) :
+    s'.cfg.stateOf q = s.cfg.stateOf q ∨ s'.cfg.stateOf q = none ∨
+      (∃ st m rest, s.cfg.get p = some ⟨st, m :: rest⟩ ∧ q = p ∧
+        s'.cfg.stateOf q = some (beh p s.next st m).1) ∨
+      (∃ st m rest, s.cfg.get p = some ⟨st, m :: rest⟩ ∧
+        ∃ e ∈ (beh p s.next st m).2, e.init? = s'.cfg.stateOf q) := by
+  obtain ⟨st, m, rest, hget, hs'⟩ := runE_cases h
+  simp only at hs'
+  have hc := applyEffects_stateOf_cases p { s with cfg := s.cfg.set p ⟨(beh p s.next st m).1, rest⟩ }
+    (beh p s.next st m).2 q
+  simp only [stateOf_set] at hc
+  -- the state at `q` in the system the step ends in, before a possible self-termination
+  have key : ∀ s'' : Sys σ μ, s''.cfg.stateOf q = (applyEffects p
+        { s with cfg := s.cfg.set p ⟨(beh p s.next st m).1, rest⟩ } (beh p s.next st m).2).1.cfg.stateOf q →
+      s''.cfg.stateOf q = s.cfg.stateOf q ∨ s''.cfg.stateOf q = none ∨
+      (∃ st m rest, s.cfg.get p = some ⟨st, m :: rest⟩ ∧ q = p ∧
+        s''.cfg.stateOf q = some (beh p s.next st m).1) ∨
+      (∃ st m rest, s.cfg.get p = some ⟨st, m :: rest⟩ ∧
+        ∃ e ∈ (beh p s.next st m).2, e.init? = s''.cfg.stateOf q) := by
+    intro s'' hs''
+    rcases hc with hc | ⟨e, he, hc⟩
+    · rw [hs'', hc]
+      by_cases hq : q = p
+      · subst hq
+        exact Or.inr (Or.inr (Or.inl ⟨st, m, rest, hget, rfl, by simp⟩))
+      · exact Or.inl (by simp [hq])
+    · exact Or.inr (Or.inr (Or.inr ⟨st, m, rest, hget, e, he, hs'' ▸ hc⟩))
+  rcases hs' with ⟨_, rfl⟩ | ⟨reason, _, rfl⟩
+  · exact key _ rfl
+  · by_cases hq : q = p
+    · subst hq
+      exact Or.inr (Or.inl (terminate_stateOf_self _ _ _))
+    · exact key _ (terminate_stateOf_ne _ _ _ hq)
+
 /-! ## `signalE` -/
 
-/-- Unpacking a successful `signalE`: the head signal and the four ways it
+/-- Unpacking a successful `signalE`: the head signal and the five ways it
 can be handled (target gone, trapped as a message, `normal` ignored, `error`
-kills the target). -/
+kills a non-trapping target, `kill` kills the target whatever it traps and
+its links see `error`). -/
 theorem signalE_cases {sig : Signals σ μ} {s s' : Sys σ μ} (h : signalE sig s = some s') :
     ∃ q src r rest, s.signals = (q, src, r) :: rest ∧
       ((s.cfg.get q = none ∧ s' = { s with signals := rest }) ∨
-       (∃ a, s.cfg.get q = some a ∧ sig.traps a.state = true ∧
+       (∃ a, s.cfg.get q = some a ∧ sig.traps a.state = true ∧ r ≠ .kill ∧
           s' = { s with signals := rest, cfg := s.cfg.deliver q (sig.exitMsg src r) }) ∨
        (∃ a, s.cfg.get q = some a ∧ sig.traps a.state = false ∧ r = .normal ∧
           s' = { s with signals := rest }) ∨
        (∃ a, s.cfg.get q = some a ∧ sig.traps a.state = false ∧ r = .error ∧
+          s' = ({ s with signals := rest } : Sys σ μ).terminate q .error) ∨
+       (∃ a, s.cfg.get q = some a ∧ r = .kill ∧
           s' = ({ s with signals := rest } : Sys σ μ).terminate q .error)) := by
   unfold signalE at h
   split at h
@@ -705,12 +869,18 @@ theorem signalE_cases {sig : Signals σ μ} {s s' : Sys σ μ} (h : signalE sig 
     cases hq : s.cfg.get q with
     | none => exact Or.inl ⟨rfl, by simp⟩
     | some a =>
-      by_cases htr : sig.traps a.state = true
-      · exact Or.inr (Or.inl ⟨a, rfl, htr, by simp [htr]⟩)
-      · have htr' : sig.traps a.state = false := by simpa using htr
-        cases r with
-        | normal => exact Or.inr (Or.inr (Or.inl ⟨a, rfl, htr', rfl, by simp [htr']⟩))
-        | error => exact Or.inr (Or.inr (Or.inr ⟨a, rfl, htr', rfl, by simp [htr']⟩))
+      cases r with
+      | kill => exact Or.inr (Or.inr (Or.inr (Or.inr ⟨a, rfl, rfl, by simp⟩)))
+      | normal =>
+        by_cases htr : sig.traps a.state = true
+        · exact Or.inr (Or.inl ⟨a, rfl, htr, by simp, by simp [htr]⟩)
+        · have htr' : sig.traps a.state = false := by simpa using htr
+          exact Or.inr (Or.inr (Or.inl ⟨a, rfl, htr', rfl, by simp [htr']⟩))
+      | error =>
+        by_cases htr : sig.traps a.state = true
+        · exact Or.inr (Or.inl ⟨a, rfl, htr, by simp, by simp [htr]⟩)
+        · have htr' : sig.traps a.state = false := by simpa using htr
+          exact Or.inr (Or.inr (Or.inr (Or.inl ⟨a, rfl, htr', rfl, by simp [htr']⟩)))
 
 /-- Delivering a signal to `q` is a frame around `q` from the system minus
 that signal. -/
@@ -718,10 +888,11 @@ theorem signalE_frame {sig : Signals σ μ} {s s' : Sys σ μ} (h : signalE sig 
     ∃ q src r rest, s.signals = (q, src, r) :: rest ∧ Frame q { s with signals := rest } s' := by
   obtain ⟨q, src, r, rest, hsg, hc⟩ := signalE_cases h
   refine ⟨q, src, r, rest, hsg, ?_⟩
-  rcases hc with ⟨_, rfl⟩ | ⟨a, _, _, rfl⟩ | ⟨a, _, _, _, rfl⟩ | ⟨a, _, _, _, rfl⟩
+  rcases hc with ⟨_, rfl⟩ | ⟨a, _, _, _, rfl⟩ | ⟨a, _, _, _, rfl⟩ | ⟨a, _, _, _, rfl⟩ | ⟨a, _, _, rfl⟩
   · exact Frame.refl q _
   · exact (grows_deliver { s with signals := rest } q (sig.exitMsg src r)).frame q
   · exact Frame.refl q _
+  · exact terminate_frame _ q .error
   · exact terminate_frame _ q .error
 
 theorem signalE_next {sig : Signals σ μ} {s s' : Sys σ μ} (h : signalE sig s = some s') :
@@ -730,18 +901,23 @@ theorem signalE_next {sig : Signals σ μ} {s s' : Sys σ μ} (h : signalE sig s
   exact hf.next
 
 /-- A signal step leaves every state alone, except that its target may die,
-and then only from an `error` signal. -/
+and then only from a signal that is not `normal` (`error` to a non-trapping
+target, or `kill` to anyone). -/
 theorem signalE_stateOf {sig : Signals σ μ} {s s' : Sys σ μ} (h : signalE sig s = some s')
     (q : Pid) : s'.cfg.stateOf q = s.cfg.stateOf q ∨
-      (s'.cfg.stateOf q = none ∧ ∃ src rest, s.signals = (q, src, .error) :: rest) := by
+      (s'.cfg.stateOf q = none ∧ ∃ src r rest, r ≠ .normal ∧ s.signals = (q, src, r) :: rest) := by
   obtain ⟨q', src, r, rest, hsg, hc⟩ := signalE_cases h
-  rcases hc with ⟨_, rfl⟩ | ⟨a, _, _, rfl⟩ | ⟨a, _, _, _, rfl⟩ | ⟨a, _, _, rfl, rfl⟩
+  rcases hc with ⟨_, rfl⟩ | ⟨a, _, _, _, rfl⟩ | ⟨a, _, _, _, rfl⟩ | ⟨a, _, _, rfl, rfl⟩ | ⟨a, _, rfl, rfl⟩
   · exact Or.inl rfl
   · exact Or.inl (stateOf_deliver _ _ _ _)
   · exact Or.inl rfl
   · by_cases hq : q = q'
     · subst hq
-      exact Or.inr ⟨terminate_stateOf_self _ _ _, src, rest, hsg⟩
+      exact Or.inr ⟨terminate_stateOf_self _ _ _, src, .error, rest, by simp, hsg⟩
+    · exact Or.inl (terminate_stateOf_ne _ _ _ hq)
+  · by_cases hq : q = q'
+    · subst hq
+      exact Or.inr ⟨terminate_stateOf_self _ _ _, src, .kill, rest, by simp, hsg⟩
     · exact Or.inl (terminate_stateOf_ne _ _ _ hq)
 
 /-! ## `downE` -/
@@ -907,6 +1083,29 @@ theorem SysReach.stateOf_none {beh : EBehavior σ μ} {sig : Signals σ μ} {s s
   | refl => exact hd
   | step hst _ ih => exact ih (Nat.lt_of_lt_of_le hq hst.next_mono) (hst.stateOf_none hq hd)
 
+/-- `SysStep.stateOf_cases` without the `q < next` bound: a pid is
+unchanged, dead, the actor that ran, or spawned by the step. -/
+theorem SysStep.stateOf_spawn_cases {beh : EBehavior σ μ} {sig : Signals σ μ} {s s' : Sys σ μ}
+    (h : SysStep beh sig s s') (q : Pid) :
+    s'.cfg.stateOf q = s.cfg.stateOf q ∨ s'.cfg.stateOf q = none ∨
+      (∃ p st m rest, s.cfg.get p = some ⟨st, m :: rest⟩ ∧ q = p ∧
+        s'.cfg.stateOf q = some (beh p s.next st m).1) ∨
+      (∃ p st m rest, s.cfg.get p = some ⟨st, m :: rest⟩ ∧
+        ∃ e ∈ (beh p s.next st m).2, e.init? = s'.cfg.stateOf q) := by
+  cases h with
+  | run p _ hrun =>
+    rcases runE_stateOf_spawn_cases hrun q with h | h | ⟨st, m, rest, hget, hq, h⟩ | ⟨st, m, rest, hget, e, he, h⟩
+    · exact Or.inl h
+    · exact Or.inr (Or.inl h)
+    · exact Or.inr (Or.inr (Or.inl ⟨p, st, m, rest, hget, hq, h⟩))
+    · exact Or.inr (Or.inr (Or.inr ⟨p, st, m, rest, hget, e, he, h⟩))
+  | signal _ hsig =>
+    rcases signalE_stateOf hsig q with h | ⟨h, _⟩
+    · exact Or.inl h
+    · exact Or.inr (Or.inl h)
+  | down _ hdown => exact Or.inl (downE_stateOf hdown q)
+  | timer i _ htimer => exact Or.inl (timerE_stateOf htimer q)
+
 /-! ## Freshness: pids at or above `next` are dead -/
 
 /-- Every pid at or above the counter is unused. Holds for any system built
@@ -1020,16 +1219,17 @@ theorem fresh_runE {beh : EBehavior σ μ} {s s' : Sys σ μ} {p : Pid} (h : run
     ⟨(beh p s.next st m).1, rest⟩) (beh p s.next st m).2
   rcases hs' with ⟨_, rfl⟩ | ⟨reason, _, rfl⟩
   · exact h1
-  · exact fresh_terminate h1 p reason
+  · exact fresh_terminate h1 p _
 
 theorem fresh_signalE {sig : Signals σ μ} {s s' : Sys σ μ} (h : signalE sig s = some s')
     (hf : s.Fresh) : s'.Fresh := by
   obtain ⟨q, src, r, rest, _, hc⟩ := signalE_cases h
   have hf' : Fresh { s with signals := rest } := hf
-  rcases hc with ⟨_, rfl⟩ | ⟨a, _, _, rfl⟩ | ⟨a, _, _, _, rfl⟩ | ⟨a, _, _, _, rfl⟩
+  rcases hc with ⟨_, rfl⟩ | ⟨a, _, _, _, rfl⟩ | ⟨a, _, _, _, rfl⟩ | ⟨a, _, _, _, rfl⟩ | ⟨a, _, _, rfl⟩
   · exact hf'
   · exact fresh_deliver hf' q _
   · exact hf'
+  · exact fresh_terminate hf' q .error
   · exact fresh_terminate hf' q .error
 
 theorem fresh_downE {sig : Signals σ μ} {s s' : Sys σ μ} (h : downE sig s = some s')
@@ -1075,5 +1275,99 @@ theorem Sys.fresh_ofList (xs : List (Pid × σ)) (n : Pid) (hxs : ∀ x ∈ xs, 
     have hlt := hxs x hx
     have hle : n ≤ x.1 := by rw [hxq]; exact hq'
     exact absurd (Nat.lt_of_lt_of_le hlt hle) (Nat.lt_irrefl _)
+
+/-! ## Kill signals: who can be killed -/
+
+namespace Sys
+
+/-- No pending `kill` signal is addressed to `p`. A `kill` terminates its
+target whether or not it traps, so an invariant "p never dies" needs to
+know nobody aims one at `p`; the lemmas below preserve it through every
+step, given that no behaviour clause ever emits `signal p .kill`. -/
+def NoKillTo (p : Pid) (s : Sys σ μ) : Prop := ∀ src, (p, src, .kill) ∉ s.signals
+
+theorem NoKillTo.of_signals_eq {p : Pid} {a b : Sys σ μ} (h : a.NoKillTo p)
+    (he : b.signals = a.signals) : b.NoKillTo p := fun src hx => h src (he ▸ hx)
+
+theorem NoKillTo.of_signals_nil {p : Pid} {a : Sys σ μ} (h : a.signals = []) : a.NoKillTo p :=
+  fun _ hx => by rw [h] at hx; cases hx
+
+/-- Popping the head signal. -/
+theorem NoKillTo.of_cons {p : Pid} {a : Sys σ μ} (h : a.NoKillTo p) {x : Pid × Pid × Reason}
+    {rest : List (Pid × Pid × Reason)} (hsg : a.signals = x :: rest) :
+    NoKillTo p { a with signals := rest } :=
+  fun src hx => h src (by rw [hsg]; exact List.mem_cons_of_mem _ hx)
+
+/-- A death reported with a reason other than `kill` (every death is:
+`runE` reports `reason.propagated`, `signalE` reports `error`). -/
+theorem NoKillTo.terminate {p : Pid} {s : Sys σ μ} (h : s.NoKillTo p) (q : Pid) {r : Reason}
+    (hr : r ≠ .kill) : (s.terminate q r).NoKillTo p := by
+  intro src hx
+  rcases (terminate_mem_signals_iff s q r _).mp hx with hx | ⟨q', hq', _⟩
+  · exact h src hx
+  · exact hr (congrArg (·.2.2) hq').symm
+
+theorem NoKillTo.applyEffects {p : Pid} {s : Sys σ μ} (h : s.NoKillTo p) (q : Pid)
+    {effs : List (Effect σ μ)} (he : Effect.signal p .kill ∉ effs) :
+    (applyEffects q s effs).1.NoKillTo p := by
+  intro src hx
+  rcases applyEffects_mem_signals_cases q s effs hx with hx | ⟨q', hq'⟩ | ⟨q', r, hx, hmem⟩
+  · exact h src hx
+  · cases hq'
+  · cases hx
+    exact he hmem
+
+/-- `runE` by `q` keeps `p` kill-free if the popped message makes `q` emit
+no `signal p .kill`. -/
+theorem NoKillTo.runE {beh : EBehavior σ μ} {s s' : Sys σ μ} {q : Pid} (h : runE beh s q = some s')
+    {p : Pid} (hk : s.NoKillTo p)
+    (hb : ∀ st m rest, s.cfg.get q = some ⟨st, m :: rest⟩ →
+      Effect.signal p .kill ∉ (beh q s.next st m).2) : s'.NoKillTo p := by
+  obtain ⟨st, m, rest, hget, hs'⟩ := runE_cases h
+  simp only at hs'
+  have h1 : NoKillTo p { s with cfg := s.cfg.set q ⟨(beh q s.next st m).1, rest⟩ } := hk
+  have h2 := h1.applyEffects q (hb st m rest hget)
+  rcases hs' with ⟨_, rfl⟩ | ⟨reason, _, rfl⟩
+  · exact h2
+  · exact h2.terminate q (Reason.propagated_ne_kill reason)
+
+theorem NoKillTo.signalE {sig : Signals σ μ} {s s' : Sys σ μ} (h : signalE sig s = some s')
+    {p : Pid} (hk : s.NoKillTo p) : s'.NoKillTo p := by
+  obtain ⟨q, src, r, rest, hsg, hc⟩ := signalE_cases h
+  have hpop := hk.of_cons hsg
+  rcases hc with ⟨_, rfl⟩ | ⟨a, _, _, _, rfl⟩ | ⟨a, _, _, _, rfl⟩ | ⟨a, _, _, _, rfl⟩ | ⟨a, _, _, rfl⟩
+  · exact hpop
+  · exact hpop
+  · exact hpop
+  · exact hpop.terminate q (by simp)
+  · exact hpop.terminate q (by simp)
+
+theorem NoKillTo.downE {sig : Signals σ μ} {s s' : Sys σ μ} (h : downE sig s = some s')
+    {p : Pid} (hk : s.NoKillTo p) : s'.NoKillTo p :=
+  hk.of_signals_eq (downE_signals h)
+
+theorem NoKillTo.timerE {s s' : Sys σ μ} {i : Nat} (h : timerE s i = some s')
+    {p : Pid} (hk : s.NoKillTo p) : s'.NoKillTo p :=
+  hk.of_signals_eq (timerE_signals h)
+
+end Sys
+
+/-- `NoKillTo p` is preserved by every step as long as no actor's popped
+message makes it `signal p .kill`. -/
+theorem SysStep.noKillTo {beh : EBehavior σ μ} {sig : Signals σ μ} {s s' : Sys σ μ}
+    (h : SysStep beh sig s s') {p : Pid} (hk : s.NoKillTo p)
+    (hb : ∀ q st m rest, s.cfg.get q = some ⟨st, m :: rest⟩ →
+      Effect.signal p .kill ∉ (beh q s.next st m).2) : s'.NoKillTo p := by
+  cases h with
+  | run q _ hrun => exact hk.runE hrun (hb q)
+  | signal _ hsig => exact hk.signalE hsig
+  | down _ hdown => exact hk.downE hdown
+  | timer i _ htimer => exact hk.timerE htimer
+
+/-- A behaviour that never emits `signal` at all keeps every pid kill-free. -/
+theorem SysReach.noKillTo_of_no_signal {beh : EBehavior σ μ} {sig : Signals σ μ} {s s' : Sys σ μ}
+    (h : SysReach beh sig s s') {p : Pid} (hk : s.NoKillTo p)
+    (hb : ∀ q fresh st m q' r, Effect.signal q' r ∉ (beh q fresh st m).2) : s'.NoKillTo p :=
+  h.inv (fun hst hk => hst.noKillTo hk (fun q st m _ _ => hb q _ st m p .kill)) hk
 
 end Leanactors
