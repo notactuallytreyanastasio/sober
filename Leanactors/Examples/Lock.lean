@@ -171,22 +171,26 @@ def checkInv (c : Config St Msg) (pids : List Pid) : Bool :=
 def mutexOk (c : Config St Msg) (pids : List Pid) : Bool :=
   (pids.filter fun p => hd c p = 1).length ≤ 1
 
-/-- Explore all schedules: at each node either some actor runs or the
-environment ticks some client (bounded by `ticks`). Returns the number of
-configurations visited and whether every one satisfied `Inv` and mutex. -/
-partial def explore (c : Config St Msg) (pids : List Pid) (depth ticks : Nat) : Nat × Bool :=
-  if !(checkInv c pids && mutexOk c pids) then (1, false)
-  else if depth = 0 then (1, true)
+/-- Explore all schedules under behaviour `b`: at each node either some actor
+runs or the environment ticks some client (bounded by `ticks`). Returns the
+number of configurations visited and, if one violated `Inv` or mutex, the
+path to it. -/
+partial def explore (b : Behavior St Msg) (c : Config St Msg) (pids : List Pid)
+    (depth ticks : Nat) (path : List String := []) : Nat × Option (List String) :=
+  if !(checkInv c pids && mutexOk c pids) then (1, some path.reverse)
+  else if depth = 0 then (1, none)
   else
-    let runs := pids.filterMap fun p => (step beh c p).map fun c' => (c', ticks)
+    let runs := pids.filterMap fun p => (step b c p).map fun c' => (c', ticks, s!"run {p}")
     let tks := if ticks = 0 then [] else
-      (pids.filter (· ≠ server)).map fun p => (c.deliver p .tick, ticks - 1)
-    (runs ++ tks).foldl (fun (n, ok) (c', t) =>
-      if !ok then (n, false) else
-        let (n', ok') := explore c' pids (depth - 1) t
-        (n + n', ok')) (1, true)
+      (pids.filter (· ≠ server)).map fun p => (c.deliver p .tick, ticks - 1, s!"tick {p}")
+    (runs ++ tks).foldl (fun (n, bad) (c', t, lbl) =>
+      match bad with
+      | some _ => (n, bad)
+      | none =>
+        let (n', bad') := explore b c' pids (depth - 1) t (lbl :: path)
+        (n + n', bad')) (1, none)
 
-#eval explore (initCfg 2) [0, 1, 2] 9 5
-#eval explore (initCfg 3) [0, 1, 2, 3] 7 4
+#eval explore beh (initCfg 2) [0, 1, 2] 9 5
+#eval explore beh (initCfg 3) [0, 1, 2, 3] 7 4
 
 end Leanactors.Examples.Lock
