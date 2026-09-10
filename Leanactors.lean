@@ -3,6 +3,7 @@ import Leanactors.Props
 import Leanactors.Count
 import Leanactors.Sys
 import Leanactors.SysProps
+import Leanactors.Explore
 import Leanactors.Examples.Bank
 import Leanactors.Examples.Lock
 import Leanactors.Examples.LockProof
