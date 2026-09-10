@@ -8,14 +8,21 @@ safety fact: whenever the current child is dead, either its exit signal is
 pending or its `EXIT` message is already in the supervisor's mailbox. This
 file adds the fairness assumptions that turn "in flight" into "arrives":
 
-`restart_eventually`: along any run `ρ` of the supervisor system from
-`init` in which the `signal` step and the `run 0` step are weakly fair, if
-at time `t` the current child is dead then at some `t' ≥ t` the supervisor
-has a live child again.
+`restart_eventually`: along any run `ρ` of the supervisor system that
+starts in a `Good` system (`Inv` and no pending kill aimed at the
+supervisor) and in which the `signal` step and the `run 0` step are weakly
+fair, if at time `t` the current child is dead then at some `t' ≥ t` the
+supervisor has a live child again. Every system the environment can drive
+the supervisor to from `init` is `Good` (`reachEnv_good`: `SysReachEnv`
+adds arbitrary deliveries to the closed `SysReach`), which is why the
+theorem is not stated from `init` itself: a `SysRun` is closed (no
+environment steps), and in a closed run from `init` nobody ever sends the
+worker `:crash`, so a dead child never occurs. `restart_eventually_env`
+and `restart_eventually_init` are the corollaries for those start systems.
 
 No fairness of `down` or of the timers is needed (the supervisor has no
 monitors and arms no timers), and `NoKillTo 0` is not an assumption: it is
-an invariant from `init`, as in `SupervisorProof`.
+part of `Good`, an invariant of every step and every delivery.
 
 The proof is two `LeadsTo` stages, each by `SysRun.rank_leads_to`:
 
@@ -295,10 +302,29 @@ theorem isExit_false {c : Pid} {m : Msg} (h : ∀ r, m ≠ .EXIT c r) : isExit c
 
 /-! ### The invariant along a run -/
 
-/-- `Inv` together with `NoKillTo 0`, from `init` (the induction of `reach_inv`). -/
-theorem reach_good {s : Sys St Msg} (hr : SysReach beh sig init s) : Inv s ∧ s.NoKillTo 0 :=
-  hr.inv (I := fun s => Inv s ∧ s.NoKillTo 0)
-    (fun h ⟨hi, hk⟩ => ⟨Inv.step h hi hk, noKillTo_step h hk⟩) ⟨init_inv, init_noKillTo⟩
+/-- What the liveness argument needs of a start system: the safety
+invariant and no pending kill aimed at the supervisor. -/
+def Good (s : Sys St Msg) : Prop := Inv s ∧ s.NoKillTo 0
+
+theorem Good.step {a b : Sys St Msg} (h : SysStep beh sig a b) (hg : Good a) : Good b :=
+  ⟨Inv.step h hg.1 hg.2, noKillTo_step h hg.2⟩
+
+/-- An environment delivery keeps `Good`: `Inv` is monotone along `Grows`
+and the signal queue is untouched. -/
+theorem Good.deliver {a : Sys St Msg} (p : Pid) (m : Msg) (hg : Good a) :
+    Good { a with cfg := a.cfg.deliver p m } :=
+  ⟨hg.1.grows (grows_deliver a p m), hg.2.of_signals_eq rfl⟩
+
+theorem Good.init : Good init := ⟨init_inv, init_noKillTo⟩
+
+/-- `Good` is kept along the (closed) steps of a run. -/
+theorem reach_good {s₀ s : Sys St Msg} (hg : Good s₀) (hr : SysReach beh sig s₀ s) : Good s :=
+  hr.inv (fun h hg => hg.step h) hg
+
+/-- Every system the environment can drive the supervisor to from `init`
+is `Good`. -/
+theorem reachEnv_good {s : Sys St Msg} (hr : SysReachEnv beh sig init s) : Good s :=
+  hr.inv (fun h hg => hg.step h) (fun p m hg => hg.deliver p m) Good.init
 
 theorem SupChild.get {c : Pid} {s : Sys St Msg} (h : SupChild c s) :
     ∃ k mb, s.cfg.get 0 = some ⟨.sup (some c) k, mb⟩ := by
@@ -453,11 +479,11 @@ theorem sigPending_step {c : Pid} {ch : SysChoice} {a b : Sys St Msg} (hg : Inv 
 
 /-- **Stage A.** With a fair `signal` step, a pending exit signal of the
 current child leads to a live child or to its `EXIT` in the mailbox. -/
-theorem sigPending_leadsTo (ρ : SysRun beh sig) (h0 : ρ.st 0 = init) (hfair : ρ.WeakFair .signal)
+theorem sigPending_leadsTo (ρ : SysRun beh sig) (h0 : Good (ρ.st 0)) (hfair : ρ.WeakFair .signal)
     (c : Pid) : LeadsTo ρ.st (SigPending c) (fun s => Live s ∨ MsgPending c s) := by
   apply ρ.rank_leads_to_of_step .signal (rankSig c) hfair
   · intro ch a b hr hl hp _
-    exact sigPending_step (reach_good (by rwa [h0] at hr)) hl hp
+    exact sigPending_step (reach_good h0 hr) hl hp
   · intro a _ ⟨_, r, hs⟩ _
     show a.signals ≠ []
     intro hnil; rw [hnil] at hs; cases hs
@@ -534,11 +560,11 @@ theorem msgPending_step {c : Pid} {ch : SysChoice} {a b : Sys St Msg} (hg : Inv 
 
 /-- **Stage B.** With a fair `run 0` step, the child's `EXIT` in the
 supervisor's mailbox leads to a live child. -/
-theorem msgPending_leadsTo (ρ : SysRun beh sig) (h0 : ρ.st 0 = init) (hfair : ρ.WeakFair (.run 0))
+theorem msgPending_leadsTo (ρ : SysRun beh sig) (h0 : Good (ρ.st 0)) (hfair : ρ.WeakFair (.run 0))
     (c : Pid) : LeadsTo ρ.st (MsgPending c) Live := by
   apply ρ.rank_leads_to_of_step (.run 0) (rankMsg c) hfair
   · intro ch a b hr hl hp _
-    exact msgPending_step (reach_good (by rwa [h0] at hr)) hl hp
+    exact msgPending_step (reach_good h0 hr) hl hp
   · intro a _ ⟨hsc, mb, hmb, r, hr⟩ _
     obtain ⟨k, mb', hget⟩ := hsc.get
     have : mb = mb' := by simp [Config.mboxOf, hget] at hmb; exact hmb.symm
@@ -549,21 +575,23 @@ theorem msgPending_leadsTo (ρ : SysRun beh sig) (h0 : ρ.st 0 = init) (hfair : 
 
 /-! ### The theorem -/
 
-/-- **A dead child is eventually replaced.** Along any run from `init` in
-which the `signal` step and the `run 0` step are weakly fair: if at time
-`t` the supervisor's current child `c` is dead, then at some `t' ≥ t` the
-supervisor's current child is alive. Nothing is assumed about `down`,
-timers, the other pids, or who is killed: `NoKillTo 0` is an invariant. -/
-theorem restart_eventually (ρ : SysRun beh sig) (h0 : ρ.st 0 = init)
+/-- **A dead child is eventually replaced.** Along any run from a `Good`
+system in which the `signal` step and the `run 0` step are weakly fair:
+if at time `t` the supervisor's current child `c` is dead, then at some
+`t' ≥ t` the supervisor's current child is alive. Nothing is assumed about
+`down`, timers, the other pids, or who is killed: `NoKillTo 0` is part of
+`Good`, an invariant. -/
+theorem restart_eventually (ρ : SysRun beh sig) (h0 : Good (ρ.st 0))
     (hsig : ρ.WeakFair .signal) (hrun : ρ.WeakFair (.run 0)) :
     ∀ t c k, (ρ.st t).cfg.stateOf 0 = some (.sup (some c) k) → ((ρ.st t).cfg.get c).isSome = false →
       ∃ t' ≥ t, ∃ c' k', (ρ.st t').cfg.stateOf 0 = some (.sup (some c') k') ∧
         ((ρ.st t').cfg.get c').isSome = true := by
   intro t c k hc hdead
-  have hr : SysReach beh sig init (ρ.st t) := by have h := ρ.reach t; rwa [h0] at h
+  have hg : Good (ρ.st t) := reach_good h0 (ρ.reach t)
   have hB := msgPending_leadsTo ρ h0 hrun c
   have hA := (sigPending_leadsTo ρ h0 hsig c).trans ((LeadsTo.refl ρ.st Live).or hB)
-  rcases restart_in_flight hr hc hdead with ⟨r, hs⟩ | ⟨r, hm⟩
+  rcases hg.1.child_ok c k hc with ⟨hal, _⟩ | ⟨r, hs⟩ | ⟨r, hm⟩
+  · rw [hdead] at hal; cases hal
   · exact hA t ⟨⟨k, hc⟩, r, hs⟩
   · refine hB t ⟨⟨k, hc⟩, ?_⟩
     obtain ⟨_, mb, hget⟩ := SupChild.get (⟨k, hc⟩ : SupChild c (ρ.st t))
@@ -571,6 +599,32 @@ theorem restart_eventually (ρ : SysRun beh sig) (h0 : ρ.st 0 = init)
     unfold mcount at hm
     rw [hget] at hm
     exact List.count_pos_iff.mp hm
+
+/-- The same from any system the environment can drive the supervisor to
+from `init` (the worker has been sent `:crash`, say): `SysReachEnv` is the
+closed reachability plus arbitrary deliveries. -/
+theorem restart_eventually_env (ρ : SysRun beh sig) (h0 : SysReachEnv beh sig init (ρ.st 0))
+    (hsig : ρ.WeakFair .signal) (hrun : ρ.WeakFair (.run 0)) :
+    ∀ t c k, (ρ.st t).cfg.stateOf 0 = some (.sup (some c) k) → ((ρ.st t).cfg.get c).isSome = false →
+      ∃ t' ≥ t, ∃ c' k', (ρ.st t').cfg.stateOf 0 = some (.sup (some c') k') ∧
+        ((ρ.st t').cfg.get c').isSome = true :=
+  restart_eventually ρ (reachEnv_good h0) hsig hrun
+
+/-- From `init` itself (vacuous in practice: a closed run from `init` never
+loses its child, since only the environment sends `:crash`). -/
+theorem restart_eventually_init (ρ : SysRun beh sig) (h0 : ρ.st 0 = init)
+    (hsig : ρ.WeakFair .signal) (hrun : ρ.WeakFair (.run 0)) :
+    ∀ t c k, (ρ.st t).cfg.stateOf 0 = some (.sup (some c) k) → ((ρ.st t).cfg.get c).isSome = false →
+      ∃ t' ≥ t, ∃ c' k', (ρ.st t').cfg.stateOf 0 = some (.sup (some c') k') ∧
+        ((ρ.st t').cfg.get c').isSome = true :=
+  restart_eventually ρ (by rw [h0]; exact Good.init) hsig hrun
+
+/-- The premise of `restart_eventually_env` is reachable: run the
+supervisor on `:start`, let the environment send the worker `:crash`, run
+the worker. The child is dead and its exit signal is pending. -/
+theorem dead_child_reachable : ∃ s, SysReachEnv beh sig init s ∧
+    ∃ c k, s.cfg.stateOf 0 = some (.sup (some c) k) ∧ (s.cfg.get c).isSome = false :=
+  ⟨_, .step (.run _ 0 _ rfl) (.env 1 .crash (.step (.run _ 1 _ rfl) (.refl _))), 1, 0, rfl, rfl⟩
 
 end Examples.Supervisor
 

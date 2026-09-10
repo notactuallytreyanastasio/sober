@@ -151,6 +151,10 @@ Sys layer (`beh : EBehavior σ μ`, `sig : Signals σ μ`, choices are `SysChoic
 * `SysStep.exists_sysStepL (h : SysStep beh sig a b) : ∃ c, SysStepL beh sig c a b`
 * `SysReach.trans (h₁ : SysReach beh sig a b) (h₂ : SysReach beh sig b c) : SysReach beh sig a c`
 * `SysReach.single (h : SysStep beh sig a b) : SysReach beh sig a b`
+* `inductive SysReachEnv beh sig : Sys σ μ → Sys σ μ → Prop` (`refl`, `step (SysStep)`,
+  `env (p) (m)` delivering any message to any pid: the systems the environment can produce)
+  with `SysReachEnv.inv (hstep) (henv : ∀ {a} p m, I a → I { a with cfg := a.cfg.deliver p m }) (h) (hc)`,
+  `SysReachEnv.of_reach`, `SysReachEnv.trans`
 * `def SysEnabled (s : Sys σ μ) : SysChoice → Prop`
   (`.run p ↦ ∃ st m rest, s.cfg.get p = some ⟨st, m :: rest⟩`, `.signal ↦ s.signals ≠ []`,
    `.down ↦ s.downs ≠ []`, `.timer i ↦ i < s.timers.length`)
@@ -764,6 +768,44 @@ theorem SysReach.trans {beh : EBehavior σ μ} {sig : Signals σ μ} {a b c : Sy
 
 theorem SysReach.single {beh : EBehavior σ μ} {sig : Signals σ μ} {a b : Sys σ μ}
     (h : SysStep beh sig a b) : SysReach beh sig a b := .step h (.refl b)
+
+/-- Reachability by system steps and environment deliveries: any message
+to any pid at any time (a delivery to a dead pid is the identity). The
+`Sys` safety proofs are over the closed `SysReach`; this is the set of
+systems the environment can drive a closed system to, the `Sys` analogue
+of `ReachE`. -/
+inductive SysReachEnv (beh : EBehavior σ μ) (sig : Signals σ μ) : Sys σ μ → Sys σ μ → Prop
+  | refl (s : Sys σ μ) : SysReachEnv beh sig s s
+  | step {a b c : Sys σ μ} (h : SysStep beh sig a b) (h' : SysReachEnv beh sig b c) :
+      SysReachEnv beh sig a c
+  | env {a c : Sys σ μ} (p : Pid) (m : μ)
+      (h' : SysReachEnv beh sig { a with cfg := a.cfg.deliver p m } c) : SysReachEnv beh sig a c
+
+namespace SysReachEnv
+
+variable {beh : EBehavior σ μ} {sig : Signals σ μ}
+
+theorem inv {I : Sys σ μ → Prop} (hstep : ∀ {a b}, SysStep beh sig a b → I a → I b)
+    (henv : ∀ {a} (p : Pid) (m : μ), I a → I { a with cfg := a.cfg.deliver p m })
+    {c c' : Sys σ μ} (h : SysReachEnv beh sig c c') (hc : I c) : I c' := by
+  induction h with
+  | refl => exact hc
+  | step hs _ ih => exact ih (hstep hs hc)
+  | env p m _ ih => exact ih (henv p m hc)
+
+theorem of_reach {a b : Sys σ μ} (h : SysReach beh sig a b) : SysReachEnv beh sig a b := by
+  induction h with
+  | refl => exact .refl _
+  | step hs _ ih => exact .step hs ih
+
+theorem trans {a b c : Sys σ μ} (h₁ : SysReachEnv beh sig a b) (h₂ : SysReachEnv beh sig b c) :
+    SysReachEnv beh sig a c := by
+  induction h₁ with
+  | refl => exact h₂
+  | step hs _ ih => exact .step hs (ih h₂)
+  | env p m _ ih => exact .env p m (ih h₂)
+
+end SysReachEnv
 
 /-- Which choices can move: `run p` iff `p` has a message, `signal` iff a
 signal is pending, `down` iff a DOWN is pending, `timer i` iff timer `i`
