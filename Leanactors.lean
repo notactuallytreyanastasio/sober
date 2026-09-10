@@ -5,3 +5,5 @@ import Leanactors.Examples.Bank
 import Leanactors.Examples.Lock
 import Leanactors.Examples.LockProof
 import Leanactors.Examples.LockMutants
+import Leanactors.Gen.Lock
+import Leanactors.Gen.Bank

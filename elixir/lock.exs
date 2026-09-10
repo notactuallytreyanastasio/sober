@@ -6,53 +6,25 @@
 # tick timing and check the property on an event log. A property test cannot
 # replace the proof, but disagreement would mean the model is wrong.
 
-defmodule Lock do
+Code.require_file("src/lock.ex", __DIR__)
+
+# Observation shim: the shared Client module is pure protocol. To log
+# critical-section entry and exit we wrap its callbacks in a subclass-like
+# module that forwards to Client.handle_info/2 and reports phase changes.
+defmodule ObservedClient do
   use GenServer
-  # state: {holder :: pid() | nil, queue :: [pid()]}
-  def start_link, do: GenServer.start_link(__MODULE__, {nil, []}, name: __MODULE__)
+  def start_link(log), do: GenServer.start_link(__MODULE__, {:idle, log})
   @impl true
   def init(s), do: {:ok, s}
-
   @impl true
-  def handle_cast({:acquire, p}, {nil, q}) do
-    send(p, :grant)
-    {:noreply, {p, q}}
-  end
-  def handle_cast({:acquire, p}, {h, q}), do: {:noreply, {h, q ++ [p]}}
-  def handle_cast({:release, p}, {p, []}), do: {:noreply, {nil, []}}
-  def handle_cast({:release, p}, {p, [n | rest]}) do
-    send(n, :grant)
-    {:noreply, {n, rest}}
-  end
-  def handle_cast({:release, _}, s), do: {:noreply, s}
-end
-
-defmodule Client do
-  # phase :: :idle | :waiting | :holding, driven by :tick (env) and :grant (Lock)
-  def start(log), do: spawn_link(fn -> loop(:idle, log) end)
-
-  defp loop(:idle, log) do
-    receive do
-      :tick -> GenServer.cast(Lock, {:acquire, self()}); loop(:waiting, log)
-      _ -> loop(:idle, log)
+  def handle_info(msg, {phase, log}) do
+    {:noreply, phase2} = Client.handle_info(msg, phase)
+    case {phase, phase2} do
+      {:waiting, :holding} -> send(log, {:enter, self(), System.monotonic_time()})
+      {:holding, :idle} -> send(log, {:leave, self(), System.monotonic_time()})
+      _ -> :ok
     end
-  end
-  defp loop(:waiting, log) do
-    receive do
-      :grant ->
-        send(log, {:enter, self(), System.monotonic_time()})
-        loop(:holding, log)
-      _ -> loop(:waiting, log)
-    end
-  end
-  defp loop(:holding, log) do
-    receive do
-      :tick ->
-        send(log, {:leave, self(), System.monotonic_time()})
-        GenServer.cast(Lock, {:release, self()})
-        loop(:idle, log)
-      _ -> loop(:holding, log)
-    end
+    {:noreply, {phase2, log}}
   end
 end
 
@@ -78,7 +50,7 @@ end
 
 {:ok, _} = Lock.start_link()
 log = Log.start()
-clients = for _ <- 1..n, do: Client.start(log)
+clients = for _ <- 1..n, do: (fn -> {:ok, c} = ObservedClient.start_link(log); c end).()
 
 # Chaos driver: ticks to random clients at random times, like Lean's EnvStep.
 for _ <- 1..ticks do
