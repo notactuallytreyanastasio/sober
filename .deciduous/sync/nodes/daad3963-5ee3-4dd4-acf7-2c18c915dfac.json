@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "daad3963-5ee3-4dd4-acf7-2c18c915dfac",
+  "created_at": "2026-09-10T15:05:53.061150-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "24/24 fixtures pass (20 ok + lean-checked, 4 expect-error); Gen/*.lean byte-identical; ./check.sh passes end to end on wf2/fixtures (eaac657)",
+  "updated_at": "2026-09-10T15:05:53.061150-04:00"
+}

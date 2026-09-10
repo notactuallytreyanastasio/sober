@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T14:56:12.677826-04:00",
+  "edge_id": "ec065f19d9e8e4745afa",
+  "edge_type": "leads_to",
+  "from_change_id": "fa233e09-24c9-44aa-a1c6-a1be8ca1d2db",
+  "rationale": "raise semantics follow exit/1 (FunctionClauseError path already collapses to .error)",
+  "to_change_id": "eab51f1f-7dd0-415e-b663-7dfd676dce35",
+  "weight": 1.0
+}

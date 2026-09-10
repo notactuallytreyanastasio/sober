@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "be918a88-dda9-492e-815d-c6d3d22f5322",
+  "created_at": "2026-09-10T15:03:32.036898-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "to_lean.exs: five Gen files byte-identical with explicit --pid; Gen/Ttl.lean generated without --pid (cache = 0, after_run ctor, .put 0 crash arm); commit 93bac62",
+  "updated_at": "2026-09-10T15:03:32.036898-04:00"
+}

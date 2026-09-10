@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "a7adef23-f76e-4dc9-96b1-13b0aeb1b6cd",
+  "created_at": "2026-09-10T15:15:13.374049-04:00",
+  "description": "regen_expected.sh wrote all 20 ok files; run_fixtures: 20/24. reply_later's cast now gets a crash clause instead of the message-mode warning; error_no_pid's message is now 'no registered name for Sink'",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "After the four merges 2 fixtures (booleans, call_pattern_lhs) fail: uniform EBehavior turns the gap of node 268 from a warning into a redundant crash clause (Bool-split cast/call clauses); error_no_pid and reply_later only need directive updates",
+  "updated_at": "2026-09-10T15:15:13.374049-04:00"
+}

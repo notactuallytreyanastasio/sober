@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "bfb4aec3-e4cb-4ef0-803d-c5e8f326b1c6",
+  "created_at": "2026-09-10T14:54:18.493681-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 30
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Separate regen implementation in shell (duplicated flag parsing)",
+  "updated_at": "2026-09-10T14:54:18.493681-04:00"
+}

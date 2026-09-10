@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "7f7bb321-c263-45d7-a0b2-beacfe25153f",
+  "created_at": "2026-09-10T15:01:33.759-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Fix to_lean.exs: render (exitMsg fallback = first nullary Msg ctor), insert_crashes (per-module exhaustiveness: no catch-all/defer when every tag has a total clause), general? (tuple of vars is general over a var), whole_alias (per-field aliases + record field type so expr Option branch keeps the alias)",
+  "updated_at": "2026-09-10T15:01:33.759-04:00"
+}

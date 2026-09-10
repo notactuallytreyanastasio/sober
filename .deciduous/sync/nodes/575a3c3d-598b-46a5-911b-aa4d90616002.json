@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "575a3c3d-598b-46a5-911b-aa4d90616002",
+  "created_at": "2026-09-10T15:09:36.460876-04:00",
+  "description": "Statements of Inv, Inv.frame, Inv.terminate_ne, Inv.cleared, Inv.step, init_inv, reach_inv, supervisor_alive, restart_in_flight, job_never_lost, watchdog_alive unchanged. New per-file lemmas: Inv.grows, Inv.set_ne, Inv.set_timers, Inv.set_downs, Inv.pop_signal/pop_down, Inv.terminate_core, Inv.terminate_frame, sup/dog/caller_no_exit, sup/dog_traps, Inv.sup_spawn/sup_noop, Inv.caller_spawn/caller_clear/caller_noop, Inv.dog_spawn/dog_noop, beh_isolated, Inv.run_ne, Inv.run, Inv.signal, Inv.down, Inv.timer.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Integrator notes: (1) SysPropsDemo.lean rewritten to examples since Inv.grows/set_timers/set_downs/timer/down now live in SupervisorProof; README's SysPropsDemo/SupervisorProof descriptions and NOTES section 4 line spans (frame 27-49 etc.) are stale. (2) Inv.terminate_ne kept as one-line corollary of new Inv.terminate_core in all three files; worker_ne_zero dropped (unused). (3) No translator or Elixir changes.",
+  "updated_at": "2026-09-10T15:09:36.460876-04:00"
+}

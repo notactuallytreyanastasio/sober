@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "56b7bac6-55d7-4a20-a232-e11490eb4267",
+  "created_at": "2026-09-10T15:16:26.064840-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Implement exhaustive?/3 + covered_tags in to_lean.exs; sound direction only (unknown heads never complete), so compiling Gen files cannot change",
+  "updated_at": "2026-09-10T15:16:26.064840-04:00"
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "2248ffa8-e2ca-4cfc-b1cc-f9b1b4ee4fe6",
+  "created_at": "2026-09-10T15:01:27.937621-04:00",
+  "description": "First --regen run: 12/24 pass. Errors: Unknown constant Msg.go in every effects-mode fixture without EXIT; lean.redundantMatchAlt on the global catch-all and on the loop defer clause for single-module exhaustive fixtures; nonlinear.ex: 'some (some p'')' via expr/3 Option branch on an alias set by whole_alias; wildcards.ex: clause {:pair,_,_},_s redundant after guarded {:pair,a,_},{_,c,_}.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Fixtures found 4 translator bugs: exitMsg hard-codes .go (Task-only ctor); catch-all redundant when a module's clauses are exhaustive; whole-state alias through Option renders some (some p'); tuple-of-vars state pattern not general? over a var (redundant Lean alt)",
+  "updated_at": "2026-09-10T15:01:27.937621-04:00"
+}

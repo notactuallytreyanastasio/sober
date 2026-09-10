@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "ce2203e1-e48a-4d42-b451-13f3a351ff3b",
+  "created_at": "2026-09-10T15:05:51.662354-04:00",
+  "description": "documented in to_lean.exs header, ttl.ex header and Examples/Ttl.lean",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "after semantics: timers accumulate (every receive re-entry arms one, none cancelled), so explore depth must stay modest (7/3 here); a stale after_run can expire a value right after a put, which the BEAM cannot do (any message resets the TTL); sound for safety, wrong for liveness",
+  "updated_at": "2026-09-10T15:05:51.662354-04:00"
+}

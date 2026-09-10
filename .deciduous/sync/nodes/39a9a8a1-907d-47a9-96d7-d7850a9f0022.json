@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "39a9a8a1-907d-47a9-96d7-d7850a9f0022",
+  "created_at": "2026-09-10T14:58:18.670955-04:00",
+  "description": "1) Pipeline diagram: replace 'inductive Msg / St / Phase and `def beh : Behavior St Msg`' with 'inductive Msg / St / Phase, `def sig : Signals St Msg` and `def beh : EBehavior St Msg`', and replace '`theorem beh_eq_gen : Gen.Lock.beh = beh` (funext + cases + rfl)' with '`theorem beh_eq_gen : Gen.Lock.beh = lift beh` (funext + cases + rfl/split)'. 2) In **Process effects**, replace 'When a file uses ... the translator switches to effects mode: it emits an `EBehavior` whose clauses bind `fresh`, turns' with 'Every file is translated to an `EBehavior St Msg` over `Leanactors.Sys`: clauses have the shape `| me, fresh, state, msg => (state, [effects])`, sends are `.send` effects, and a `sig : Signals St Msg` record is always emitted (`traps` false everywhere and a placeholder `exitMsg`, the first nullary message constructor, when no module traps or declares `{:EXIT, ...}`). When a file uses `Process.flag(:trap_exit, true)`, `{:ok, pid} = GenServer.start_link(Mod, arg)`, `{:stop, reason, state}` or `exit/1`, the translator turns'; and replace the last sentence 'Files without effects keep producing a plain `Behavior`, byte for byte as before.' with 'A file that only sends is a message-only `EBehavior`; its hand model keeps a plain `Behavior` and proves `Gen.X.beh = lift beh`, so `runE_lift` carries the bank and lock results over unchanged.' 3) In **Unhandled messages**, replace 'In effects mode the translator classifies' with 'The translator classifies', and delete the last sentence 'In message mode (plain `Behavior`, no exit effect) an uncovered cast or call tag only produces a warning on stderr and stays modelled as ignored.' 4) In **Not modelled yet**, delete 'In message mode an unhandled cast or call is still modelled as ignored, with a warning; only effects mode has the crash.' 5) In the layout table, `Leanactors/Sys.lean` row is fine; NOTES.md section 3 'Effects mode is switched on per file ... byte for byte as before' and the 'Mode' column (messages/effects) of the table, and section 6's 'In message mode ...' bullet, need the same rewrite: there is one mode.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "README replacement text for the integrator (message-mode paragraphs)",
+  "updated_at": "2026-09-10T14:58:18.670955-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5fd27c25-2f30-430e-8114-001a0775290d",
+  "created_at": "2026-09-10T14:56:12.325436-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "after encoding: inject Process.send_after(self(), :after_<loop>, t) before {:noreply, e} in loop_tail; defer paths arm explicitly; spawn sites of an after-loop module arm too",
+  "updated_at": "2026-09-10T14:56:12.325436-04:00"
+}

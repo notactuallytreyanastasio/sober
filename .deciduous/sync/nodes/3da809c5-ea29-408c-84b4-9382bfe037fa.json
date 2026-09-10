@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "3da809c5-ea29-408c-84b4-9382bfe037fa",
+  "created_at": "2026-09-10T14:58:18.633586-04:00",
+  "description": "funext p f s m; cases s <;> cases m <;> first | rfl | (simp only [Gen.X.beh, beh, lift]; split <;> rfl) | simp [Gen.X.beh, beh, lift]. Plain simp [lift] leaves (if c then .. else ..).fst unreduced; split closes both branches by rfl. All Lock proofs (LockProof, LockFcfs, LockMutants) and Bank.lean's beh_preserves are untouched since they are about the hand-written beh : Behavior.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Proof note: beh_eq_gen : Gen.X.beh = lift beh needs a split for the guarded withdraw/release clauses",
+  "updated_at": "2026-09-10T14:58:18.633586-04:00"
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "fa513a80-3244-404a-99b3-01513ed344d9",
+  "created_at": "2026-09-10T14:54:03.761604-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80,
+    "prompt": "Make the translator ALWAYS emit EBehavior St Msg with .send effects, always import Leanactors.Sys, always emit sig : Signals; remove message-mode branches and the message-mode warning; regenerate Gen/Bank.lean and Gen/Lock.lean; Examples Bank/Lock keep beh : Behavior, beh_eq_gen : Gen.X.beh = lift beh; check.sh must pass"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Uniform EBehavior output: to_lean.exs always emits EBehavior + sig; Bank/Lock beh_eq_gen via lift",
+  "updated_at": "2026-09-10T14:54:03.761604-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "c18b1ea3-31fe-4e8f-8b7b-79effe822670",
+  "created_at": "2026-09-10T14:56:17.785919-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Edit elixir/to_lean.exs: loop_of/loop_tail (after), register_names/pid_const (registration), plain_body/effects_in?/sends (raise)",
+  "updated_at": "2026-09-10T14:56:17.785919-04:00"
+}

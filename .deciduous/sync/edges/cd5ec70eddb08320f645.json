@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T14:54:22.325868-04:00",
+  "edge_id": "cd5ec70eddb08320f645",
+  "edge_type": "leads_to",
+  "from_change_id": "15174c38-743c-458d-8769-6fea3db68c00",
+  "rationale": "directive parsing lives in one place",
+  "to_change_id": "00fe59dc-8c1f-4a73-8360-0fc79b4b0027",
+  "weight": 1.0
+}

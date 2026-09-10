@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "0b7d56cf-23dc-48e4-bdc5-86cd5360c7a5",
+  "created_at": "2026-09-10T14:54:23.977549-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Remove effects flag and all message-mode branches from to_lean.exs; exitMsg fallback = first nullary Msg ctor (else first ctor with defaults)",
+  "updated_at": "2026-09-10T14:54:23.977549-04:00"
+}

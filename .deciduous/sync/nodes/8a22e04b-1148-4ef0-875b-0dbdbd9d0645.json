@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "8a22e04b-1148-4ef0-875b-0dbdbd9d0645",
+  "created_at": "2026-09-10T14:52:50.889554-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80,
+    "prompt": "use Leanactors/SysProps.lean to shorten the three Sys example proofs, keeping every theorem statement unchanged"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Shorten Sys example proofs (SupervisorProof/TaskProof/WatchdogProof) via SysProps library",
+  "updated_at": "2026-09-10T14:52:50.889554-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5f0b3e91-df8c-4801-8c7e-4b403173a029",
+  "created_at": "2026-09-10T15:01:08.044675-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Structure each proof as Inv.grows + Inv.set_ne + Inv.terminate_frame + Inv.run_ne (any pid ≠ 0, any message) + Inv.run at 0 (spawn/noop shapes); keep Inv.frame, Inv.terminate_ne, Inv.cleared statements",
+  "updated_at": "2026-09-10T15:01:08.044675-04:00"
+}

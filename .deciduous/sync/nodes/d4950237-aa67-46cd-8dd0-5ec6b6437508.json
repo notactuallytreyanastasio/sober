@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "d4950237-aa67-46cd-8dd0-5ec6b6437508",
+  "created_at": "2026-09-10T15:05:09.669719-04:00",
+  "description": "render/exit_line in elixir/to_lean.exs",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Latent bug fixed: the no-EXIT exitMsg codec hardcoded .go (task.ex's first message); Ttl has no .go so Lean would fail. Now the first nullary Msg ctor. Task.lean unchanged.",
+  "updated_at": "2026-09-10T15:05:09.669719-04:00"
+}

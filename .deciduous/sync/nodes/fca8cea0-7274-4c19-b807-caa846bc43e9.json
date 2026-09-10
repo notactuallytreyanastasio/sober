@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "fca8cea0-7274-4c19-b807-caa846bc43e9",
+  "created_at": "2026-09-10T15:17:03.258023-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Edit to_lean.exs: render_clauses keeps {sparts, mparts} per clause; insert_crashes uses covered_tags/3 (exhaustive?/3 usefulness check) for covered and total; lean_total? removed",
+  "updated_at": "2026-09-10T15:17:03.258023-04:00"
+}

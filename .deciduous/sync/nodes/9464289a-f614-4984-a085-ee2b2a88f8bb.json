@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "9464289a-f614-4984-a085-ee2b2a88f8bb",
+  "created_at": "2026-09-10T15:26:14.044050-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Integrator notes for round 3: (1) placeholder_exit (ebehavior) superseded fixtures' dummy/2 and features' nullary-only dummy; (2) node 246's unclassified-tag gap is still open; (3) Ttl has a checker but no proof yet; (4) after-timers accumulate so Ttl explore depth stays 7/3",
+  "updated_at": "2026-09-10T15:26:14.044050-04:00"
+}

@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T15:01:16.522894-04:00",
+  "edge_id": "b2b04c1f4c0a0a97cbdb",
+  "edge_type": "leads_to",
+  "from_change_id": "5f0b3e91-df8c-4801-8c7e-4b403173a029",
+  "rationale": "library gaps found while planning: Task needs links/signals unchanged (Grows only gives superset); Task down case needs the codec-delivered shape",
+  "to_change_id": "feed0519-7869-4a28-9b98-8da03879399e",
+  "weight": 1.0
+}

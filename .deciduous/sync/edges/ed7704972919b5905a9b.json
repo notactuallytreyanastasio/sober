@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T15:01:33.783935-04:00",
+  "edge_id": "ed7704972919b5905a9b",
+  "edge_type": "leads_to",
+  "from_change_id": "2248ffa8-e2ca-4cfc-b1cc-f9b1b4ee4fe6",
+  "rationale": "minimal fixes so all ok-fixtures compile; Gen/*.lean must stay byte-identical",
+  "to_change_id": "7f7bb321-c263-45d7-a0b2-beacfe25153f",
+  "weight": 1.0
+}

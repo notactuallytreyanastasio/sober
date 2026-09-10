@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "feed0519-7869-4a28-9b98-8da03879399e",
+  "created_at": "2026-09-10T15:01:12.556079-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Add to SysProps.lean: Effect.isolated + applyEffects_links_signals_of_isolated, deliver_of_get_none, downE_of_codec, timerE_links/signals, downE_links/signals",
+  "updated_at": "2026-09-10T15:01:12.556079-04:00"
+}

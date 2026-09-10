@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "39e8cd45-2c04-47c2-afe7-9bc9f23532c3",
+  "created_at": "2026-09-10T14:54:22.391534-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Single Elixir runner owns directive parsing, diff, lean check and --regen; stderr captured via sh -c redirect to a temp file",
+  "updated_at": "2026-09-10T14:54:22.391534-04:00"
+}

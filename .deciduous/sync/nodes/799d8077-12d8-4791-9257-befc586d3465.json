@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "799d8077-12d8-4791-9257-befc586d3465",
+  "created_at": "2026-09-10T15:05:53.208428-04:00",
+  "description": "Translator functions changed on wf2/fixtures: render (exit_line codec fallback + new dummy/2), insert_crashes (exhaustive per module, defer clause suppressed), general? (two new tuple-vs-var clauses), whole_alias (now /4, takes fields; called from fallthrough). No other function touched.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Known gap left open: translator exhaustiveness is per-tag totality only; clauses that split a Bool/enum field (true/false) are exhaustive to Lean but not to the translator, so the catch-all is emitted and Lean rejects it as redundant. booleans.ex works around it with a second module leaving a tag unhandled. Fix needs a real usefulness check over Lean patterns.",
+  "updated_at": "2026-09-10T15:05:53.208428-04:00"
+}

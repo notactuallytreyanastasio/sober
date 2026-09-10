@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "ed5dd87d-b1cd-4fe5-bba7-65a60fd62f2c",
+  "created_at": "2026-09-10T14:58:25.479578-04:00",
+  "description": "Scratch source with @type msg :: {:ping, pid(), mode()} | {:count, non_neg_integer()} and only a handle_cast for :ping produced no crash clause for :count. On the BEAM a cast of :count would crash. Unchanged in this piece because it is orthogonal to the output-shape change; a follow-up could default unclassified msg tags of a GenServer module to handle_cast.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 75
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Pre-existing gap noticed (not changed): a @type msg tag with no clause in any callback is unclassified by classify/1 and gets no crash clause (e.g. {:count, n} in a scratch test); only tags seen in a clause or in @type call are classified",
+  "updated_at": "2026-09-10T14:58:25.479578-04:00"
+}

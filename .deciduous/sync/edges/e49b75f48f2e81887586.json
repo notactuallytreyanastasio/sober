@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T14:55:44.603328-04:00",
+  "edge_id": "e49b75f48f2e81887586",
+  "edge_type": "leads_to",
+  "from_change_id": "381f1e24-15ac-4212-8347-aa0c526b4d31",
+  "rationale": "round 2 piece: translator features (after, registration, raise)",
+  "to_change_id": "fa233e09-24c9-44aa-a1c6-a1be8ca1d2db",
+  "weight": 1.0
+}

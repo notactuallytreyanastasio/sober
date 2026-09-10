@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T14:54:23.916323-04:00",
+  "edge_id": "c34b8eacb4691f9a1d36",
+  "edge_type": "leads_to",
+  "from_change_id": "fa513a80-3244-404a-99b3-01513ed344d9",
+  "rationale": "cleanest: no dead code, task says remove message-mode branches",
+  "to_change_id": "afc367a0-e483-4758-a2e6-9e964fcbb5e3",
+  "weight": 1.0
+}

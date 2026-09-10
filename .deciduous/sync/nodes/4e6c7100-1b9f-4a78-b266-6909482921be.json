@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "4e6c7100-1b9f-4a78-b266-6909482921be",
+  "created_at": "2026-09-10T15:03:32.270537-04:00",
+  "description": "clauses/2 + prune_param + needs_state? in elixir/to_lean.exs; verified with lake env lean probe",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Lean warns on unused pattern variables, so a loop parameter unused by an arm must render as _; prune_param does this for unguarded non-exit arms only (guarded arms feed fallthrough aliases, exit/raise rebuild whole state)",
+  "updated_at": "2026-09-10T15:03:32.270537-04:00"
+}

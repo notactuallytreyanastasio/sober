@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "ffabefaa-4681-4650-a313-193fe293b369",
+  "created_at": "2026-09-10T15:04:17.853565-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Rewrite TaskProof.lean: beh_isolated + applyEffects_links_signals_of_isolated keep links/signals nil; Inv.run_ne message-independent; downE_of_codec for the DOWN case",
+  "updated_at": "2026-09-10T15:04:17.853565-04:00"
+}

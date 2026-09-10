@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5bcfbcef-c46d-4ffc-af4b-d973bb012aed",
+  "created_at": "2026-09-10T15:20:36.019280-04:00",
+  "description": "covered_tags/3, exhaustive?/3, head_of/1, signature/2, sub_parts/2, split_cons/1 in elixir/to_lean.exs; render_clauses now carries {sparts, mparts} instead of a totality flag",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Node 268's gap is closed: exhaustiveness is a usefulness check (Bool/Option/List/enum signatures) over rendered Lean parts, not per-clause totality; literals (0, 1) and unknown heads stay opaque so integer splits still get a crash clause",
+  "updated_at": "2026-09-10T15:20:36.019280-04:00"
+}

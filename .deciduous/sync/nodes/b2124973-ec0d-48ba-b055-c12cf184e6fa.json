@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b2124973-ec0d-48ba-b055-c12cf184e6fa",
+  "created_at": "2026-09-10T15:05:56.967573-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Explicit pid flags disable derivation entirely (Lock=server differs from the derived lock); ttl.ex is the only source translated without flags; atom names (name: :boss, send(:boss, m)) also work, verified on a scratch source not committed",
+  "updated_at": "2026-09-10T15:05:56.967573-04:00"
+}

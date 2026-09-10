@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T15:04:29.818594-04:00",
+  "edge_id": "0fa83a5979597c421361",
+  "edge_type": "leads_to",
+  "from_change_id": "0e044225-a57c-47d3-b25f-ff4e4aeca929",
+  "rationale": "same recipe, links/signals = [] needs the isolated-effects lemma",
+  "to_change_id": "ffabefaa-4681-4650-a313-193fe293b369",
+  "weight": 1.0
+}

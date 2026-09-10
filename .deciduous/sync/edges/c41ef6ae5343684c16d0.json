@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T14:53:01.879664-04:00",
+  "edge_id": "c41ef6ae5343684c16d0",
+  "edge_type": "leads_to",
+  "from_change_id": "381f1e24-15ac-4212-8347-aa0c526b4d31",
+  "rationale": "round 2 piece: translator regression fixtures",
+  "to_change_id": "15174c38-743c-458d-8769-6fea3db68c00",
+  "weight": 1.0
+}
