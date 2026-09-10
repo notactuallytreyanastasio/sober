@@ -91,7 +91,20 @@ partial def explore (b : EBehavior St Msg) (sg : Signals St Msg) (s : Sys St Msg
 
 #eval explore beh sig init 8 2
 
-#eval explore Gen.Watchdog.beh sig init 8 2
+/-! An unhandled cast crashes a GenServer, and the translator models that
+as `.exit .error`. With `handle_cast(:pong, {w, true})` as the *only*
+`:pong` clause the generated behaviour gained
+`| _, _, .watchdog s_0 s_1, .pong => (.watchdog s_0 s_1, [.exit .error])`
+and `explore Gen.Watchdog.beh sig init 8 2` found the violation after 742
+configurations:
+
+  `["run 0", "run 1", "run 0", "timer 0", "run 0", "run 1", "run 0"]`
+
+start; the worker pongs; the watchdog re-pings and re-arms; the timeout
+fires; the watchdog sends the kill and clears the flag; the worker, whose
+kill signal is still pending, answers the second ping; that late `:pong`
+matches no clause and the watchdog exits. `handle_cast(:pong, s)` in
+`watchdog.ex` is the fix; the crash clause is gone from the generated file. -/
 
 /-- **Mutant**: the watchdog uses `send(w, :stop)`-style politeness instead
 of `Process.exit`, i.e. it forgets to kill. A hung worker is never

@@ -32,7 +32,7 @@ def sig : Signals St Msg where
 
 def beh : EBehavior St Msg
   | me, _, .watchdog (some w) true, .pong => (.watchdog (some w) true, [.send w .ping, .sendAfter me .timeout])
-  | _, _, .watchdog s_0 s_1, .pong => (.watchdog s_0 s_1, [.exit .error])
+  | _, _, .watchdog s_0 s_1, .pong => (.watchdog s_0 s_1, [])
   | me, fresh, .watchdog none _w0, .start => (.watchdog (some fresh) true, [.spawnLink (.worker false 0), .send fresh .ping, .sendAfter me .timeout])
   | _, _, .watchdog (some w) true, .timeout => (.watchdog (some w) false, [.signal w .error])
   | me, fresh, .watchdog (some w') _w1, .EXIT w _w0 => if w = w' then (.watchdog (some fresh) true, [.spawnLink (.worker false 0), .send fresh .ping, .sendAfter me .timeout]) else (.watchdog (some w') _w1, [])

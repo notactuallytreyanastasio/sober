@@ -29,11 +29,16 @@ defmodule Watchdog do
   end
 
   @impl true
-  @spec handle_cast(msg(), state()) :: {:noreply, state(), timeout()}
+  @spec handle_cast(msg(), state()) :: {:noreply, state()} | {:noreply, state(), timeout()}
   def handle_cast(:pong, {w, true}) do
     send(w, :ping)
     {:noreply, {w, true}, 100}
   end
+
+  # A late :pong (the worker answered after the timeout already killed it)
+  # must be ignored: without this clause it is a FunctionClauseError and the
+  # watchdog dies, which the Lean checker found in seven steps.
+  def handle_cast(:pong, s), do: {:noreply, s}
 
   @impl true
   @spec handle_info(msg(), state()) :: {:noreply, state()} | {:noreply, state(), timeout()}
