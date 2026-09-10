@@ -1,4 +1,4 @@
-import Leanactors.Sys
+import Leanactors.Explore
 import Leanactors.Gen.Ttl
 /-!
 # Leanactors.Examples.Ttl
@@ -81,9 +81,6 @@ def init : Sys St Msg :=
 
 /-! ## Bounded model check -/
 
-def livePids (s : Sys St Msg) : List Pid :=
-  (List.range s.next).filter fun p => (s.cfg.get p).isSome
-
 /-- The cache never holds 0 and never has a `value (some 0)` in flight. -/
 def checkInv (s : Sys St Msg) : Bool :=
   (match s.cfg.stateOf 0 with
@@ -91,27 +88,18 @@ def checkInv (s : Sys St Msg) : Bool :=
    | _ => true) &&
   s.cfg.mcount 1 (.value (some 0)) = 0
 
+/-- The environment stimulus: `put 0` and `put 1` to the cache, `ask` to
+the reader. -/
+def envMsgs : Pid → List Msg
+  | 0 => [.put 0, .put 1]
+  | 1 => [.ask]
+  | _ => []
+
 /-- Every interleaving of actor runs, timer firings and environment
-stimulus (`put 0` and `put 1` to the cache, `ask` to the reader), to a
-depth bound. -/
-partial def explore (b : EBehavior St Msg) (sg : Signals St Msg) (s : Sys St Msg)
-    (depth env : Nat) (path : List String := []) : Nat × Option (List String) :=
-  if !checkInv s then (1, some path.reverse)
-  else if depth = 0 then (1, none)
-  else
-    let runs := (livePids s).filterMap fun p => (runE b s p).map fun s' => (s', env, s!"run {p}")
-    let sigs := (signalE sg s).map (fun s' => [(s', env, "signal")]) |>.getD []
-    let timers := (List.range s.timers.length).filterMap fun i =>
-      (timerE s i).map fun s' => (s', env, s!"timer {i}")
-    let envs := if env = 0 then [] else
-      [((.put 0 : Msg), 0), (.put 1, 0), (.ask, 1)].map fun (m, p) =>
-        ({ s with cfg := s.cfg.deliver p m }, env - 1, s!"env {repr m} -> {p}")
-    (runs ++ sigs ++ timers ++ envs).foldl (fun (n, bad) (s', e, lbl) =>
-      match bad with
-      | some _ => (n, bad)
-      | none =>
-        let (n', bad') := explore b sg s' (depth - 1) e (lbl :: path)
-        (n + n', bad')) (1, none)
+stimulus, to a depth bound (the generic `Sys.exploreWith`). -/
+def explore (b : EBehavior St Msg) (sg : Signals St Msg) (s : Sys St Msg)
+    (depth env : Nat) : Nat × Option (List String) :=
+  exploreWith b sg checkInv envMsgs s depth env
 
 #eval explore beh sig init 7 3
 
