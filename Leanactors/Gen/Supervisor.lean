@@ -22,7 +22,7 @@ inductive St
 /-- Registered name `Sup`. -/
 def sup : Pid := 0
 
-/-- Who traps exits (from `Process.flag(:trap_exit, true)`), and the EXIT message. -/
+/-- Who traps exits (from `Process.flag(:trap_exit, true)`), the EXIT message, the DOWN message. -/
 def sig : Signals St Msg where
   traps := fun
     | .sup _ _ => true

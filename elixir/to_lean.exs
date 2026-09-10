@@ -68,7 +68,8 @@ defmodule ToLean do
 
   defp effects_in?(body) do
     {_, found} = Macro.prewalk(body, false, fn
-      {{:., _, [{:__aliases__, _, [:GenServer]}, :start_link]}, _, _} = n, _ -> {n, true}
+      {{:., _, [{:__aliases__, _, [:GenServer]}, f]}, _, _} = n, _ when f in [:start_link, :start] -> {n, true}
+      {{:., _, [{:__aliases__, _, [:Process]}, :monitor]}, _, _} = n, _ -> {n, true}
       {:exit, _, [_]} = n, _ -> {n, true}
       {:{}, _, [:stop, _, _]} = n, _ -> {n, true}
       n, acc -> {n, acc}
@@ -130,9 +131,11 @@ defmodule ToLean do
         other -> fail("unsupported message alternative: #{Macro.to_string(other)}")
       end
     ltypes =
-      if tag == :EXIT,
-        do: ["Pid", "Reason"],
-        else: Enum.map(lead, &elem(&1, 1)) ++ Enum.map(args, &lean_type(ctx, mod, &1))
+      cond do
+        tag == :EXIT -> ["Pid", "Reason"]
+        tag == :DOWN -> ["Pid", "Reason"]
+        true -> Enum.map(lead, &elem(&1, 1)) ++ Enum.map(args, &lean_type(ctx, mod, &1))
+      end
     case List.keyfind(ctx.msg_ctors, tag, 0) do
       nil -> %{ctx | msg_ctors: ctx.msg_ctors ++ [{tag, ltypes}]}
       {^tag, ^ltypes} -> ctx
@@ -265,8 +268,13 @@ defmodule ToLean do
             wild = Enum.map_join(fields, "", fn _ -> " _" end)
             "    | .#{name}#{wild} => #{traps}"
           end)
-        "/-- Who traps exits (from `Process.flag(:trap_exit, true)`), and the EXIT message. -/\n" <>
-          "def sig : Signals St Msg where\n  traps := fun\n#{trap_arms}\n  exitMsg := fun p r => .EXIT p r\n\n"
+        down = if List.keymember?(ctx.msg_ctors, :DOWN, 0), do: "  downMsg := some fun p r => .DOWN p r\n", else: ""
+        exit_line =
+          if List.keymember?(ctx.msg_ctors, :EXIT, 0),
+            do: "  exitMsg := fun p r => .EXIT p r\n",
+            else: "  -- no module declares {:EXIT, ...}; nobody traps, so this codec is never used\n  exitMsg := fun _ _ => .go\n"
+        "/-- Who traps exits (from `Process.flag(:trap_exit, true)`), the EXIT message, the DOWN message. -/\n" <>
+          "def sig : Signals St Msg where\n  traps := fun\n#{trap_arms}\n" <> exit_line <> down <> "\n"
       else
         ""
       end
@@ -343,7 +351,7 @@ defmodule ToLean do
   # a clause needs `fresh` if it spawns
   defp spawns?(cl) do
     {_, found} = Macro.prewalk(cl.body, false, fn
-      {{:., _, [{:__aliases__, _, [:GenServer]}, :start_link]}, _, _} = n, _ -> {n, true}
+      {{:., _, [{:__aliases__, _, [:GenServer]}, f]}, _, _} = n, _ when f in [:start_link, :start] -> {n, true}
       n, acc -> {n, acc}
     end)
     found
@@ -448,6 +456,8 @@ defmodule ToLean do
   defp from_name({{v, _, nil}, _}) when is_atom(v), do: from_name({v, [], nil})
   defp from_name(p), do: fail("unsupported from pattern #{Macro.to_string(p)}")
 
+  # {:DOWN, ref, :process, pid, reason}: keep pid and reason
+  defp msg_shape({:{}, _, [:DOWN, _ref, :process, pid, reason]}), do: {:DOWN, [pid, reason]}
   defp msg_shape(a) when is_atom(a), do: {a, []}
   defp msg_shape({a, b}) when is_atom(a), do: {a, [b]}
   defp msg_shape({:{}, _, [a | rest]}) when is_atom(a), do: {a, rest}
@@ -631,14 +641,20 @@ defmodule ToLean do
           {{:., _, [{:__aliases__, _, [:GenServer]}, :reply]}, _, [to, r]} ->
             c.reply_type || fail("GenServer.reply used but no @type reply")
             {send_str(c, expr(e, to, "Pid"), ".reply #{paren_or(expr(e, r, c.reply_type))}"), {c, e}}
-          {:=, _, [{:ok, {v, _, nil}}, {{:., _, [{:__aliases__, _, [:GenServer]}, :start_link]}, _, [{:__aliases__, _, [child]}, arg]}]} when is_atom(v) ->
+          {:=, _, [{:ok, {v, _, nil}}, {{:., _, [{:__aliases__, _, [:GenServer]}, f]}, _, [{:__aliases__, _, [child]}, arg]}]} when is_atom(v) and f in [:start_link, :start] ->
             c.effects || fail("spawn outside effects mode")
             {cctor, cfields} = List.keyfind(c.st_ctors, ctor_name(child), 0) || fail("unknown child module #{child}")
             init = state_expr(e, arg, cctor, cfields)
             k = Map.get(e, :__fresh__, 0)
             pid = if k == 0, do: "fresh", else: "(fresh + #{k})"
             e = e |> Map.put(:__fresh__, k + 1) |> Map.put({:alias, Atom.to_string(v)}, pid) |> Map.put(lean_ident(Atom.to_string(v)), "Pid")
-            {".spawnLink (#{init})", {c, e}}
+            {if(f == :start_link, do: ".spawnLink (#{init})", else: ".spawn (#{init})"), {c, e}}
+          {{:., _, [{:__aliases__, _, [:Process]}, :monitor]}, _, [target]} ->
+            c.effects || fail("monitor outside effects mode")
+            {".monitor #{paren_or(expr(e, target, "Pid"))}", {c, e}}
+          {:=, _, [{_ref, _, nil}, {{:., _, [{:__aliases__, _, [:Process]}, :monitor]}, _, [target]}]} ->
+            c.effects || fail("monitor outside effects mode")
+            {".monitor #{paren_or(expr(e, target, "Pid"))}", {c, e}}
           other -> fail("unsupported statement #{Macro.to_string(other)}")
         end
       end)

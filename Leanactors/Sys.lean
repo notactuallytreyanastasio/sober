@@ -115,6 +115,18 @@ def watchers (monitors : List (Pid × Pid)) (p : Pid) : List Pid :=
 def unmonitor (monitors : List (Pid × Pid)) (p : Pid) : List (Pid × Pid) :=
   monitors.filter fun wt => wt.1 != p && wt.2 != p
 
+theorem mem_watchers_of_mem {monitors : List (Pid × Pid)} {w p : Pid} (h : (w, p) ∈ monitors) :
+    w ∈ watchers monitors p := by
+  unfold watchers
+  rw [List.mem_filterMap]
+  exact ⟨(w, p), h, by simp⟩
+
+theorem mem_unmonitor {monitors : List (Pid × Pid)} {a b p : Pid} (h : (a, b) ∈ monitors)
+    (ha : a ≠ p) (hb : b ≠ p) : (a, b) ∈ unmonitor monitors p := by
+  unfold unmonitor
+  rw [List.mem_filter]
+  exact ⟨h, by simp [ha, hb]⟩
+
 theorem mem_unlink {links : List (Pid × Pid)} {a b p : Pid} (h : (a, b) ∈ links)
     (ha : a ≠ p) (hb : b ≠ p) : (a, b) ∈ unlink links p := by
   unfold unlink
