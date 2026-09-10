@@ -7,3 +7,4 @@ import Leanactors.Examples.LockProof
 import Leanactors.Examples.LockMutants
 import Leanactors.Gen.Lock
 import Leanactors.Gen.Bank
+import Leanactors.Examples.LockFcfs

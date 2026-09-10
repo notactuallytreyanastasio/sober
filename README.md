@@ -13,6 +13,7 @@ for a pure subset of Elixir/BEAM programs. No Mathlib.
 | `Leanactors/Examples/Bank.lean` | Per-actor invariant: a bank's balance never goes negative under any scheduler |
 | `Leanactors/Examples/Lock.lean` | Cross-actor invariant: lock server + clients blocking in `GenServer.call`, token invariant, bounded model checker |
 | `Leanactors/Examples/LockProof.lean` | The invariant is inductive; `mutex_forever` and `progress_forever` under any scheduler and any environment ticks |
+| `Leanactors/Examples/LockFcfs.lean` | Bounded waiting: rank drops by exactly one per handover while queued; `fcfs` in reachable configurations |
 | `Leanactors/Examples/LockMutants.lean` | Three protocol bugs: two caught with witness traces, one shown unreachable |
 | `Leanactors/Gen/*.lean` | Generated from `elixir/src/*.ex` by the translator; do not edit |
 | `elixir/src/bank.ex`, `elixir/src/lock.ex` | The Elixir source of truth: executed on the BEAM and translated to Lean |
@@ -105,10 +106,17 @@ says a waiting client always has either an enabled actor step or a holder
 in the critical section that only the environment can move. About fifty
 lines, no new machinery.
 
-**Safety here does not need FIFO.** The out-of-order case (a client's
+**Safety does not need FIFO; bounded waiting does.** Mutual exclusion and
+deadlock freedom never use `Step.queue`: the out-of-order case (a client's
 `acquire` processed while its `release` is still in flight) is absorbed by
-the equation `acquire + queued = waiting`. FIFO will matter for bounded waiting, which is the one liveness property
-not yet attempted.
+the equation `acquire + queued = waiting`. First-come-first-served is
+different. `fcfs` says a client with `r` clients ahead of it sees at most
+`r` handovers before it holds the lock, and its rank drops by exactly one
+per handover. That accounting breaks if the server can enqueue the current
+holder, which is exactly the reorder above. Two invariant fields exclude it:
+`ordered` (no `acquire h` ahead of a `release h` in the server's mailbox) and
+`holder_not_queued`. Both are inductive only because sends append at the
+tail of a mailbox, which is the per-pair FIFO guarantee the BEAM makes.
 
 ## Not modelled yet
 
