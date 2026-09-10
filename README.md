@@ -7,25 +7,27 @@ learned).
 
 ## Status
 
-5,610 lines of hand-written Lean across 20 files under `Leanactors/`
-(plus 288 generated lines in six `Gen/` files), 322 `theorem`s, zero
+8,411 lines of hand-written Lean across 23 files under `Leanactors/`
+(plus 288 generated lines in six `Gen/` files), 487 `theorem`s, zero
 `sorry` and zero `axiom`. Six worked examples (bank, lock, supervisor,
 task, watchdog, ttl), each translated from a real Elixir/BEAM module by
 the same type-directed translator and checked equal to it by
-`beh_eq_gen`. All six have their safety property proved for arbitrary
-reachable configurations (unbounded scheduling, unbounded environment
-ticks), each independently validated by a bounded model checker before
-the proof was attempted. The translator itself has a suite of 31
-regression fixtures.
+`beh_eq_gen`. All six have their safety property proved for every
+configuration reachable under unbounded scheduling (the lock also under
+unbounded environment ticks; the `Sys` examples are proved as closed
+systems, see **Liveness** below), each independently validated by a
+bounded model checker before the proof was attempted. The supervisor and
+the lock also have a liveness property proved along fair runs. The
+translator itself has a suite of 35 regression fixtures.
 
 | Example | Property | Checker configurations |
 |---|---|---|
 | Bank | balance never negative | — (per-actor, no interleaving needed) |
-| Lock | mutual exclusion, deadlock freedom, bounded (FCFS) waiting | mutation-tested, 3 mutants |
-| Supervisor | parent never dies, dead child always has a restart in flight | 236,220 |
+| Lock | mutual exclusion, deadlock freedom, bounded (FCFS) waiting; liveness: a blocked client eventually holds | mutation-tested, 3 mutants |
+| Supervisor | parent never dies, dead child always has a restart in flight; liveness: a dead child is eventually replaced | 236,220 |
 | Task | a pending job is never lost across a crash | mutation-tested (no-monitor mutant) |
 | Watchdog | watchdog never dies, dead worker always has a restart in flight | 10,411 |
-| Ttl | the cache never holds 0 and never has a `value 0` in flight | 16,723, mutation-tested (store-0 mutant) |
+| Ttl | the cache never holds 0 and never has a `value 0` in flight | 16,093, mutation-tested (store-0 mutant) |
 
 ## Layout
 
@@ -36,10 +38,12 @@ regression fixtures.
 | `Leanactors/Count.lean` | Message counting, `Step.chars` (a step as arithmetic over counts), config-level invariant induction, FIFO corollary |
 | `Leanactors/Sys.lean` | Spawn, links, monitors, exits, timers, remote exit signals: effects, fresh-pid counter, link and monitor lists, asynchronous exit signals and DOWN notifications, untimed timers; an untrappable `kill` signal terminates even a trapping target and its links see `error`; `runE_lift` shows message-only behaviours are unchanged |
 | `Leanactors/SysProps.lean` | Reusable `Sys` metatheory: `Grows`/`Frame` relations, `applyEffects` projections, `terminate` lemmas, `runE`/`signalE`/`downE`/`timerE` case and frame lemmas, `SysStep.stateOf_cases`, the `Fresh` predicate, where signals and actors come from (`applyEffects_mem_signals_cases`, `Effect.init?` and the `_stateOf_spawn_cases` lemmas), the `NoKillTo` predicate |
-| `Leanactors/Explore.lean` | Generic bounded explorer for `Sys`: `Sys.explore` / `Sys.exploreWith` enumerate runs, signal and DOWN deliveries, timer firings and environment messages to a depth; used by Supervisor, Task and Watchdog |
+| `Leanactors/Explore.lean` | Generic bounded explorer for `Sys`: `Sys.explore` / `Sys.exploreWith` enumerate runs, signal and DOWN deliveries, timer firings and environment messages to a depth; used by Supervisor, Task, Watchdog and Ttl |
+| `Leanactors/Fair.lean` | Fairness and liveness for both layers: infinite runs that may idle (`CRun` over `Config` with an environment relation, `SysRun` over `Sys`), labelled steps `CStepL`/`SysStepL`, `ReachE`/`SysReachEnv`, `CEnabled`/`SysEnabled`, `WeakFair`/`EnvFair`, `Eventually`/`Always`/`LeadsTo`, the workhorses `stable_until` and `rank_leads_to`, `LeadsTo.rank_induction`; `FairDemo` two-state sanity check |
 | `Leanactors/Examples/SysPropsDemo.lean` | Three supervisor proof shapes (monotone along `Grows`, the timer case, the DOWN case) as `example`s spelled out against `SysProps` directly |
 | `Leanactors/Examples/Supervisor.lean` | One-for-one supervisor translated from `elixir/src/supervisor.ex`; bounded checker; the no-`trap_exit` mutant |
 | `Leanactors/Examples/SupervisorProof.lean` | The supervisor never dies and a missing child always has its restart in flight; the case split is by pid, not by message (`Inv.run_ne`, `Inv.run`) |
+| `Leanactors/Examples/SupervisorLive.lean` | Liveness: under weak fairness of the `signal` step and of `run 0`, a dead child is eventually replaced (`restart_eventually`, from any `Good` system; `_env` and `_init` corollaries); two `rank_leads_to` stages on the position of the pending signal in the FIFO signal queue and of the `EXIT` in the supervisor's mailbox |
 | `Leanactors/Examples/Task.lean` | Async task translated from `elixir/src/task.ex`: caller spawns and monitors a worker; checker; the no-monitor mutant |
 | `Leanactors/Examples/TaskProof.lean` | A pending job is never lost: the reply or the DOWN is always on its way |
 | `Leanactors/Examples/Watchdog.lean` | Watchdog translated from `elixir/src/watchdog.ex`: GenServer timeout, `Process.exit/2`, restart on EXIT; checker; the no-`trap_exit` mutant |
@@ -48,14 +52,15 @@ regression fixtures.
 | `Leanactors/Examples/Lock.lean` | Cross-actor invariant: lock server + clients blocking in `GenServer.call`, token invariant, bounded model checker |
 | `Leanactors/Examples/LockProof.lean` | The invariant is inductive; `mutex_forever` and `progress_forever` under any scheduler and any environment ticks |
 | `Leanactors/Examples/LockFcfs.lean` | Bounded waiting: rank drops by exactly one per handover while queued; `fcfs` in reachable configurations |
+| `Leanactors/Examples/LockLive.lean` | Liveness: `eventually_holds` along a fair `CRun`; three phases (request in the server's mailbox, queued with rank induction over handovers, grant in the client's own mailbox), each a `LeadsTo` from the `Fair.lean` workhorses; one measure family `idxOf` (index of a message in a mailbox) handles deferral by re-enqueue |
 | `Leanactors/Examples/LockMutants.lean` | Three protocol bugs: two caught with witness traces, one shown unreachable |
 | `Leanactors/Examples/Ttl.lean` | TTL cache translated from `elixir/src/ttl.ex`: `receive ... after` with a generation-counted timer, `Process.register`, `raise`; hand `beh`, `beh_eq_gen`, bounded checker, the store-0 mutant, a stale-timer trace |
 | `Leanactors/Examples/TtlProof.lean` | The cache never holds 0 and no `value (some 0)` is in flight: `Inv` over every pid, `Inv.run` by the concrete effect list of each clause, the other steps by the `SysProps` case lemmas |
 | `Leanactors/Gen/*.lean` | Generated from `elixir/src/*.ex` by the translator; do not edit |
 | `elixir/src/*.ex` | The Elixir source of truth (bank, lock, supervisor, task, watchdog, ttl): executed on the BEAM and translated to Lean |
-| `elixir/to_lean.exs` | The translator: `@type`-directed (`msg`, `cast`, `info`, `call`, `reply`, `state`), small subset, unverified |
+| `elixir/to_lean.exs` | The translator: `@type`-directed (`msg`, `cast`, `info`, `call`, `reply`, `state`), small subset, unverified; `handle_continue` is inlined, not sent |
 | `elixir/test/run_fixtures.exs` | Translator regression runner: translates every `test/fixtures/*.ex`, diffs against `test/expected/*.lean`, compiles the ok ones with `lake env lean`, checks the error ones fail as declared; `--regen` rewrites the expectations |
-| `elixir/test/fixtures/*.ex` | 31 small sources, one translator feature each (25 `expect: ok`, 6 `expect: error`); directives in the leading comment block |
+| `elixir/test/fixtures/*.ex` | 35 small sources, one translator feature each (28 `expect: ok`, 7 `expect: error`); directives in the leading comment block |
 | `elixir/test/expected/*.lean` | Their expected translations, committed; regenerate with `elixir/test/regen_expected.sh` and review the diff |
 | `elixir/bank.exs` | Driver: casts plus two clients blocking in `GenServer.call`; checks the trace matches Lean |
 | `elixir/lock.exs` | Driver: clients block in `GenServer.call` under chaos ticks; event log checked for overlapping critical sections |
@@ -160,6 +165,41 @@ the server replies immediately or queues the caller and answers later with
 `GenServer.reply/2`, and the mutual-exclusion and deadlock-freedom proofs go
 through against that translation with the await state playing `waiting`.
 
+**`handle_continue`.** On the BEAM `{:noreply, s, {:continue, x}}` and
+`{:reply, r, s, {:continue, x}}` run `handle_continue(x, s)` before the
+next mailbox message is looked at, so a continue is not a message, and a
+self-send would be wrong: it would queue behind whatever the mailbox
+already holds. The translator inlines it. The clause is rewritten before
+translation: the first `handle_continue` clause whose argument pattern
+matches `x` (decided from the source; `x` is an atom or a tagged tuple,
+the pattern's literals are compared and its variables bound) is spliced
+in after the clause's own sends and its reply, with the continue clause's
+argument and state patterns bound to `x` and to the new state (a variable
+takes the whole state; a tuple of variables binds positionally to a tuple
+literal, or to the fields of the clause's whole-state variable, which the
+rewritten clause then destructures, pruning unused fields to `_`). The
+inlined body's tail becomes the clause's tail and may time out, stop, or
+continue again, up to three deep. Effects keep the BEAM order: the
+clause's sends, the reply, the continue body's sends. A guard on
+`handle_continue`, a literal in its pattern against a non-literal `x`, a
+body variable that shadows a clause variable, no matching clause, and a
+chain deeper than three are errors; `@type continue` is accepted and
+generates nothing (a continue never enters a mailbox). The fixture
+`continue.ex` shows a chain (`{:fetch, k}` continues into `:warm`), a
+branching continue body whose reply is pushed into both branches, a state
+pattern bound to the fields of the whole-state variable, and a continue
+that times out; `error_continue_deep.ex` is a continue loop.
+
+**Reply with timeout, stop with reply.** `{:reply, r, s, t}` sends the
+reply and then arms the untimed self-timer for `:timeout`, exactly like
+`{:noreply, s, t}`; `t = :hibernate` in either form is no timeout and
+nothing the model can see. `{:stop, reason, r, s}` from `handle_call`
+sends the reply and then exits with the reason (`:normal` stays `normal`,
+`:kill` is `kill`, anything else is `error`). Fixtures `reply_timeout.ex`
+and `stop_reply.ex`; `stop_kill.ex` also pins `exit(:kill)` from a
+GenServer callback as `.exit .kill`, like `{:stop, :kill, s}`, and
+`process_exit.ex` pins `Process.exit(p, :normal)` as `.signal p .normal`.
+
 **Initial state.** `def init(p), do: {:ok, e}` (or the block form whose
 other statements are all `Process.flag(:trap_exit, true)`) is read as a
 pure state expression of its parameter. At `{:ok, pid} =
@@ -246,7 +286,7 @@ guard-failed) message re-arms where the BEAM would keep the old timeout
 running; both only add behaviours. Stale entries stay in `timers` until
 they fire. `gen` is reserved in such a module and a blocking call inside
 such a loop is a translator error. The TTL cache in `elixir/src/ttl.ex`
-is the example: `explore` visits 16,723 configurations at depth 7 with 3
+is the example: `explore` visits 16,093 configurations at depth 7 with 3
 environment stimuli and finds no state in which the cache holds 0; the
 mutant that stores 0 instead of raising is caught after two expiries and
 one `put 0`. The fixture `receive_after.ex` covers the guard, the exit,
@@ -285,18 +325,21 @@ any `rescue`/`catch`, is still a hard error. `ttl.ex` uses it: `{:put, 0}
 -> raise ArgumentError, ...` is the clause `| _, _, .cache v, .put 0 =>
 (.cache v, [.exit .error])`.
 
-**Translator fixtures.** `elixir/test/fixtures/*.ex` are 31 small
+**Translator fixtures.** `elixir/test/fixtures/*.ex` are 35 small
 sources, one translator feature each: guard fallthrough and deferral,
 nested and pattern-LHS blocking calls, deferred replies, spawn and
 monitor, tuple `init`, DOWN and EXIT typing, timeouts, `send_after`,
 `Process.exit` with `:kill`, `:normal` and other reasons, self-exits
-with `:kill`, `receive ... after` with its generation counter, declared
+with `:kill`, `handle_continue` inlining (chained, branching, binding
+the whole-state variable's fields), reply with a timeout, stop with a
+reply, `receive ... after` with its generation counter, declared
 `@type cast`/`@type info` kinds, registered sends, keyword-named
 variables, booleans, wildcards, pid narrowing, `case`/`if`, non-linear
-patterns, enum and list splits, the crash clauses, and six sources the
+patterns, enum and list splits, the crash clauses, and seven sources the
 translator must reject (no pid mapping, unknown tag, a tag in two
 callback kinds, a tag declared under two kinds, a clause of the wrong
-declared kind, trapping without `{:EXIT, ...}`). Each fixture's leading comment block carries its
+declared kind, trapping without `{:EXIT, ...}`, a `handle_continue`
+chain deeper than three). Each fixture's leading comment block carries its
 directives (`translate:` flags, `expect: ok` or `expect: error SUBSTRING`,
 `lean: check`); `elixir/test/run_fixtures.exs` translates each one, diffs
 it against `elixir/test/expected/*.lean` byte for byte, compiles the ok
@@ -385,9 +428,47 @@ invariant at every configuration and returning the count and the first
 violating path as labels (`"run 0"`, `"signal"`, `"timer 0"`, `"env
 <repr m> -> p"`; `[Repr μ]` is required). Steps that are not enabled cost
 nothing, so Supervisor, Task and Watchdog now call it with the same
-counts and witnesses as their deleted local copies. `Ttl.lean` and
-`Lock.lean` keep local explorers (the lock's core is `Config`, not
-`Sys`).
+counts and witnesses as their deleted local copies. `Ttl.lean` calls
+`exploreWith` with per-pid environment messages (`put 0`/`put 1` to the
+cache, `ask` to the reader) and counts 16,093 configurations where its
+deleted local explorer counted 16,723: the 630 dropped ones were
+environment deliveries to the dead cache after a `put 0` crash, which
+`Config.deliver` makes a no-op and the generic explorer does not offer
+(it only stimulates live pids); the store-0 mutant witness is
+byte-identical. `Lock.lean` keeps a local explorer (its core is
+`Config`, not `Sys`).
+
+**Fair runs (`Leanactors/Fair.lean`).** Safety theorems quantify over
+`Reach`/`ReachEnv`/`SysReach` and say nothing about what *must* happen.
+`Fair.lean` adds infinite runs. A `CRun beh env` (`Config` layer: actor
+steps interleaved with an environment relation such as the lock's
+`EnvStep`) or a `SysRun beh sig` (`Sys` layer: `run p`, `signal`,
+`down`, `timer i`) is a sequence of configurations `st : Nat → _`
+together with the choice taken at each time, `ch t : Option _`, where
+`none` is an idle step: the state repeats. Idle steps are what make every
+finite execution an infinite run, so a theorem over runs is never
+vacuous (`CRun.idle`/`SysRun.idle` are the constant runs); a closed
+`Sys` in which nothing is enabled, the supervisor once its worker has
+nothing to do, has no other infinite run. Weak fairness of a choice,
+`ρ.WeakFair c`, says the choice is disabled infinitely often or taken
+infinitely often: an actor with a message waiting is not ignored forever,
+a pending exit signal is not left in the queue forever, and a run cannot
+idle forever while something is enabled. `ρ.EnvFair P e` says that if
+`P` holds from some time on, the environment eventually takes an
+`e`-step. The temporal vocabulary is `Eventually`, `Always` and `LeadsTo`
+(with `trans`, `mono`, `or` and `rank_induction`, well-founded leads-to
+over a `Nat` measure), and two workhorses proved once over any
+`ρ : Nat → α`: `stable_until` (from a stable predicate, a fair choice
+establishes the goal) and `rank_leads_to` (a measure that never increases
+while the goal is pending and strictly drops at every fair-taken step).
+The layer wrappers (`CRun.stable_until_run`/`stable_until_env`/
+`rank_leads_to_run`/`rank_leads_to_env`, `SysRun.stable_until`/
+`rank_leads_to`) take state-level hypotheses that need only hold on
+configurations reachable from `ρ.st 0` (`ReachE`, `SysReach`), so the
+safety invariants plug in unchanged. `SysReachEnv` is `SysReach` plus
+arbitrary environment deliveries, the systems the environment can drive
+a closed `Sys` to. `FairDemo` at the end of the file is a two-state
+sanity check.
 
 The translator is unverified and supports a small subset (see its header).
 The equivalence theorem is what makes that acceptable: if the translation
@@ -417,7 +498,7 @@ or piecewise:
 ```sh
 elixir elixir/to_lean.exs elixir/src/lock.ex Leanactors.Gen.Lock --pid Lock=server > Leanactors/Gen/Lock.lean
 elixir elixir/to_lean.exs elixir/src/ttl.ex Leanactors.Gen.Ttl > Leanactors/Gen/Ttl.lean   # names derived from the source
-elixir elixir/test/run_fixtures.exs         # 31 translator fixtures; --regen rewrites the expectations
+elixir elixir/test/run_fixtures.exs         # 35 translator fixtures; --regen rewrites the expectations
 lake build              # checks every proof and runs the bounded checkers
 elixir elixir/bank.exs  # exits 1 on mismatch with the Lean trace
 elixir elixir/lock.exs 20 20000   # exits 1 if two clients ever hold at once
@@ -483,6 +564,67 @@ that forgets `Process.flag(:trap_exit, true)` in 40, and the proof is two
 reusable lemmas: a monotone frame for steps that only add, and a
 termination lemma for the two places an actor dies.
 
+**Liveness.** Two properties of the form "something must happen", both
+proved along fair runs (`Fair.lean`). The fairness assumed is weak
+fairness of individual scheduler choices; in plain words, if a choice
+stays possible from some point on, it is eventually taken: an actor that
+has mail is eventually run, a pending exit signal is eventually delivered.
+Nothing is assumed about the order or speed of anything else, and no
+bound on the delay is claimed.
+
+*Supervisor* (`SupervisorLive.restart_eventually`): along any `SysRun`
+that starts in a `Good` system (the safety invariant `Inv` plus no
+pending kill aimed at pid 0) and is weakly fair for the `signal` step
+and for `run 0`, if the current child is dead at time `t` then at some
+`t' ≥ t` the supervisor has a live current child. `restart_in_flight`
+says the restart is on its way; this says it arrives. Two `LeadsTo`
+stages by `rank_leads_to`: the pending `(0, c, _)` signal ranked by its
+position in the FIFO signal queue (runs only append signals, a signal
+step pops the head), then `EXIT c _` ranked by its position in the
+supervisor's mailbox (every other step only appends there; `run 0` pops
+the head and either spawns or leaves state 0 alone). Fairness of `down`
+and of timers is not needed (no monitors, no timers) and `NoKillTo 0` is
+derived, not assumed. The theorem starts from a `Good` system rather than
+from `init` for a reason worth knowing: a `SysRun` is closed (no
+environment steps), and in a closed run from `init` nobody ever sends the
+worker `:crash`, so a dead child never occurs and the `init` form
+(`restart_eventually_init`) is vacuous. Every step and every environment
+delivery preserve `Good`, so every system the environment can drive the
+supervisor to is a valid start (`reachEnv_good`,
+`restart_eventually_env`), and `dead_child_reachable` exhibits one with a
+dead child: run 0, deliver `:crash` to the worker, run 1. The same
+closedness has always been true of the `Sys` safety theorems (the
+checkers explore the environment; the proofs are over `SysReach`).
+
+*Lock* (`LockLive.eventually_holds`): along any `CRun beh EnvStep` from
+`initCfg n` in which every actor's `run` step is weakly fair and the
+environment is fair to holders (`EnvFair`: a client that holds the lock
+from some time on is eventually ticked; nobody sits in the critical
+section forever), every client blocked in `GenServer.call(Lock,
+:acquire)` (`client_await0`) later reaches `client .holding`. Three
+phases, each a `LeadsTo`: the request in the server's mailbox
+(`rank_leads_to_run server`, measure the index of `acquire x`); queued
+(`LeadsTo.rank_induction` on the FCFS rank; per rank, a four-lemma chain
+moves the holder's token, grant in flight to holding by `run h`, holding
+to ticked by `stable_until_env`, ticked to release in flight by `run h`,
+release in flight to handover by `run server`, and the handover grants
+`x` or drops its rank by one, `Step.rank_step`); and the grant in `x`'s
+own mailbox (`rank_leads_to_run x`, measure the index of `reply ok`; a
+blocked client defers everything else by re-enqueueing it at the tail,
+so the index strictly drops). One measure family, `idxOf c q m` (the
+index of the first `m` in `q`'s mailbox), serves every phase. Here the
+environment does interleave with the run throughout, as `EnvStep`.
+
+*What is not proven.* No bound on how long anything takes (the FCFS
+bound is a separate safety fact). Nothing for the task, the watchdog or
+the TTL cache: the watchdog's "a hung worker is eventually replaced"
+needs the timer to actually fire (fairness of `timer i`, which the
+framework can state) and a `pong` not to arrive first. `Sys` runs are
+closed, so the supervisor result covers the system's own reaction after
+the environment has acted, not a run in which the environment keeps
+sending. Only weak fairness is defined; neither proof needs strong
+fairness.
+
 ## Not modelled yet
 
 Real time (timers are untimed; a `receive ... after` timeout is exact up
@@ -498,4 +640,7 @@ position (the translator rejects anything outside its subset rather than
 approximating it). A `@type msg` tag that no callback of a module
 mentions is not classified and gets no crash clause; declare it under
 `@type cast` (crash clause even with no clause) or `@type info` (ignored)
-to fix its kind.
+to fix its kind. Liveness for the task, watchdog and TTL examples,
+environment steps inside `Sys` runs (`SysRun` is closed; the environment
+enters only through `SysReachEnv` start systems and the checkers), strong
+fairness, and any real-time bound.
