@@ -66,9 +66,9 @@ def checkInv (s : Sys St Msg) : Bool :=
   | some (.caller none _) => true
   | some (.caller (some w) _) =>
     ((s.cfg.get w).isSome && s.monitors.contains (0, w)) ||
-    [Reason.normal, .error].any (fun rs => s.downs.contains (0, w, rs)) ||
+    [Reason.normal, .error, .kill].any (fun rs => s.downs.contains (0, w, rs)) ||
     (List.range 8).any (fun v => 0 < s.cfg.mcount 0 (.reply v)) ||
-    [Reason.normal, .error].any (fun rs => 0 < s.cfg.mcount 0 (.DOWN w rs))
+    [Reason.normal, .error, .kill].any (fun rs => 0 < s.cfg.mcount 0 (.DOWN w rs))
   | _ => false
 
 /-- The property itself, weaker than `Inv`: a pending job is alive or its
@@ -77,9 +77,9 @@ def jobNotLost (s : Sys St Msg) : Bool :=
   match s.cfg.stateOf 0 with
   | some (.caller (some w) _) =>
     (s.cfg.get w).isSome ||
-    [Reason.normal, .error].any (fun rs => s.downs.contains (0, w, rs)) ||
+    [Reason.normal, .error, .kill].any (fun rs => s.downs.contains (0, w, rs)) ||
     (List.range 8).any (fun v => 0 < s.cfg.mcount 0 (.reply v)) ||
-    [Reason.normal, .error].any (fun rs => 0 < s.cfg.mcount 0 (.DOWN w rs))
+    [Reason.normal, .error, .kill].any (fun rs => 0 < s.cfg.mcount 0 (.DOWN w rs))
   | _ => true
 
 partial def explore (b : EBehavior St Msg) (sg : Signals St Msg) (s : Sys St Msg)

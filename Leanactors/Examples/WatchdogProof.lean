@@ -13,6 +13,13 @@ than the watchdog survives its step (`set` then `Grows`) or dies
 spawn shape (`start`, restart on the child's `EXIT`) or a no-op on the
 child with a free flag (`pong`, `timeout`, and everything ignored), whose
 effects (`send`, `sendAfter`, `signal`) only add.
+
+The watchdog traps, but a `kill` signal would terminate it anyway. It
+never receives one: the only `signal` in `beh` is the watchdog's own
+`Process.exit(w, :kill)` to its worker `w`, and `w` is never pid 0
+(`ChildNe`: every worker was spawned at a fresh pid, which is positive).
+`Sys.NoKillTo 0` and `ChildNe` are carried beside `Inv` through
+`reach_inv`; `Inv` itself and every theorem about it keep their shape.
 -/
 
 set_option linter.unusedSimpArgs false
@@ -180,7 +187,7 @@ theorem Inv.run_ne {a b : Sys St Msg} {p : Pid} (h : runE beh a p = some b) (hi 
     (beh p a.next st m).2
   rcases hs' with ⟨_, rfl⟩ | ⟨reason, _, rfl⟩
   · exact (hi.set_ne hp _).grows hg
-  · exact (hi.set_ne hp _).terminate_frame hp reason (hg.frame p) (fun c => hg.links (0, c))
+  · exact (hi.set_ne hp _).terminate_frame hp _ (hg.frame p) (fun c => hg.links (0, c))
 
 theorem Inv.run {a b : Sys St Msg} {p : Pid} (h : runE beh a p = some b) (hi : Inv a) : Inv b := by
   by_cases hp : p = 0
@@ -216,13 +223,15 @@ theorem Inv.run {a b : Sys St Msg} {p : Pid} (h : runE beh a p = some b) (hi : I
     · exact absurd (applyEffects_snd_some _ _ _ hr) (dog_no_exit _ _ _ _ _ _)
   · exact hi.run_ne h hp
 
-/-- A signal to the watchdog becomes an `EXIT` message (it traps); a signal
-to anyone else is a `Grows` or a termination. -/
-theorem Inv.signal {a b : Sys St Msg} (h : signalE sig a = some b) (hi : Inv a) : Inv b := by
+/-- A signal to the watchdog becomes an `EXIT` message (it traps, and it is
+never a `kill`); a signal to anyone else is a `Grows` or a termination. -/
+theorem Inv.signal {a b : Sys St Msg} (h : signalE sig a = some b) (hi : Inv a)
+    (hk : a.NoKillTo 0) : Inv b := by
   obtain ⟨q, src, r, rest, hsg, hc⟩ := signalE_cases h
   by_cases hq : q = 0
   · subst hq
-    rcases hc with ⟨hd, _⟩ | ⟨act, hget, _, rfl⟩ | ⟨act, hget, htr, _, _⟩ | ⟨act, hget, htr, _, _⟩
+    rcases hc with ⟨hd, _⟩ | ⟨act, hget, _, _, rfl⟩ | ⟨act, hget, htr, _, _⟩ | ⟨act, hget, htr, _, _⟩
+      | ⟨_, _, rfl, _⟩
     · obtain ⟨_, _, hdog⟩ := hi.dog_alive
       simp [stateOf, hd] at hdog
     · refine Inv.frame hi (Nat.le_refl _)
@@ -235,12 +244,15 @@ theorem Inv.signal {a b : Sys St Msg} (h : signalE sig a = some b) (hi : Inv a) 
       · cases hs
         right; rw [mcount_deliver]; simp [sig, hget]
       · exact Or.inl hs
-    all_goals rw [dog_traps hi hget] at htr; cases htr
+    · rw [dog_traps hi hget] at htr; cases htr
+    · rw [dog_traps hi hget] at htr; cases htr
+    · exact absurd (by rw [hsg]; exact List.mem_cons_self) (hk src)
   · have hpop := hi.pop_signal hsg hq
-    rcases hc with ⟨_, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩
+    rcases hc with ⟨_, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩
     · exact hpop
     · exact hpop.grows (grows_deliver _ _ _)
     · exact hpop
+    · exact hpop.terminate_frame hq _ (Frame.refl _ _) (fun _ h => h)
     · exact hpop.terminate_frame hq _ (Frame.refl _ _) (fun _ h => h)
 
 /-- This program declares no DOWN codec, but the proof does not need to know. -/
@@ -251,12 +263,66 @@ theorem Inv.down {a b : Sys St Msg} (h : downE sig a = some b) (hi : Inv a) : In
 theorem Inv.timer {a b : Sys St Msg} {i : Nat} (h : timerE a i = some b) (hi : Inv a) : Inv b :=
   (hi.set_timers _).grows (timerE_grows h)
 
-theorem Inv.step {a b : Sys St Msg} (h : SysStep beh sig a b) (hi : Inv a) : Inv b := by
+theorem Inv.step {a b : Sys St Msg} (h : SysStep beh sig a b) (hi : Inv a) (hk : a.NoKillTo 0) :
+    Inv b := by
   cases h with
   | run p _ hrun => exact hi.run hrun
-  | signal _ hsig => exact hi.signal hsig
+  | signal _ hsig => exact hi.signal hsig hk
   | down _ hdown => exact hi.down hdown
   | timer i _ htimer => exact hi.timer htimer
+
+/-! ### The watchdog is never killed -/
+
+/-- No watchdog, at any pid, names pid 0 as its worker. -/
+def ChildNe (s : Sys St Msg) : Prop :=
+  ∀ p w bb, s.cfg.stateOf p = some (.watchdog (some w) bb) → w ≠ 0
+
+/-- A watchdog state after a step names the fresh pid or the worker it
+already had. -/
+theorem dog_state_cases (me fresh : Pid) (st : St) (m : Msg) (w : Pid) (bb : Bool)
+    (h : (beh me fresh st m).1 = .watchdog (some w) bb) :
+    w = fresh ∨ ∃ bb', st = .watchdog (some w) bb' := by
+  cases st with
+  | watchdog w' b' =>
+    cases w' <;> cases b' <;> cases m <;> simp [beh] at h <;> (try split at h) <;> simp_all
+  | worker h' n => cases h' <;> cases m <;> simp [beh] at h
+
+/-- Everything ever spawned is a worker. -/
+theorem beh_spawns_workers (me fresh : Pid) (st : St) (m : Msg) :
+    ∀ e ∈ (beh me fresh st m).2, ∀ x, e.init? = some x → ∃ h n, x = .worker h n := by
+  cases st with
+  | watchdog w' b' =>
+    cases w' <;> cases b' <;> cases m <;> simp [beh, Effect.init?] <;> split <;> simp [Effect.init?]
+  | worker h' n => cases h' <;> cases m <;> simp [beh, Effect.init?]
+
+/-- The only signal in `beh` is the watchdog's kill to its own worker. -/
+theorem dog_signal (me fresh : Pid) (st : St) (m : Msg) {q : Pid} {r : Reason}
+    (h : Effect.signal q r ∈ (beh me fresh st m).2) : ∃ bb, st = .watchdog (some q) bb := by
+  cases st with
+  | watchdog w' b' =>
+    cases w' <;> cases b' <;> cases m <;> simp [beh] at h <;> (try split at h) <;> simp_all
+  | worker h' n => cases h' <;> cases m <;> simp [beh] at h
+
+theorem childNe_step {a b : Sys St Msg} (h : SysStep beh sig a b) (hc : ChildNe a) (hn : 0 < a.next) :
+    ChildNe b := by
+  intro p w bb hp
+  rcases h.stateOf_spawn_cases p with h1 | h1 | ⟨q, st, m, rest, hget, rfl, h1⟩
+    | ⟨q, st, m, rest, hget, e, he, h1⟩
+  · exact hc p w bb (h1 ▸ hp)
+  · rw [h1] at hp; cases hp
+  · rw [h1] at hp
+    rcases dog_state_cases _ _ _ _ _ _ (Option.some.inj hp) with rfl | ⟨bb', hst⟩
+    · exact Nat.ne_of_gt hn
+    · exact hc p w bb' (by simp [stateOf, hget, hst])
+  · rw [← h1] at hp
+    obtain ⟨_, _, hx⟩ := beh_spawns_workers _ _ _ _ e he _ hp
+    cases hx
+
+theorem noKillTo_step {a b : Sys St Msg} (h : SysStep beh sig a b) (hk : a.NoKillTo 0)
+    (hc : ChildNe a) : b.NoKillTo 0 :=
+  h.noKillTo hk (fun q st m _ hget hmem => by
+    obtain ⟨bb, rfl⟩ := dog_signal _ _ _ _ hmem
+    exact hc q 0 bb (by simp [stateOf, hget]) rfl)
 
 /-! ### From the initial system -/
 
@@ -265,8 +331,16 @@ theorem init_inv : Inv init := by
   intro c bb h
   simp [init, stateOf, Config.get] at h
 
+theorem init_noKillTo : init.NoKillTo 0 := NoKillTo.of_signals_nil rfl
+
+theorem init_childNe : ChildNe init := by
+  intro p w bb h
+  simp [init, stateOf, Config.get] at h
+
 theorem reach_inv {s : Sys St Msg} (hr : SysReach beh sig init s) : Inv s :=
-  hr.inv (fun h hi => Inv.step h hi) init_inv
+  (hr.inv (I := fun s => Inv s ∧ s.NoKillTo 0 ∧ ChildNe s)
+    (fun h ⟨hi, hk, hc⟩ => ⟨Inv.step h hi hk, noKillTo_step h hk hc, childNe_step h hc hi.next_pos⟩)
+    ⟨init_inv, init_noKillTo, init_childNe⟩).1
 
 /-- **The watchdog never dies.** -/
 theorem watchdog_alive {s : Sys St Msg} (hr : SysReach beh sig init s) :

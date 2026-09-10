@@ -212,7 +212,7 @@ theorem Inv.run_ne {a b : Sys St Msg} {p : Pid} (h : runE beh a p = some b) (hi 
     { a with cfg := a.cfg.set p ⟨(beh p a.next st m).1, rest⟩ } (beh_isolated p a.next st m)
   rcases hs' with ⟨_, rfl⟩ | ⟨reason, _, rfl⟩
   · exact (hi.set_ne hp _).grows hg (hl.trans hi.links_nil) (hs.trans hi.signals_nil)
-  · exact (hi.set_ne hp _).terminate_frame hp reason (hg.frame p) (hl.trans hi.links_nil)
+  · exact (hi.set_ne hp _).terminate_frame hp _ (hg.frame p) (hl.trans hi.links_nil)
       (hs.trans hi.signals_nil) (fun w => hg.monitors (0, w))
 
 theorem Inv.run {a b : Sys St Msg} {p : Pid} (h : runE beh a p = some b) (hi : Inv a) : Inv b := by
