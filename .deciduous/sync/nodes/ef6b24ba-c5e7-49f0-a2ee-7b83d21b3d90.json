@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "ef6b24ba-c5e7-49f0-a2ee-7b83d21b3d90",
+  "created_at": "2026-09-10T13:51:29.116953-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Decide: AST substitution of init param (postwalk) + state_expr, not string aliasing; no-init module keeps identity default",
+  "updated_at": "2026-09-10T13:51:29.116953-04:00"
+}

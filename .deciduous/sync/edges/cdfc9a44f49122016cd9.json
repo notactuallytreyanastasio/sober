@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T13:50:11.944804-04:00",
+  "edge_id": "cdfc9a44f49122016cd9",
+  "edge_type": "leads_to",
+  "from_change_id": "bda6787e-adae-4eab-97a8-d608c2fb15b4",
+  "rationale": "the rejected fix is exactly what this finding calls for",
+  "to_change_id": "a73be17c-632e-4be8-8748-611dc6211b10",
+  "weight": 1.0
+}

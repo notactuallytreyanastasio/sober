@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e2e678bd-ec8c-49d2-948e-3e050f3085d5",
+  "created_at": "2026-09-10T13:57:51.122739-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Merged translator regenerates all five Gen files byte-identical to the merge tree (Gen/Supervisor.lean from wf/receive ends with the worker defer clause and no global catch-all)",
+  "updated_at": "2026-09-10T13:57:51.122739-04:00"
+}

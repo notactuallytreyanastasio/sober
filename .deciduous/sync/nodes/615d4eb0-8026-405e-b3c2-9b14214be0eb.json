@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "615d4eb0-8026-405e-b3c2-9b14214be0eb",
+  "created_at": "2026-09-10T13:51:29.418073-04:00",
+  "description": "elixir/to_lean.exs child_state/6 pairs the init parameter pattern with the spawn argument AST: {v,_,nil} binds v to the whole arg; {a,b} vs {x,y}, {:{},_,ps} vs {:{},_,xs} of equal length, and the mixed 2/3-element tuple encodings zip positionally; anything else fails 'ParamPattern cannot be bound to spawn argument Arg'. Each bound param must itself be a bare variable (nested tuples like {{a,b},k} fail 'unsupported parameter pattern'). Then Macro.postwalk replaces each variable node in e by its bound arg and state_expr(env, bound, cctor, cfields) renders it in the parent env, so a parent pid aliased to fresh renders correctly. Scratch-tested (not committed): init({p,k}) -> {:ok,{p,k+1}} with {self(),0} gives .spawn (.worker me (0 + 1)), with {self(),r} gives .spawn (.worker me (r + 1)); block form with trap_exit gives .spawn (.worker me 7) and still traps.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "child_state/6 binding: variable param -> whole spawn arg; 2-tuple or n-tuple param -> tuple literal positionally (mixed {a,b}/{:{},..} forms handled); nested tuple params deliberately unsupported",
+  "updated_at": "2026-09-10T13:51:29.418073-04:00"
+}

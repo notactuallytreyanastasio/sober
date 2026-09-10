@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "4291dce6-89d3-4f7f-b059-97634af19188",
+  "created_at": "2026-09-10T13:51:29.470530-04:00",
+  "description": "git diff dacf642..wf/init touches only elixir/to_lean.exs (+81/-4) and elixir/src/task.ex (+13/-4). In to_lean.exs: Ctx gets field inits: %{}; the entry function adds one line 'inits = for {name, body} <- mods, init = init_of(name, body), init != nil, into: %{}, ...' and sets ctx.inits; new defps init_of/2, init_params/2, child_state/6 are inserted after collect_mods and before effects_in?/1; the only hunk in sends/3 is the spawn case replacing 'init = state_expr(e, arg, cctor, cfields)' with 'init = child_state(c, e, child, arg, cctor, cfields)'. Conflicts with other branches editing sends/3 (crash, receive, sysprops) are confined to that one line and the Ctx defstruct line. Other agents' Worker.init must stay in a supported shape (single clause, {:ok, e}, only trap_exit flags) or the translator now fails with a clear message where it used to ignore init entirely.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Merge note for wf/init: only sends/3 spawn case, ToLean entry (inits collection), Ctx struct, and header comment change; render_clauses, clauses, plain_body untouched; identity-init sources (supervisor.ex, watchdog.ex) translate unchanged",
+  "updated_at": "2026-09-10T13:51:29.470530-04:00"
+}

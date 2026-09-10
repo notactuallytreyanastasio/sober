@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "3f04bfea-f0e5-4d9d-8b54-e3b00fcfa317",
+  "created_at": "2026-09-10T13:59:05.201435-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Fix Sys.terminate to keep timers (timers := s.timers); terminate_timers becomes = s.timers; Frame gains a timers clause; re-run bounded checkers and update quoted counts",
+  "updated_at": "2026-09-10T13:59:05.201435-04:00"
+}

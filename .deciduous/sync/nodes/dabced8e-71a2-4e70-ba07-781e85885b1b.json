@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "dabced8e-71a2-4e70-ba07-781e85885b1b",
+  "created_at": "2026-09-10T13:48:35.015150-04:00",
+  "description": "Section 2 'Sys' describes Sys.lean's Effect/EBehavior/Signals/terminate/signalE/downE/timerE/SysStep/runE_lift but the sibling branch wf/sysprops adds Leanactors/SysProps.lean (SysStep.frame/domain-style lemmas over Sys) and SysPropsDemo.lean; a one-paragraph addition after the Sys subsection would keep the layer-by-layer map complete. Counts in section 4 come from nodes 71/78/90/112/123 and section 5's mutant numbers from LockMutants outcomes; the builder did not run lake, so they are as recorded, not re-measured. They will still be true after merge unless the receive/crash pieces change explore depth or branching for supervisor/watchdog (wf/receive rewrites supervisor.ex with a raw receive loop; wf/crash adds a crash clause to watchdog), in which case the 236220 and 10365 figures may change.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "NOTES.md never mentions Leanactors/SysProps.lean (wf/sysprops, 983 lines of Sys metatheory) and quotes model-check counts 77925/23281/236220/243526/10365 and mutant hits 279/59/40/749 from graph outcome nodes, not re-run",
+  "updated_at": "2026-09-10T13:48:35.015150-04:00"
+}

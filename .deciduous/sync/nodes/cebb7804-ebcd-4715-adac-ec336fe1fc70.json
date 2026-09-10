@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "cebb7804-ebcd-4715-adac-ec336fe1fc70",
+  "created_at": "2026-09-10T13:48:07.745581-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Write NOTES.md (commit 1712e42 on wf/notes): Core/Props/Count/Sys theorems, to_lean.exs conventions and cps_split awaits, beh_eq_gen trust boundary, Inv.frame/terminate_ne/step recipe with spans, findings from nodes 26/36/57/72/81/124/127, approximation directions, break-it walkthrough",
+  "updated_at": "2026-09-10T13:48:07.745581-04:00"
+}

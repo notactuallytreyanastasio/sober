@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "dc9544c4-a3e9-4b04-9045-d68c259cffec",
+  "created_at": "2026-09-10T13:55:10.492774-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Decide: a module with exactly one 'def f(param) do receive ... end end' is a raw process (Ctx.loops/defers, forces effects mode); spawn/spawn_link/spawn_monitor(Mod, :f, [a]) map to .spawn/.spawnLink/.spawnMonitor (.<mod> a) after checking :f is Mod's loop",
+  "updated_at": "2026-09-10T13:55:10.492774-04:00"
+}

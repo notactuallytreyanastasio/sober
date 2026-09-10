@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T13:50:11.776980-04:00",
+  "edge_id": "c49ae7bf27e975c41d1f",
+  "edge_type": "leads_to",
+  "from_change_id": "ac9584db-46ab-4c4a-8a41-b8d1f14a81a3",
+  "rationale": "chosen design: Grows/Frame split plus step lemmas and Fresh",
+  "to_change_id": "b3dde7c9-f611-4822-b78d-21eb93a29d44",
+  "weight": 1.0
+}

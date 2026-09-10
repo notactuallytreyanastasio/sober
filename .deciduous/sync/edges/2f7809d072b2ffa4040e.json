@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T13:59:05.220509-04:00",
+  "edge_id": "2f7809d072b2ffa4040e",
+  "edge_type": "leads_to",
+  "from_change_id": "e6391d69-3940-4a7a-a0a3-e4178f169e4b",
+  "rationale": "core bug found by sysprops builder (node 159), rejected there as option 153 because of checker counts; integrator owns the count update",
+  "to_change_id": "3f04bfea-f0e5-4d9d-8b54-e3b00fcfa317",
+  "weight": 1.0
+}

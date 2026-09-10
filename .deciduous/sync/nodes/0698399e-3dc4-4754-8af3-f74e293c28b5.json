@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "0698399e-3dc4-4754-8af3-f74e293c28b5",
+  "created_at": "2026-09-10T13:52:28.202563-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "watchdog.ex d47fb6d: add handle_cast(:pong, s) ignore clause; crash clause becomes ignore clause in Gen/Watchdog.lean; witness recorded as comment in Leanactors/Examples/Watchdog.lean, temporary #eval removed",
+  "updated_at": "2026-09-10T13:52:28.202563-04:00"
+}

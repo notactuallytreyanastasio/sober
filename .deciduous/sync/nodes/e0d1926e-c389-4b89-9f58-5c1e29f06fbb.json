@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e0d1926e-c389-4b89-9f58-5c1e29f06fbb",
+  "created_at": "2026-09-10T14:02:43.428550-04:00",
+  "description": "Scratch file combo.ex (Worker raw loop with :job/{:set,k} when k>0/:crash/:stop; Sup GenServer with init(n) trap_exit block, handle_info :start spawn_link + EXIT, handle_cast :restart on nil-child state and {:kick,k} when k>n). Output ordering per module: worker arms, worker defer clause; sup .restart, .kick, crash clause for .restart, then .start and .EXIT info clauses; global catch-all kept because Sup is not covered. The pre-existing 'clause 7 guard has no fallthrough' warning is the info-clause EXIT pid-narrowing guard, as at base. No committed example exercises guarded defer or spawn_monitor; adding one would give these paths a regression test.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Combined translator paths verified on a scratch module (not committed): a raw loop with a guarded arm renders 'me, _, .worker n, m@(.set k) => if k > 0 then .. else (.worker n, [.send me m])' and a defer clause last; a GenServer in the same file gets its .restart crash clause between cast and info clauses and a failed cast guard renders (state, [.exit .error]); spawn_link(Worker, :run, [0]) renders .spawnLink (.worker 0)",
+  "updated_at": "2026-09-10T14:02:43.428550-04:00"
+}

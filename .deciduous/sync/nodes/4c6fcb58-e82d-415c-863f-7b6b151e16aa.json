@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "4c6fcb58-e82d-415c-863f-7b6b151e16aa",
+  "created_at": "2026-09-10T13:55:10.566164-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Leanactors: Gen/Supervisor.lean regenerated (worker defer clause replaces global catch-all); Examples/Supervisor.lean beh adds '| me, _, .worker n, m => (.worker n, [.send me m])'; SupervisorProof worker start/EXIT cases use Inv.frame with stateOf_deliver/isSome_deliver/mcount_deliver",
+  "updated_at": "2026-09-10T13:55:10.566164-04:00"
+}

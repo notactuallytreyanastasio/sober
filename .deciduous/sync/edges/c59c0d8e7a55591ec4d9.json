@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T13:50:11.886699-04:00",
+  "edge_id": "c59c0d8e7a55591ec4d9",
+  "edge_type": "leads_to",
+  "from_change_id": "6ba290ba-0af0-4ee2-a418-b218d84eeba3",
+  "rationale": "demonstrate on the supervisor cases and wire imports",
+  "to_change_id": "55e4da86-ec6f-4383-b377-52de8eb244d8",
+  "weight": 1.0
+}

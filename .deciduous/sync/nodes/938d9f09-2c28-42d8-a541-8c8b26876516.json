@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "938d9f09-2c28-42d8-a541-8c8b26876516",
+  "created_at": "2026-09-10T13:55:10.412416-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85,
+    "prompt": "receive = translator: raw receive loops with selective receive and spawn/spawn_link/spawn_monitor, demonstrated on elixir/src/supervisor.ex"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "receive piece: raw receive loops with selective receive and spawn/spawn_link/spawn_monitor in elixir/to_lean.exs, demonstrated on elixir/src/supervisor.ex Worker.run/1",
+  "updated_at": "2026-09-10T13:55:10.412416-04:00"
+}

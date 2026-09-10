@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "81e23f11-074e-4696-aaa4-2e5c3eadb82c",
+  "created_at": "2026-09-10T13:51:29.369224-04:00",
+  "description": "elixir/to_lean.exs init_of/2: collects def init(p) clauses from the module body; [] -> nil (identity default from use GenServer); more than one clause -> fail 'must have exactly one clause'. stmts(b) split into flags ++ [last]; each flag must be Process.flag(:trap_exit, true) else fail 'unsupported statement'; last must be {:ok, e} else fail 'must end in {:ok, state}'. free_vars(e) must all be in init_params(p) else fail 'state expression uses V, which is not a parameter'. A self() anywhere in e fails 'self() in the initial state is not supported'. The block form still marks the module as trapping (traps? is unchanged and independent).",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "init_of/2 accepted shapes: exactly one clause; body is {:ok, e} or block whose other stmts are all Process.flag(:trap_exit, true); e has no free vars beyond params and no self()",
+  "updated_at": "2026-09-10T13:51:29.369224-04:00"
+}

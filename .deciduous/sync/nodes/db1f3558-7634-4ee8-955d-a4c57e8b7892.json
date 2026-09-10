@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "db1f3558-7634-4ee8-955d-a4c57e8b7892",
+  "created_at": "2026-09-10T13:51:29.298296-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "wf/init 5c821fd: ./check.sh passes end to end; all five Gen files regenerate byte-identical; Gen/Task.lean still .spawn (.worker me 0); no Lean file or proof changed",
+  "updated_at": "2026-09-10T13:51:29.298296-04:00"
+}

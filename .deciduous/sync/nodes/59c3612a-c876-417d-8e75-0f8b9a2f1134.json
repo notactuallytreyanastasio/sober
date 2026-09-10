@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "59c3612a-c876-417d-8e75-0f8b9a2f1134",
+  "created_at": "2026-09-10T13:55:10.616130-04:00",
+  "description": "elixir/to_lean.exs: defers = loop modules with no clause where guard == nil and bare?(mpat). render_clauses/2 tags each rendered clause with its module, finds the module's last clause index and appends defer_clause(ctx, mod) right after it; the module ctor is then added to ctx.covered so no global catch-all is emitted (Gen/Supervisor.lean lost '| _, _, s, _ => (s, [])'). loop_tail/2 recurses into {:if, ..} and {:case, ..} branches; on a block it splits off the last statement: {^fname, _, [e]} -> {:noreply, e}; {:exit, _, [_]} kept; otherwise value?(last) (atom/int/list/var/tuple) drops the value and appends exit(:normal), a non-value statement is kept and followed by exit(:normal). Why it matters: this is the encoding of selective receive; the re-enqueue delivers to self, so the message count of the process is preserved and the proof must frame it (mcount_deliver). The explorer never sends start/EXIT to a worker, so the defer clause does not enlarge the explored state space; it is exercised by beh_eq_gen and the SupervisorProof cases, not by the checker.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Defer clause and loop_tail semantics: a loop module with no unguarded bare-pattern clause gets '| me, _, .<mod> s_0.., m => (.<mod> s_0.., [.send me m])' after its last clause; tail 'f(e)' -> {:noreply, e}, 'exit(r)' kept, statement kept then exit(:normal), plain value -> exit(:normal); rewriting descends through if/case",
+  "updated_at": "2026-09-10T13:55:10.616130-04:00"
+}

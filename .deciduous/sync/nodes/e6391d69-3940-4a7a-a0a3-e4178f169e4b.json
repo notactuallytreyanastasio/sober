@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e6391d69-3940-4a7a-a0a3-e4178f169e4b",
+  "created_at": "2026-09-10T13:55:57.843202-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80,
+    "prompt": "INTEGRATOR: merge wf/receive keeping init, crash and receive translator features; add timers := s.timers to Sys.terminate; re-run checkers; README; check.sh"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Integrate wf/receive into main (init+crash+receive in to_lean.exs) and fix Sys.terminate timers",
+  "updated_at": "2026-09-10T13:55:57.843202-04:00"
+}

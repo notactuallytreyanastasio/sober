@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T14:02:17.014803-04:00",
+  "edge_id": "0a9817cabbfb34d9055d",
+  "edge_type": "leads_to",
+  "from_change_id": "e6391d69-3940-4a7a-a0a3-e4178f169e4b",
+  "rationale": "STEP 4 documentation",
+  "to_change_id": "224d419b-ff0a-4fad-b7cb-33083e6f317d",
+  "weight": 1.0
+}

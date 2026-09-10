@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T13:51:29.140565-04:00",
+  "edge_id": "b75eeff613b37307d4e3",
+  "edge_type": "leads_to",
+  "from_change_id": "709871e6-b1e1-455e-818d-11b3a8b3c4dd",
+  "rationale": "rejected: cannot render before child state type known",
+  "to_change_id": "ef6b24ba-c5e7-49f0-a2ee-7b83d21b3d90",
+  "weight": 1.0
+}

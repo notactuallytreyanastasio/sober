@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "bda6787e-adae-4eab-97a8-d608c2fb15b4",
+  "created_at": "2026-09-10T13:50:03.125522-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 50
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Fix Sys.terminate to keep timers (timers := s.timers) so Frame can carry a timers clause; rejected because it changes the bounded-checker state counts quoted in README/examples",
+  "updated_at": "2026-09-10T13:50:03.125522-04:00"
+}

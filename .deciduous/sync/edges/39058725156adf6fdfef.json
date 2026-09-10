@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T13:48:07.628282-04:00",
+  "edge_id": "39058725156adf6fdfef",
+  "edge_type": "leads_to",
+  "from_change_id": "f4da89e0-3845-42b7-8aac-2ba8eb397139",
+  "rationale": "task gave a 250-400 line target; draft came out at 427",
+  "to_change_id": "7ddd1a63-1d58-47a0-ace6-74ab7a879fe9",
+  "weight": 1.0
+}

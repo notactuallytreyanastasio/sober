@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T13:48:07.612936-04:00",
+  "edge_id": "8575e903006c55069b69",
+  "edge_type": "leads_to",
+  "from_change_id": "f4da89e0-3845-42b7-8aac-2ba8eb397139",
+  "rationale": "narrative with verifiable citations is the point of a design-notes doc",
+  "to_change_id": "502aa5db-7572-43cb-9d3f-35d5f764b0bf",
+  "weight": 1.0
+}

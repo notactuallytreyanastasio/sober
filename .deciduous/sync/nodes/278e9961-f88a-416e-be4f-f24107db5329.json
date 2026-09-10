@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "278e9961-f88a-416e-be4f-f24107db5329",
+  "created_at": "2026-09-10T13:52:57.365699-04:00",
+  "description": "lean_total? returns true iff the message pattern is bare or every rendered message part is a plain identifier, and every rendered state part is a plain identifier (none/true/false excluded). patterns/2 now stores the rendered message parts in env[:__mparts__]. Rationale from the builder: in watchdog.ex 'handle_cast(:pong, {w, true})' has state part (some w) and literal true, so it is not total and a crash clause for .pong is needed; judging on the Elixir AST would misclassify pid-narrowed variables as total (missing a crash clause) or literal-free-but-narrowed ones as partial (emitting a Lean-redundant clause that changes existing Gen files). A bare message variable in a cast/call clause covers every tag (:all in covered).",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Totality (lean_total?/2, plain?/1) is judged on the rendered Lean pattern parts (env[:__mparts__]/[:__sparts__]), not on Elixir patterns, because pid-narrowing renders a bare w at pid()|nil as (some w)",
+  "updated_at": "2026-09-10T13:52:57.365699-04:00"
+}

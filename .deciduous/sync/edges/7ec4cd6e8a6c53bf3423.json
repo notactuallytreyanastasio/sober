@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T13:55:17.722767-04:00",
+  "edge_id": "7ec4cd6e8a6c53bf3423",
+  "edge_type": "leads_to",
+  "from_change_id": "1494ada0-e869-4a7c-8827-3277d7ce600f",
+  "rationale": "how the defer clause and tail rewriting work",
+  "to_change_id": "59c3612a-c876-417d-8e75-0f8b9a2f1134",
+  "weight": 1.0
+}

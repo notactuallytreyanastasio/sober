@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e58199fc-3183-4498-bbd8-ffa549391b5a",
+  "created_at": "2026-09-10T13:55:10.664087-04:00",
+  "description": "elixir/to_lean.exs loop_of/1 matches {:def, _, [head, [do: {:receive, _, [opts]}]]}: the def body must be exactly one receive (no statements before it); [do: arms] only, so 'after' clauses fail with 'receive loop f must take one argument and have no guard or after'; more than one loop fails; handle_cast/handle_info/handle_call alongside a loop fails 'a module cannot mix GenServer callbacks with a receive loop'. Bodies with other receives (nested receive inside an arm, or receive in helper functions) are not detected as loops. sends/3 spawn case: {:=, _, [lhs, {f, _, [{:__aliases__,_,[child]}, fname, [arg]]}]} with f in spawn/spawn_link/spawn_monitor; the spawned function must be the target module's loop, so spawning a GenServer module via spawn_link(Mod, :init, ..) is rejected; bare spawn without a binding is not recognised (falls through to the default statement handling). effects_in?/spawns? recognise 3-arity spawn calls only. Builder verified guarded defer, spawn, spawn_monitor, statement tail and if-in-tail on a scratch module that was not committed; those paths have no regression test in the repo.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Limitations of loop_of/1 and spawn mapping: exactly one loop per module, one parameter, no guard on the head, no 'after'; mixing with handle_* fails; a loop module always switches on effects mode; spawn requires :f to be Mod's loop fn (Map.get(c.loops, child) == fname); spawn_monitor lhs must be {pid, _ref}; spawn forms bind pid via bind_fresh/2 shared with GenServer.start_link",
+  "updated_at": "2026-09-10T13:55:10.664087-04:00"
+}

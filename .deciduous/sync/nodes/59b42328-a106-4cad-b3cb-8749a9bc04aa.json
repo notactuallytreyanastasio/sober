@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "59b42328-a106-4cad-b3cb-8749a9bc04aa",
+  "created_at": "2026-09-10T13:55:10.688913-04:00",
+  "description": "git diff dacf642..wf/receive: elixir/to_lean.exs +202/-... , elixir/src/supervisor.ex, elixir/supervisor.exs, Leanactors/Gen/Supervisor.lean, Leanactors/Examples/Supervisor.lean, Leanactors/Examples/SupervisorProof.lean. git merge-tree --merge-base=dacf642 wf/receive wf/crash -> CONFLICT in elixir/to_lean.exs (blocks: Ctx defstruct, main/1 where loops/defers/effects are computed, render_clauses/2 which receive turns into map_reduce + defer insertion and crash turns into ordered/insert_crashes, fallthrough/5 whose return arity receive changes to a 3-tuple {rhs, ctx, deferred} and crash filters by kind). wf/init also conflicts in Ctx, main/1 and the sends/3 GenServer.start spawn case (receive factors fresh-pid binding into bind_fresh/2; init adds child_state). Integrator guidance: in render_clauses keep crash's ordering/insert_crashes AND receive's per-module defer insertion (defer clause goes after the module's last clause, before/independent of crash clauses; a defer module has no cast/call kinds so crash clauses should not apply to loop modules); in fallthrough thread both the kind filter and the third deferred component; in main compute kinds, inits, loops and defers together and OR loops into effects. clauses/2 gains a loop branch but the GenServer branch is unchanged, so crash's clause_of kind field must also be set for loop clauses (receive builds the clause map by hand with from: nil and no kind; give it kind :info). Regenerate all five Gen files after merging: Lock/Bank/Task/Watchdog must stay byte-identical, Gen/Supervisor.lean must end with the worker defer clause. README.md not touched: update 'Not modelled yet' (selective receive) and the Process effects paragraph (GenServer.start_link -> also spawn/spawn_link/spawn_monitor and receive loops).",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Merge note for wf/receive: to_lean.exs conflicts with wf/crash in Ctx struct, main/1, render_clauses/2, fallthrough/5 and with wf/init in Ctx struct, main/1, sends/3 (spawn case / bind_fresh); merges clean against wf/sysprops; cps_split, plain_body tail handling, sig/trap rendering untouched; README 'Not modelled yet' and Process-effects paragraph still to be updated",
+  "updated_at": "2026-09-10T13:55:10.688913-04:00"
+}

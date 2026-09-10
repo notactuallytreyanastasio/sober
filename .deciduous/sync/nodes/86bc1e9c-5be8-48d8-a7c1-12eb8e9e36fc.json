@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "86bc1e9c-5be8-48d8-a7c1-12eb8e9e36fc",
+  "created_at": "2026-09-10T13:48:07.669592-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Ship NOTES.md at 427 lines after one trim pass, keep every node-id and line-span citation, touch no file but NOTES.md",
+  "updated_at": "2026-09-10T13:48:07.669592-04:00"
+}

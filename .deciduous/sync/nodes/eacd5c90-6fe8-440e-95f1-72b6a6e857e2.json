@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "eacd5c90-6fe8-440e-95f1-72b6a6e857e2",
+  "created_at": "2026-09-10T13:52:28.031436-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Decide: classify each {module,tag} by callback kind; in effects mode emit crash clause .exit .error per cast/call tag with no Lean-total clause; message mode only warns on stderr",
+  "updated_at": "2026-09-10T13:52:28.031436-04:00"
+}

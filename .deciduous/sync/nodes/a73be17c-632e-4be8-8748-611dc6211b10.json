@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "a73be17c-632e-4be8-8748-611dc6211b10",
+  "created_at": "2026-09-10T13:50:03.293797-04:00",
+  "description": "Sys.terminate (Leanactors/Sys.lean:150-156 at dacf642) builds { cfg, next, links, signals, monitors, downs } and never mentions timers, so the structure default [] applies. Consequence: a worker crash silently disarms a watchdog's pending timeout (Watchdog example). SysProps.lean records this as @[simp] terminate_timers and gives Frame p no timers clause (only Grows tracks timers). Builder did not change Sys.lean because it would alter the bounded-checker state counts quoted in README/examples (10365 for watchdog etc). Integrator may add timers := s.timers to terminate, re-run the checkers, and then Frame can gain a timers clause and terminate_timers becomes an equation instead of [].",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Finding, not fixed: Sys.terminate in Leanactors/Sys.lean omits the timers field, so the structure default applies and every pending timer is dropped whenever any actor dies; proved as terminate_timers : (s.terminate p r).timers = [] (rfl). Frame has no timers clause for this reason while Grows does",
+  "updated_at": "2026-09-10T13:50:03.293797-04:00"
+}

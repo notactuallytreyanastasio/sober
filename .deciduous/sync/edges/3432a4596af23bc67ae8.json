@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T13:52:28.333841-04:00",
+  "edge_id": "3432a4596af23bc67ae8",
+  "edge_type": "leads_to",
+  "from_change_id": "64ce7fee-0bc0-4343-83c7-c1c3e839bb4a",
+  "rationale": "checker finds the late-:pong crash",
+  "to_change_id": "3b619f65-705c-41f0-8cdd-66a76b83c1b1",
+  "weight": 1.0
+}

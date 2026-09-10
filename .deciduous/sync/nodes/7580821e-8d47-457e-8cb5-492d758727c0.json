@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "7580821e-8d47-457e-8cb5-492d758727c0",
+  "created_at": "2026-09-10T13:52:57.390484-04:00",
+  "description": "fallthrough/5 filter adds c.kind == cl.kind; when nothing matches and ctx.effects and the clause is cast/call the guard-failure result is '(state, [.exit .error])' (FunctionClauseError), otherwise the old warning 'guard has no fallthrough; Elixir would crash, modelled as no-op' remains for info clauses and message mode. render_clauses/2's subsumption check now fails with 'a <kind> clause of <mod> is shadowed by a bare <kind> pattern; use a tag' when the shadowing clause is of a different kind. main/1 destructures {out, ctx} = render(ctx, clauses) and prints ctx.warnings to stderr; before this the warnings list from render_clauses was discarded. No existing source hits any of these paths, so the five Gen files are unchanged.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Two correctness changes riding on the new ordering: fallthrough/5 only searches same-kind clauses (a failed handle_cast guard no longer falls into a handle_info catch-all) and a bare cast/call pattern shadowing an info clause is now fail(...) instead of silently dropping it; also render/2 previously dropped ctx so warnings were never printed, now returns {string, ctx}",
+  "updated_at": "2026-09-10T13:52:57.390484-04:00"
+}

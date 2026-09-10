@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "721443ab-aca9-48e8-bc45-0e97949a852a",
+  "created_at": "2026-09-10T13:48:34.913363-04:00",
+  "description": "NOTES.md sections 2-4 quote line counts and spans measured at dacf642 (Core 104, Props 230, Count 229, Sys 327, to_lean.exs 799, Gen files 43-47, Inv.step at SupervisorProof 95-366 / TaskProof 104-371 / WatchdogProof 84-408 / LockProof 258-627, supervisor_alive 376). Chronicler verified all of them at dacf642 and then measured the sibling branches: wf/receive changes Leanactors/Examples/SupervisorProof.lean (+11 lines; Inv.step still starts at 95, supervisor_alive moves to 380) and Gen/Supervisor.lean to 42 lines; wf/crash changes Gen/Watchdog.lean to 45 lines and watchdog.ex handler layout; every translator branch grows elixir/to_lean.exs. After merge the integrator should either re-measure or soften the spans to 'about'. The section 4 numbers for TaskProof/LockProof/Bank are unaffected by any branch.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "NOTES.md line spans drift under sibling branches: wf/receive moves SupervisorProof supervisor_alive 376->380 and Gen/Supervisor 43->42; wf/crash moves Gen/Watchdog 44->45; to_lean.exs grows past 799 on crash/init/receive",
+  "updated_at": "2026-09-10T13:48:34.913363-04:00"
+}

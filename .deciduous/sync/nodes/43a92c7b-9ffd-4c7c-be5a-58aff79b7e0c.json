@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "43a92c7b-9ffd-4c7c-be5a-58aff79b7e0c",
+  "created_at": "2026-09-10T13:56:10.655930-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Merge wf/receive with git merge --no-ff and resolve to_lean.exs conflicts region by region keeping init+crash+receive; regenerate Gen files with check.sh commands, never hand-merge them",
+  "updated_at": "2026-09-10T13:56:10.655930-04:00"
+}

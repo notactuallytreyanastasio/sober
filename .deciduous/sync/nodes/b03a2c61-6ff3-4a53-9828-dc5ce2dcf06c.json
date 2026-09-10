@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b03a2c61-6ff3-4a53-9828-dc5ce2dcf06c",
+  "created_at": "2026-09-10T13:50:03.214040-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Write Leanactors/SysProps.lean (983 lines): Grows/Frame refl/trans/embed, grows_deliver/frame_set/grows_spawn, applyEffects_grows + projections, applyEffects_snd_none/_some, terminate_* (terminate_frame, terminate_mem_signals_iff/_mem_downs_iff, mem_linkedTo_iff/mem_watchers_iff), runE_cases/runE_frame/runE_stateOf_self/runE_of_no_exit, signalE/downE/timerE _cases/_frame/_grows, SysStep.next_mono/stateOf_cases/stateOf_none, Sys.Fresh with SysStep.fresh/SysReach.fresh/fresh_ofList",
+  "updated_at": "2026-09-10T13:50:03.214040-04:00"
+}

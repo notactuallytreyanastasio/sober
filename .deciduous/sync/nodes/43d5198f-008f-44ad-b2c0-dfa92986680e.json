@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "43d5198f-008f-44ad-b2c0-dfa92986680e",
+  "created_at": "2026-09-10T13:59:56.910619-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Sys.lean: terminate sets timers := s.timers; SysProps.lean: terminate_timers = s.timers, Frame gains timers clause (Grows.frame, Frame.trans, frame_set, terminate_frame updated), docstrings reworded",
+  "updated_at": "2026-09-10T13:59:56.910619-04:00"
+}

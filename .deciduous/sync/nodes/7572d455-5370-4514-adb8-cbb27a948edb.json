@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "7572d455-5370-4514-adb8-cbb27a948edb",
+  "created_at": "2026-09-10T13:55:10.542201-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "supervisor.ex: Worker rewritten as raw run/1 loop (:job -> run(n+1), :crash -> exit(:boom), :stop -> :ok); Sup uses 'pid = spawn_link(Worker, :run, [0])'; header comment documents raw-process convention; supervisor.exs driver swaps :sys.get_state(child1) for Process.sleep + Process.alive?",
+  "updated_at": "2026-09-10T13:55:10.542201-04:00"
+}

@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T13:48:07.721827-04:00",
+  "edge_id": "f92678644820ef8a6b04",
+  "edge_type": "leads_to",
+  "from_change_id": "85bcb8a1-d1e4-41d2-a15d-ebd3ee7f9b53",
+  "rationale": "rejected: docs-only piece stays a single new file so it cannot conflict with any sibling branch",
+  "to_change_id": "86bc1e9c-5be8-48d8-a7c1-12eb8e9e36fc",
+  "weight": 1.0
+}

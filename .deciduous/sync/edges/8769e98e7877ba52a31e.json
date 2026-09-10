@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T13:55:17.613772-04:00",
+  "edge_id": "8769e98e7877ba52a31e",
+  "edge_type": "leads_to",
+  "from_change_id": "3896844a-9e88-48f6-b160-e9d229c9444e",
+  "rationale": "rejected: unmatched message must stay in mailbox",
+  "to_change_id": "dc9544c4-a3e9-4b04-9045-d68c259cffec",
+  "weight": 1.0
+}

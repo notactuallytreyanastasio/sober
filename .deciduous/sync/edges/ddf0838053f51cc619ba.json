@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T13:55:17.567133-04:00",
+  "edge_id": "ddf0838053f51cc619ba",
+  "edge_type": "leads_to",
+  "from_change_id": "938d9f09-2c28-42d8-a541-8c8b26876516",
+  "rationale": "chosen encoding: receive arms as info clauses plus defer clause",
+  "to_change_id": "3e513fac-aefa-40e6-b526-49876d74b26a",
+  "weight": 1.0
+}

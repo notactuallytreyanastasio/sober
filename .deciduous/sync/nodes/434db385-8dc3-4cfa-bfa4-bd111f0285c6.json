@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "434db385-8dc3-4cfa-bfa4-bd111f0285c6",
+  "created_at": "2026-09-10T13:50:03.266348-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "wf/sysprops d947671: check.sh passes end to end, zero sorry, zero warnings, Leanactors/Gen files unchanged, all five BEAM drivers OK; diff vs dacf642 is exactly Leanactors.lean +2 imports, SysProps.lean +983, SysPropsDemo.lean +52; no existing example proof rewritten",
+  "updated_at": "2026-09-10T13:50:03.266348-04:00"
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "9fbb49fe-2016-499a-bb3e-e066f3ee2cc2",
+  "created_at": "2026-09-10T13:48:34.968149-04:00",
+  "description": "Section 5 'The crash-on-unhandled-cast gap' says the generated catch-all keeps the process alive and lists this as the unsound direction; section 6 under-approximations says 'init must be the identity' and 'Unhandled casts do not crash'. wf/crash (watchdog.ex + to_lean.exs +139) emits exit-error clauses for uncovered cast/call tags; wf/init (task.ex + to_lean.exs +81) translates Worker.init(parent) -> {:ok, {parent, 0}}. The builder itself asked that the integrator add a sentence pointing at whichever piece merged. Suggested edit: in section 5 replace 'the generated catch-all keeps the process alive' with a pointer to the crash clause, and in section 6 drop or qualify the identity-init bullet. Section 3's 'Each module gets a catch-all arm ... Modelled as ignore' and the header comment claim also need the crash qualifier.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "NOTES.md sections 5-6 call crash-on-unhandled-cast (node 127) and identity-only init 'gaps at this commit'; wf/crash and wf/init close exactly those gaps, so the narrative is stale on merge",
+  "updated_at": "2026-09-10T13:48:34.968149-04:00"
+}

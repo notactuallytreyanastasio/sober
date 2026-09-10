@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "c5e5269e-7550-46fb-93a6-982f3cf7e0bd",
+  "created_at": "2026-09-10T13:51:29.523385-04:00",
+  "description": "Before wf/init the spawn case called state_expr on the raw spawn argument, so init/1 bodies were never inspected. After wf/init init_of/2 runs on every module with a def init/1 at translation time (not only spawned ones), so an init with multiple clauses, other statements, a non-{:ok,_} result, free variables, or self() now aborts translation with a message naming Mod.init/1. Modules without init/1 keep the identity default. The builder reports all listed error cases fail with clear messages.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Caveat: translator previously ignored init/1 entirely; now any module defining init/1 in an unsupported shape fails translation instead of silently assuming identity",
+  "updated_at": "2026-09-10T13:51:29.523385-04:00"
+}

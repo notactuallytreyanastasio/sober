@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "d4d06751-22b5-40b0-a19e-fb4ba20032fb",
+  "created_at": "2026-09-10T13:57:51.074987-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Resolve to_lean.exs merge: Ctx/main union (inits, mods, kinds, loops, defers); render_clauses yields {cl, lean_total?, str} with deferred header, insert_crashes appends defer_clause as each defer module's last clause; fallthrough returns {rhs, ctx, deferred} with defers checked before crash fallback; loop clauses get kind :handle_info; spawn case = child_state + bind_fresh + receive's spawn arm",
+  "updated_at": "2026-09-10T13:57:51.074987-04:00"
+}

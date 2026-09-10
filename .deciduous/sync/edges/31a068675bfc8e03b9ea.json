@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T13:55:17.769195-04:00",
+  "edge_id": "31a068675bfc8e03b9ea",
+  "edge_type": "leads_to",
+  "from_change_id": "a609f2d3-19fc-499b-8e47-52f0d992d5fa",
+  "rationale": "integration notes for merging wf/receive",
+  "to_change_id": "59b42328-a106-4cad-b3cb-8749a9bc04aa",
+  "weight": 1.0
+}

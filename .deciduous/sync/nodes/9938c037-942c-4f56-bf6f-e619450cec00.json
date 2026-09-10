@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "9938c037-942c-4f56-bf6f-e619450cec00",
+  "created_at": "2026-09-10T13:52:57.414885-04:00",
+  "description": "insert_crashes/2 branches on c.effects: with effects it emits crash clauses, without it it appends warnings '<kind> <tag> in <mod> is not handled in every state; an unmatched cast or call crashes on the BEAM, modelled as ignored (no exit effect in message mode)'. Follow-ups the builder left to the integrator: (1) the catch-all comment in generated files is now only reached by info messages in effects mode; rewording it would change Bank/Lock Gen files; (2) README 'Not modelled yet' bullet about unhandled handle_cast should be removed and the message-mode limitation noted (README deliberately not edited by the builder).",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Limitation: in message mode (plain Behavior, no exit effect) an uncovered cast/call tag only emits a stderr warning and stays modelled as ignored; generated global catch-all comment 'GenServer would crash (cast) or ignore (info). Modelled as ignore.' left as-is for byte-identity",
+  "updated_at": "2026-09-10T13:52:57.414885-04:00"
+}

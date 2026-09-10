@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "ba10497d-50a6-4b9a-8194-07ff83ad3eab",
+  "created_at": "2026-09-10T13:52:57.440386-04:00",
+  "description": "git diff dacf642..wf/crash touches elixir/to_lean.exs (+139/-22 in b69d423), elixir/src/watchdog.ex, Leanactors/Gen/Watchdog.lean, Leanactors/Examples/Watchdog.lean (comment block only in final state). Ctx struct gains mods: [] and kinds: %{}. render_clauses now returns insert_crashes(ctx, rendered) where rendered is a list of {clause, total?, string} triples instead of strings, so any other branch that changes render_clauses' map_reduce body must keep the triple shape; clauses/2 itself is unchanged except clause_of/5 adding the :kind field to the clause map (any branch pattern-matching clause maps by full shape must add kind). sends/3 and plain_body are not touched by this branch. Header comment additions: new paragraph 'Unhandled messages (effects mode only)' in to_lean.exs and a new 'unhandled messages' bullet in watchdog.ex's header; both are likely textual conflict points with the init (task.ex), sysprops (supervisor.ex) and receive pieces.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Merge note for wf/crash: to_lean.exs edits are local to main/1, clause_of, render/2 return shape, render_clauses/2, fallthrough/5, patterns/2 (env __mparts__) plus new helpers ordered/classify/lean_total?/plain?/insert_crashes/crash_clause; clauses/sends/plain_body bodies untouched; watchdog.ex header comment and handle_cast block may conflict with task/supervisor/watchdog agents",
+  "updated_at": "2026-09-10T13:52:57.440386-04:00"
+}

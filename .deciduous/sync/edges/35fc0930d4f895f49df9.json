@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T13:56:14.313300-04:00",
+  "edge_id": "35fc0930d4f895f49df9",
+  "edge_type": "leads_to",
+  "from_change_id": "e6391d69-3940-4a7a-a0a3-e4178f169e4b",
+  "rationale": "conflict-resolution approach considered",
+  "to_change_id": "ddc5ff60-498b-4011-a70d-297171b40ac3",
+  "weight": 1.0
+}
