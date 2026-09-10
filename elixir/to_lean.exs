@@ -35,6 +35,25 @@
 #   `pid = spawn(Mod, :run, [a])`, `pid = spawn_link(Mod, :run, [a])` and
 #   `{pid, _ref} = spawn_monitor(Mod, :run, [a])` map to spawn/spawnLink/
 #   spawnMonitor with Mod's state constructor applied to a.
+#   `receive do ... after t -> body end` (one after clause, t ignored): the
+#   module gets a model-only Msg constructor after_<loop>; every clause that
+#   re-enters the receive (a `loop(e)` tail, the defer clause, a failed
+#   guard) also arms `.sendAfter me .after_<loop>`, a spawn of the module
+#   arms it at the child, and the after body is a clause for that message
+#   with the loop parameter as its state (same tail rules). Timers are
+#   untimed, so a stale after-message may fire late, after other messages
+#   have been handled: an over-approximation, sound for safety.
+#   A body whose last statement is `raise ...` or `throw ...` (any
+#   arguments) exits the process with reason error, keeping the current
+#   state, like `exit/1`; a raise or throw anywhere else is an error.
+#
+# Registered names: `send(Mod, m)`, `GenServer.cast(Mod, m)` and
+#   `GenServer.call(Mod, m)` need a constant pid for Mod. With `--pid`
+#   flags the map is exactly those flags. Without any, it is derived from
+#   the source: `GenServer.start_link/start(_, _, name: N)` and
+#   `Process.register(_, N)` anywhere in a module register N (__MODULE__,
+#   an alias or an atom) as the constant N lowercased (Cache -> cache).
+#   Atom names may be used as send/cast targets (`send(:cache, m)`).
 #
 # Output shape: every file becomes one `def beh : EBehavior St Msg` over
 #   `Leanactors.Sys`, whose clauses are `| me, fresh, <state>, <msg> => (state,
@@ -71,7 +90,7 @@ defmodule ToLean do
   defmodule Ctx do
     defstruct types: %{}, msg_ctors: [], st_ctors: [], pids: %{}, enums: %{}, ns: "Gen", warnings: [],
               extra: [], awaits: %{}, reply_type: nil, traps: %{}, pid_vars: [],
-              covered: [], inits: %{}, mods: [], kinds: %{}, loops: %{}, defers: []
+              covered: [], inits: %{}, mods: [], kinds: %{}, loops: %{}, defers: [], afters: %{}
   end
 
   # ---------- entry ----------
@@ -88,20 +107,25 @@ defmodule ToLean do
 
     {:ok, ast} = src |> File.read!() |> Code.string_to_quoted(columns: false)
     mods = for {:defmodule, _, [{:__aliases__, _, [name]}, [do: body]]} <- top(ast), do: {name, stmts(body)}
+    # registered names: the --pid flags if any are given, else derived from
+    # the source (name: __MODULE__ in start_link/start, Process.register/2)
+    pids = if map_size(pids) == 0, do: register_names(mods), else: pids
     ctx = %Ctx{ns: ns, pids: pids}
     ctx = Enum.reduce(mods, ctx, fn {name, body}, c -> collect_types(c, name, body) end)
     clauses = for {name, body} <- mods, cl <- ordered(clauses(name, body)), do: cl
     traps = for {name, body} <- mods, traps?(body), into: %{}, do: {name, true}
     inits = for {name, body} <- mods, init = init_of(name, body), init != nil, into: %{}, do: {name, init}
     # raw receive loops: module -> loop function; those without a catch-all
-    # clause defer (re-enqueue) unmatched messages
-    loops = for {name, body} <- mods, {fname, _, _} <- [loop_of(body)], into: %{}, do: {name, fname}
+    # clause defer (re-enqueue) unmatched messages; those with an `after`
+    # clause arm a self-timer for the message after_<loop>
+    loops = for {name, body} <- mods, {fname, _, _, _} <- [loop_of(body)], into: %{}, do: {name, fname}
+    afters = for {name, body} <- mods, {fname, _, _, ab} <- [loop_of(body)], ab != nil, into: %{}, do: {name, after_tag(fname)}
     defers =
       for {name, _} <- loops,
           not Enum.any?(clauses, fn cl -> cl.mod == name and cl.guard == nil and bare?(cl.mpat) end),
           do: name
     ctx = %{ctx | traps: traps, inits: inits, mods: Enum.map(mods, &elem(&1, 0)),
-                  loops: loops, defers: defers}
+                  loops: loops, defers: defers, afters: afters}
     ctx = %{ctx | kinds: classify(ctx, clauses)}
     if map_size(traps) > 0 and not List.keymember?(ctx.msg_ctors, :EXIT, 0),
       do: fail("a trapping module must declare {:EXIT, pid(), term()} in @type msg")
@@ -147,6 +171,41 @@ defmodule ToLean do
     end)
     found
   end
+
+  # Registered names derived from the source (used when no --pid flag is
+  # given): `GenServer.start_link/start(_, _, name: N)` and
+  # `Process.register(_, N)` anywhere in a module, where N is __MODULE__
+  # (that module), an alias or an atom. The Lean constant is N lowercased.
+  defp register_names(mods) do
+    for {mod, body} <- mods, name <- registered_in(mod, body), into: %{}, do: {name, String.downcase(name)}
+  end
+
+  defp registered_in(mod, body) do
+    {_, names} = Macro.prewalk({:__block__, [], body}, [], fn
+      {{:., _, [{:__aliases__, _, [:GenServer]}, f]}, _, [_, _, opts]} = n, acc when f in [:start_link, :start] and is_list(opts) ->
+        case List.keyfind(opts, :name, 0) do
+          {:name, x} -> {n, [reg_name(mod, x) | acc]}
+          nil -> {n, acc}
+        end
+      {{:., _, [{:__aliases__, _, [:Process]}, :register]}, _, [_, x]} = n, acc -> {n, [reg_name(mod, x) | acc]}
+      n, acc -> {n, acc}
+    end)
+    Enum.reverse(names)
+  end
+
+  defp reg_name(mod, {:__MODULE__, _, _}), do: Atom.to_string(mod)
+  defp reg_name(_mod, {:__aliases__, _, [m]}), do: Atom.to_string(m)
+  defp reg_name(_mod, a) when is_atom(a) and a not in [nil, true, false], do: Atom.to_string(a)
+  defp reg_name(mod, x), do: fail("#{mod}: unsupported registered name #{Macro.to_string(x)}")
+
+  # the Lean constant for a registered name (an alias `Mod` or an atom `:name`)
+  defp pid_const(ctx, name) do
+    Map.get(ctx.pids, Atom.to_string(name)) ||
+      fail("no registered name for #{name}: start it with name: __MODULE__, Process.register/2 it, or pass --pid #{name}=const")
+  end
+
+  # the model-only message a receive loop with `after` sends itself
+  defp after_tag(fname), do: :"after_#{fname}"
 
   # `init/1` as a pure state expression of its parameter: {param_pattern, expr}.
   # Accepted: `def init(p), do: {:ok, e}` or a block whose only other
@@ -233,6 +292,12 @@ defmodule ToLean do
       # msg union contributes constructors; state contributes one St constructor
       msg = Map.fetch!(c.types, {mod, :msg})
       c = Enum.reduce(union(msg), c, fn alt, cc -> add_msg_ctor(cc, mod, alt) end)
+      # a receive loop with `after` gets a model-only self-timer message
+      c =
+        case loop_of(body) do
+          {fname, _, _, ab} when ab != nil -> add_msg_ctor(c, mod, after_tag(fname))
+          _ -> c
+        end
       c =
         case Map.fetch(c.types, {mod, :call}) do
           {:ok, call} -> Enum.reduce(union(call), c, fn alt, cc -> add_msg_ctor(cc, mod, alt, [{"from", "Pid"}]) end)
@@ -357,19 +422,61 @@ defmodule ToLean do
             cl != nil do
           cl
         end
-      {fname, param, arms} ->
-        for {:->, _, [[lhs], b]} <- arms do
-          {mpat, guard} =
-            case lhs do
-              {:when, _, [p, g]} -> {p, g}
-              p -> {p, nil}
-            end
-          %{mod: mod, kind: :handle_info, mpat: mpat, spat: param, guard: guard, body: loop_tail(fname, b), from: nil}
-        end
+      {fname, param, arms, after_body} ->
+        atag = if after_body, do: after_tag(fname), else: nil
+        arms =
+          for {:->, _, [[lhs], b]} <- arms do
+            {mpat, guard} =
+              case lhs do
+                {:when, _, [p, g]} -> {p, g}
+                p -> {p, nil}
+              end
+            body = loop_tail(fname, atag, b)
+            %{mod: mod, kind: :handle_info, mpat: mpat, spat: prune_param(param, body, guard), guard: guard, body: body, from: nil}
+          end
+        # `after t -> body` is a clause for the self-timer message after_<loop>
+        after_cl =
+          if after_body do
+            body = loop_tail(fname, atag, after_body)
+            [%{mod: mod, kind: :handle_info, mpat: atag, spat: prune_param(param, body, nil), guard: nil, body: body, from: nil}]
+          else
+            []
+          end
+        arms ++ after_cl
     end
   end
 
-  # {loop name, state parameter, receive arms} of a raw process module, or nil
+  # The loop parameter is the state pattern of every arm. A variable of it
+  # that an unguarded arm does not use is renamed `_x` (Lean warns on unused
+  # pattern variables). Guarded arms keep it: a failed guard falls through
+  # to a later arm whose variables are aliased to this arm's pattern parts.
+  # exit/raise/throw rebuild the whole state from the parts, so they keep it too.
+  defp prune_param(param, _body, guard) when guard != nil, do: param
+  defp prune_param(param, body, _guard) do
+    if needs_state?(body) do
+      param
+    else
+      used = free_vars(body)
+      Macro.postwalk(param, fn
+        {v, m, nil} = n when is_atom(v) ->
+          s = Atom.to_string(v)
+          if s in used or String.starts_with?(s, "_"), do: n, else: {:"_#{s}", m, nil}
+        n -> n
+      end)
+    end
+  end
+
+  defp needs_state?(body) do
+    {_, found} = Macro.prewalk(body, false, fn
+      {:exit, _, [_]} = n, _ -> {n, true}
+      {f, _, args} = n, _ when f in [:raise, :throw] and is_list(args) -> {n, true}
+      n, acc -> {n, acc}
+    end)
+    found
+  end
+
+  # {loop name, state parameter, receive arms, after body | nil} of a raw
+  # process module, or nil
   defp loop_of(body) do
     loops = for {:def, _, [head, [do: {:receive, _, [opts]}]]} <- body, do: {head_parts(head), opts}
     handlers =
@@ -377,29 +484,39 @@ defmodule ToLean do
     case loops do
       [] -> nil
       [_ | _] when handlers != [] -> fail("a module cannot mix GenServer callbacks with a receive loop")
-      [{{fname, [param], nil}, [do: arms]}] -> {fname, param, arms}
-      [{{fname, _, _}, _}] -> fail("receive loop #{fname} must take one argument and have no guard or `after`")
+      [{{fname, [param], nil}, [do: arms]}] -> {fname, param, arms, nil}
+      [{{fname, [param], nil}, [do: arms, after: [{:->, _, [[_t], ab]}]]}] -> {fname, param, arms, ab}
+      [{{fname, _, _}, _}] -> fail("receive loop #{fname} must take one argument and have no guard; `after` takes one clause")
       _ -> fail("more than one receive loop in a module")
     end
   end
 
   # Rewrite the tail of a receive-clause body: `loop(e)` continues with state
-  # e, `exit(r)` stays, a statement is kept and the loop returns after it,
+  # e (re-arming the after-timer if the loop has one), `exit(r)`, `raise`
+  # and `throw` stay, a statement is kept and the loop returns after it,
   # any other value means the loop returns normally.
-  defp loop_tail(fname, {:if, m, [c, [do: a, else: b]]}),
-    do: {:if, m, [c, [do: loop_tail(fname, a), else: loop_tail(fname, b)]]}
-  defp loop_tail(fname, {:case, m, [s, [do: arms]]}),
-    do: {:case, m, [s, [do: for({:->, am, [p, b]} <- arms, do: {:->, am, [p, loop_tail(fname, b)]})]]}
-  defp loop_tail(fname, b) do
+  defp loop_tail(fname, atag, {:if, m, [c, [do: a, else: b]]}),
+    do: {:if, m, [c, [do: loop_tail(fname, atag, a), else: loop_tail(fname, atag, b)]]}
+  defp loop_tail(fname, atag, {:case, m, [s, [do: arms]]}),
+    do: {:case, m, [s, [do: for({:->, am, [p, b]} <- arms, do: {:->, am, [p, loop_tail(fname, atag, b)]})]]}
+  defp loop_tail(fname, atag, b) do
     {init, [last]} = Enum.split(stmts(b), -1)
     tail =
       case last do
-        {^fname, _, [e]} -> [{:noreply, e}]
+        {^fname, _, [e]} -> arm_after(atag) ++ [{:noreply, e}]
         {:exit, _, [_]} -> [last]
+        {f, _, args} when f in [:raise, :throw] and is_list(args) -> [last]
         _ -> if(value?(last), do: [], else: [last]) ++ [{:exit, [], [:normal]}]
       end
     {:__block__, [], init ++ tail}
   end
+
+  # `Process.send_after(self(), :after_<loop>, _)`: entering the receive
+  # again arms the after-timer (untimed: it may fire late, after other
+  # messages have been handled, which over-approximates the BEAM)
+  defp arm_after(nil), do: []
+  defp arm_after(atag),
+    do: [{{:., [], [{:__aliases__, [], [:Process]}, :send_after]}, [], [{:self, [], []}, atag, 0]}]
 
   defp value?(x) when is_atom(x) or is_integer(x) or is_list(x), do: true
   defp value?({v, _, nil}) when is_atom(v), do: true
@@ -629,11 +746,20 @@ defmodule ToLean do
   end
 
   # `| me, _, .mod s_0 s_1 .., m => (.mod s_0 s_1 .., [.send me m])`
+  # (plus the after-timer if the loop has one: deferring re-enters the receive)
   defp defer_clause(ctx, mod) do
     {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(mod), 0)
     parts = fields |> Enum.with_index() |> Enum.map(fn {_, i} -> "s_#{i}" end)
     sp = if parts == [], do: ".#{ctor}", else: ".#{ctor} " <> Enum.join(parts, " ")
-    "  | me, _, #{sp}, m => (#{sp}, [#{send_str(ctx, "me", "m")}])"
+    "  | me, _, #{sp}, m => (#{sp}, [#{Enum.join([send_str(ctx, "me", "m") | after_arm(ctx, mod, "me")], ", ")}])"
+  end
+
+  # the effect that arms a loop's after-timer at pid `p`, if the module has one
+  defp after_arm(ctx, mod, p) do
+    case Map.get(ctx.afters, mod) do
+      nil -> []
+      tag -> [".sendAfter #{paren_or(p)} .#{tag}"]
+    end
   end
 
   # the name for a whole message in a deferring clause (avoid the clause's own `m`)
@@ -679,7 +805,8 @@ defmodule ToLean do
         cond do
           # a receive arm whose guard fails does not consume the message
           cl.mod in ctx.defers ->
-            {"(#{sp}, [#{send_str(ctx, "me", msg_name(env))}])", ctx, true}
+            effs = [send_str(ctx, "me", msg_name(env)) | after_arm(ctx, cl.mod, "me")]
+            {"(#{sp}, [#{Enum.join(effs, ", ")}])", ctx, true}
           # no cast/call clause matches: FunctionClauseError
           cl.kind != :handle_info ->
             {"(#{sp}, [.exit .error])", ctx, false}
@@ -928,7 +1055,7 @@ defmodule ToLean do
   #                | me, _, .<mod>_await<i> captured, m => (.<mod>_await<i> captured, [.send me m])
   defp cps_split(ctx, mod, env, before, {:=, _, [lhs, {_, _, [{:__aliases__, _, [target]}, m | _timeout]}]}, rest) do
     ctx.reply_type || fail("GenServer.call used but no module declares @type reply")
-    const = Map.get(ctx.pids, Atom.to_string(target)) || fail("no --pid mapping for #{target}")
+    const = pid_const(ctx, target)
     i = Map.get(ctx.awaits, mod, 0)
     ctx = %{ctx | awaits: Map.put(ctx.awaits, mod, i + 1)}
     await = "#{ctor_name(mod)}_await#{i}"
@@ -980,16 +1107,18 @@ defmodule ToLean do
       Enum.map_reduce(stmts, {ctx, env}, fn s, {c, e} ->
         case s do
           {:send, _, [{:__aliases__, _, [target]}, m]} ->
-            const = Map.get(c.pids, Atom.to_string(target)) || fail("no --pid mapping for #{target}")
-            {send_str(c, const, msg_expr(c, e, m)), {c, e}}
+            {send_str(c, pid_const(c, target), msg_expr(c, e, m)), {c, e}}
+          {:send, _, [target, m]} when is_atom(target) and target not in [nil, true, false] ->
+            {send_str(c, pid_const(c, target), msg_expr(c, e, m)), {c, e}}
           {:send, _, [to, m]} -> {send_str(c, expr(e, to, "Pid"), msg_expr(c, e, m)), {c, e}}
           {{:., _, [{:__aliases__, _, [:Process]}, :send_after]}, _, [to, m, _t]} ->
             {".sendAfter #{paren_or(expr(e, to, "Pid"))} #{paren_or(msg_expr(c, e, m))}", {c, e}}
           {{:., _, [{:__aliases__, _, [:Process]}, :exit]}, _, [to, r]} ->
             {".signal #{paren_or(expr(e, to, "Pid"))} #{reason_str(r)}", {c, e}}
           {{:., _, [{:__aliases__, _, [:GenServer]}, :cast]}, _, [{:__aliases__, _, [target]}, m]} ->
-            const = Map.get(c.pids, Atom.to_string(target)) || fail("no --pid mapping for #{target}")
-            {send_str(c, const, msg_expr(c, e, m)), {c, e}}
+            {send_str(c, pid_const(c, target), msg_expr(c, e, m)), {c, e}}
+          {{:., _, [{:__aliases__, _, [:GenServer]}, :cast]}, _, [target, m]} when is_atom(target) and target not in [nil, true, false] ->
+            {send_str(c, pid_const(c, target), msg_expr(c, e, m)), {c, e}}
           {{:., _, [{:__aliases__, _, [:GenServer]}, :reply]}, _, [to, r]} ->
             c.reply_type || fail("GenServer.reply used but no @type reply")
             {send_str(c, expr(e, to, "Pid"), ".reply #{paren_or(expr(e, r, c.reply_type))}"), {c, e}}
@@ -1008,11 +1137,16 @@ defmodule ToLean do
             {cctor, cfields} = List.keyfind(c.st_ctors, ctor_name(child), 0) || fail("unknown module #{child}")
             init = state_expr(e, arg, cctor, cfields)
             eff = %{spawn: ".spawn", spawn_link: ".spawnLink", spawn_monitor: ".spawnMonitor"}[f]
-            {"#{eff} (#{init})", {c, bind_fresh(e, v)}}
+            e = bind_fresh(e, v)
+            # the child's first receive arms its after-timer, if it has one
+            arm = after_arm(c, child, e[{:alias, Atom.to_string(v)}])
+            {Enum.join(["#{eff} (#{init})" | arm], ", "), {c, e}}
           {{:., _, [{:__aliases__, _, [:Process]}, :monitor]}, _, [target]} ->
             {".monitor #{paren_or(expr(e, target, "Pid"))}", {c, e}}
           {:=, _, [{_ref, _, nil}, {{:., _, [{:__aliases__, _, [:Process]}, :monitor]}, _, [target]}]} ->
             {".monitor #{paren_or(expr(e, target, "Pid"))}", {c, e}}
+          {f, _, args} when f in [:raise, :throw] and is_list(args) ->
+            fail("#{f} is only supported as the last statement of a body (it exits the process): #{Macro.to_string(s)}")
           other -> fail("unsupported statement #{Macro.to_string(other)}")
         end
       end)
@@ -1047,15 +1181,20 @@ defmodule ToLean do
         {:exit, _, [r]} ->
           st = env[{:alias, "__state__"}] || whole_state(env, ctor, fields)
           {st, [".exit #{reason_str(r)}"]}
-        other -> fail("last statement must be {:noreply, state}, {:reply, r, state} or {:stop, r, state}, got #{Macro.to_string(other)}")
+        # an uncaught raise or throw kills the process with an error reason
+        # (the exception, or {:nocatch, v}); the arguments do not matter
+        {f, _, args} when f in [:raise, :throw] and is_list(args) ->
+          st = env[{:alias, "__state__"}] || whole_state(env, ctor, fields)
+          {st, [".exit .error"]}
+        other -> fail("last statement must be {:noreply, state}, {:reply, r, state}, {:stop, r, state}, exit/1, raise or throw, got #{Macro.to_string(other)}")
       end
     {"(#{state}, [#{Enum.join(send_strs ++ tail, ", ")}])", ctx}
   end
 
-  # the current state rebuilt from the clause's state pattern (for exit/1)
+  # the current state rebuilt from the clause's state pattern (for exit/1, raise, throw)
   defp whole_state(env, ctor, _fields) do
     case env[:__sparts__] do
-      nil -> fail("exit/1 needs the state bound by the pattern")
+      nil -> fail("exit/raise/throw needs the state bound by the pattern")
       parts -> if parts == [], do: ".#{ctor}", else: ".#{ctor} " <> Enum.join(parts, " ")
     end
   end
