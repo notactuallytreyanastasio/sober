@@ -101,6 +101,7 @@ def g (c : Config St Msg) (p : Pid) : Nat := c.mcount p .grant
 structure Inv (c : Config St Msg) : Prop where
   srv : ∃ h q, c.stateOf server = some (.srv h q)
   cli : ∀ p me ph, c.stateOf p = some (.cli me ph) → me = p
+  only_srv : ∀ p h q, c.stateOf p = some (.srv h q) → p = server
   nonholder : ∀ h q, c.stateOf server = some (.srv h q) → ∀ p, h ≠ some p →
     g c p = 0 ∧ hd c p = 0 ∧ r c p = 0 ∧ a c p + q.count p = w c p
   holder : ∀ h q, c.stateOf server = some (.srv (some h) q) →
@@ -140,7 +141,8 @@ def checkInv (c : Config St Msg) (pids : List Pid) : Bool :=
     pids.all fun p =>
       (match c.stateOf p with
        | some (.cli me _) => decide (me = p)
-       | _ => true) &&
+       | some (.srv _ _) => decide (p = server)
+       | none => true) &&
       (if h = some p then
         decide (g c p + hd c p + r c p = 1) &&
         (g c p != 1 || decide (w c p = 1 ∧ a c p = 0 ∧ q.count p = 0)) &&
