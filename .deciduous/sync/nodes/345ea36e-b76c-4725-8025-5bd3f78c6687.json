@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "345ea36e-b76c-4725-8025-5bd3f78c6687",
+  "created_at": "2026-09-10T11:23:20.992419-04:00",
+  "description": "Predicted the mutex proof would need rework for the await state; in practice the six counters and two equations were untouched. The rework was mechanical: three client shapes instead of two phases, reply .ok instead of grant, and the deferral clause is a frame case (popped message re-sent to self does not touch any counted message).",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "The CPS split did not change the invariant at all: only the view (locOf) that maps the generated await constructor to 'waiting'. Blocking calls are a compilation detail of the client, not a protocol change",
+  "updated_at": "2026-09-10T11:23:20.992419-04:00"
+}

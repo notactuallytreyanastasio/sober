@@ -725,6 +725,72 @@
       "created_at": "2026-09-10T11:05:32.777816-04:00",
       "updated_at": "2026-09-10T11:05:32.777816-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":75}"
+    },
+    {
+      "id": 67,
+      "change_id": "1c4651d6-69cb-45c8-869b-c240913d28ff",
+      "node_type": "goal",
+      "title": "Follow-ups: nested awaits in the translator; lock clients acquire via blocking GenServer.call so the CPS split meets the mutex proof",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T11:17:09.508253-04:00",
+      "updated_at": "2026-09-10T11:17:09.508253-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":70,\"prompt\":\"ok lets get the pieces oyu mention to follow up written\"}"
+    },
+    {
+      "id": 68,
+      "change_id": "681ec767-e17b-49b0-b977-ca96a8904627",
+      "node_type": "action",
+      "title": "Translator: recursive cps_split (nested awaits), pattern LHS for blocking call, GenServer.reply/2, GenServer.from() type, {pid,_} from-patterns at Pid positions, 3-arg call",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T11:17:09.580997-04:00",
+      "updated_at": "2026-09-10T11:17:09.580997-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":70}"
+    },
+    {
+      "id": 69,
+      "change_id": "27747ecc-8482-419e-b6de-c968fa44cbdb",
+      "node_type": "action",
+      "title": "Rewrite lock.ex: handle_call(:acquire) with deferred reply via GenServer.reply on release; clients block; regenerate; re-prove mutex + progress",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T11:17:09.647906-04:00",
+      "updated_at": "2026-09-10T11:17:09.647906-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":55}"
+    },
+    {
+      "id": 70,
+      "change_id": "b5fbdaab-d177-47d3-a6a4-32bc51b5abd5",
+      "node_type": "outcome",
+      "title": "Translator: nested awaits (client_await2 captures a), pattern LHS (:ok = call), GenServer.reply, GenServer.from, {pid,_} from-patterns, 3-arg call, single-atom types. Bank audit = 14 on Lean and BEAM",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T11:23:20.857451-04:00",
+      "updated_at": "2026-09-10T11:23:20.857451-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":90}"
+    },
+    {
+      "id": 71,
+      "change_id": "3aac99b8-97d2-4713-82f6-1475475340c6",
+      "node_type": "outcome",
+      "title": "Lock with blocking acquire: Inv unchanged in shape (await state = waiting), model check 77925/23281 configs clean, Inv.step re-proven (685 lines, macros cut the client half in half), mutex_forever + progress_forever hold, mutants unchanged, BEAM run clean",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T11:23:20.927761-04:00",
+      "updated_at": "2026-09-10T11:23:20.927761-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":90}"
+    },
+    {
+      "id": 72,
+      "change_id": "345ea36e-b76c-4725-8025-5bd3f78c6687",
+      "node_type": "observation",
+      "title": "The CPS split did not change the invariant at all: only the view (locOf) that maps the generated await constructor to 'waiting'. Blocking calls are a compilation detail of the client, not a protocol change",
+      "description": "Predicted the mutex proof would need rework for the await state; in practice the six counters and two equations were untouched. The rework was mechanical: three client shapes instead of two phases, reply .ok instead of grant, and the deferral clause is a frame case (popped message re-sent to self does not touch any counted message).",
+      "status": "pending",
+      "created_at": "2026-09-10T11:23:20.992419-04:00",
+      "updated_at": "2026-09-10T11:23:20.992419-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":85}"
     }
   ],
   "edges": [
@@ -1552,6 +1618,72 @@
       "weight": 1.0,
       "rationale": "cost of keeping the core unchanged",
       "created_at": "2026-09-10T11:05:32.801737-04:00"
+    },
+    {
+      "id": 76,
+      "from_node_id": 64,
+      "to_node_id": 67,
+      "from_change_id": "335cd9ae-de96-47a5-bfec-d7d5eff91a7d",
+      "to_change_id": "1c4651d6-69cb-45c8-869b-c240913d28ff",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "the two follow-ups named after handle_call landed",
+      "created_at": "2026-09-10T11:17:09.540513-04:00"
+    },
+    {
+      "id": 77,
+      "from_node_id": 67,
+      "to_node_id": 68,
+      "from_change_id": "1c4651d6-69cb-45c8-869b-c240913d28ff",
+      "to_change_id": "681ec767-e17b-49b0-b977-ca96a8904627",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "translator first, bank exercises nested awaits",
+      "created_at": "2026-09-10T11:17:09.607944-04:00"
+    },
+    {
+      "id": 78,
+      "from_node_id": 67,
+      "to_node_id": 69,
+      "from_change_id": "1c4651d6-69cb-45c8-869b-c240913d28ff",
+      "to_change_id": "27747ecc-8482-419e-b6de-c968fa44cbdb",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "then the lock",
+      "created_at": "2026-09-10T11:17:09.677856-04:00"
+    },
+    {
+      "id": 79,
+      "from_node_id": 68,
+      "to_node_id": 70,
+      "from_change_id": "681ec767-e17b-49b0-b977-ca96a8904627",
+      "to_change_id": "b5fbdaab-d177-47d3-a6a4-32bc51b5abd5",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "succeeded",
+      "created_at": "2026-09-10T11:23:20.886436-04:00"
+    },
+    {
+      "id": 80,
+      "from_node_id": 69,
+      "to_node_id": 71,
+      "from_change_id": "27747ecc-8482-419e-b6de-c968fa44cbdb",
+      "to_change_id": "3aac99b8-97d2-4713-82f6-1475475340c6",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "succeeded",
+      "created_at": "2026-09-10T11:23:20.953301-04:00"
+    },
+    {
+      "id": 81,
+      "from_node_id": 71,
+      "to_node_id": 72,
+      "from_change_id": "3aac99b8-97d2-4713-82f6-1475475340c6",
+      "to_change_id": "345ea36e-b76c-4725-8025-5bd3f78c6687",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "what the rewrite showed",
+      "created_at": "2026-09-10T11:23:21.017776-04:00"
     }
   ]
 }

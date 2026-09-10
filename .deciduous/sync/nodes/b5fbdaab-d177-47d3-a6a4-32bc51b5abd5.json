@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b5fbdaab-d177-47d3-a6a4-32bc51b5abd5",
+  "created_at": "2026-09-10T11:23:20.857451-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Translator: nested awaits (client_await2 captures a), pattern LHS (:ok = call), GenServer.reply, GenServer.from, {pid,_} from-patterns, 3-arg call, single-atom types. Bank audit = 14 on Lean and BEAM",
+  "updated_at": "2026-09-10T11:23:20.857451-04:00"
+}

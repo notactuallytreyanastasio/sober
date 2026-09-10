@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "1c4651d6-69cb-45c8-869b-c240913d28ff",
+  "created_at": "2026-09-10T11:17:09.508253-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 70,
+    "prompt": "ok lets get the pieces oyu mention to follow up written"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Follow-ups: nested awaits in the translator; lock clients acquire via blocking GenServer.call so the CPS split meets the mutex proof",
+  "updated_at": "2026-09-10T11:17:09.508253-04:00"
+}
