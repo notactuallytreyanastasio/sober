@@ -3992,6 +3992,61 @@
       "created_at": "2026-09-10T16:11:58.323615-04:00",
       "updated_at": "2026-09-10T16:11:58.323615-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":85}"
+    },
+    {
+      "id": 365,
+      "change_id": "bb3f4c5e-f1df-4e5f-a21e-c0d7aa3d679a",
+      "node_type": "goal",
+      "title": "Round 4: liveness under weak fairness (framework, supervisor restart eventually, lock waiting client eventually holds), plus handle_continue/reply-with-timeout in the translator and Ttl on the generic explorer",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T16:16:05.097662-04:00",
+      "updated_at": "2026-09-10T16:16:05.097662-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":55,\"prompt\":\"lets keep going\"}"
+    },
+    {
+      "id": 366,
+      "change_id": "132a0db9-2e9c-4fc6-b187-4c54423e64cc",
+      "node_type": "option",
+      "title": "Fairness as infinite runs (Nat -> state) with weak fairness per choice: if a choice is enabled from t on, it is taken at some t' >= t; Eventually/Always combinators; both Config and Sys layers",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T16:16:05.164534-04:00",
+      "updated_at": "2026-09-10T16:16:05.164534-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":70}"
+    },
+    {
+      "id": 367,
+      "change_id": "e0a4f5a8-8d15-432c-a7cd-0a350d5e600c",
+      "node_type": "option",
+      "title": "Temporal logic embedding (LTL over traces)",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T16:16:05.201790-04:00",
+      "updated_at": "2026-09-10T16:16:05.201790-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":25}"
+    },
+    {
+      "id": 368,
+      "change_id": "77642be1-a494-4471-b784-aa98f1067f18",
+      "node_type": "decision",
+      "title": "Plain infinite runs with weak fairness; pipeline: framework builder first, then supervisor and lock liveness builders branch from its branch; translator builder in parallel",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T16:16:05.284990-04:00",
+      "updated_at": "2026-09-10T16:16:05.284990-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":65}"
+    },
+    {
+      "id": 369,
+      "change_id": "5b021674-65bf-458a-900a-a7380953f1d0",
+      "node_type": "action",
+      "title": "Workflow round 4 root",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T16:16:05.370456-04:00",
+      "updated_at": "2026-09-10T16:16:05.370456-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":65}"
     }
   ],
   "edges": [
@@ -8603,6 +8658,72 @@
       "weight": 1.0,
       "rationale": "what round 3 showed",
       "created_at": "2026-09-10T16:11:58.351414-04:00"
+    },
+    {
+      "id": 430,
+      "from_node_id": 363,
+      "to_node_id": 365,
+      "from_change_id": "baf1e721-c961-4d0e-bc57-4cef27421e03",
+      "to_change_id": "bb3f4c5e-f1df-4e5f-a21e-c0d7aa3d679a",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "the one property class never attempted",
+      "created_at": "2026-09-10T16:16:05.124585-04:00"
+    },
+    {
+      "id": 431,
+      "from_node_id": 365,
+      "to_node_id": 366,
+      "from_change_id": "bb3f4c5e-f1df-4e5f-a21e-c0d7aa3d679a",
+      "to_change_id": "132a0db9-2e9c-4fc6-b187-4c54423e64cc",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T16:16:05.224363-04:00"
+    },
+    {
+      "id": 432,
+      "from_node_id": 365,
+      "to_node_id": 367,
+      "from_change_id": "bb3f4c5e-f1df-4e5f-a21e-c0d7aa3d679a",
+      "to_change_id": "e0a4f5a8-8d15-432c-a7cd-0a350d5e600c",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T16:16:05.247949-04:00"
+    },
+    {
+      "id": 433,
+      "from_node_id": 366,
+      "to_node_id": 368,
+      "from_change_id": "132a0db9-2e9c-4fc6-b187-4c54423e64cc",
+      "to_change_id": "77642be1-a494-4471-b784-aa98f1067f18",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "chosen: no Mathlib, minimal machinery, proofs are finite chains or rank induction",
+      "created_at": "2026-09-10T16:16:05.307547-04:00"
+    },
+    {
+      "id": 434,
+      "from_node_id": 367,
+      "to_node_id": 368,
+      "from_change_id": "e0a4f5a8-8d15-432c-a7cd-0a350d5e600c",
+      "to_change_id": "77642be1-a494-4471-b784-aa98f1067f18",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "rejected: machinery without payoff",
+      "created_at": "2026-09-10T16:16:05.331698-04:00"
+    },
+    {
+      "id": 435,
+      "from_node_id": 368,
+      "to_node_id": 369,
+      "from_change_id": "77642be1-a494-4471-b784-aa98f1067f18",
+      "to_change_id": "5b021674-65bf-458a-900a-a7380953f1d0",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "launched",
+      "created_at": "2026-09-10T16:16:05.392313-04:00"
     }
   ]
 }

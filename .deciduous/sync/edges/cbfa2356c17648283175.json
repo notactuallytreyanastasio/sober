@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T16:16:05.307547-04:00",
+  "edge_id": "cbfa2356c17648283175",
+  "edge_type": "leads_to",
+  "from_change_id": "132a0db9-2e9c-4fc6-b187-4c54423e64cc",
+  "rationale": "chosen: no Mathlib, minimal machinery, proofs are finite chains or rank induction",
+  "to_change_id": "77642be1-a494-4471-b784-aa98f1067f18",
+  "weight": 1.0
+}

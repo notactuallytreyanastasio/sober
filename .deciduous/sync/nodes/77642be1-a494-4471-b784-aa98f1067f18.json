@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "77642be1-a494-4471-b784-aa98f1067f18",
+  "created_at": "2026-09-10T16:16:05.284990-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 65
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Plain infinite runs with weak fairness; pipeline: framework builder first, then supervisor and lock liveness builders branch from its branch; translator builder in parallel",
+  "updated_at": "2026-09-10T16:16:05.284990-04:00"
+}

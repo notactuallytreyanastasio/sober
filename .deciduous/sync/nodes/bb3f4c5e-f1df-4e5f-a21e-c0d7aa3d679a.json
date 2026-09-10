@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "bb3f4c5e-f1df-4e5f-a21e-c0d7aa3d679a",
+  "created_at": "2026-09-10T16:16:05.097662-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 55,
+    "prompt": "lets keep going"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Round 4: liveness under weak fairness (framework, supervisor restart eventually, lock waiting client eventually holds), plus handle_continue/reply-with-timeout in the translator and Ttl on the generic explorer",
+  "updated_at": "2026-09-10T16:16:05.097662-04:00"
+}
