@@ -36,20 +36,31 @@
 #   `{pid, _ref} = spawn_monitor(Mod, :run, [a])` map to spawn/spawnLink/
 #   spawnMonitor with Mod's state constructor applied to a.
 #
-# Unhandled messages (effects mode only): a GenServer with no matching
-#   handle_cast/handle_call clause dies with FunctionClauseError, so for
-#   every cast or call tag of a module that has no clause whose Lean pattern
-#   is total (all message arguments and all state fields plain variables)
-#   a crash clause `| _, _, .<mod> s_0 .., .<tag> _ .. => (state, [.exit .error])`
-#   is emitted; a guarded cast/call clause whose guard fails with nothing to
+# Output shape: every file becomes one `def beh : EBehavior St Msg` over
+#   `Leanactors.Sys`, whose clauses are `| me, fresh, <state>, <msg> => (state,
+#   [effects])` (`me` and `fresh` are `_` when unused) and whose sends are
+#   `.send to msg` effects, plus a `def sig : Signals St Msg` record: `traps`
+#   is true exactly for the modules that call `Process.flag(:trap_exit, true)`,
+#   `exitMsg` is `.EXIT p r` when some module declares `{:EXIT, pid(), term()}`
+#   and otherwise a total placeholder (the first nullary Msg constructor, or
+#   the first constructor applied to default arguments) that is never used
+#   because nobody traps, and `downMsg` is present when some module declares
+#   `{:DOWN, ...}`. A source that only sends is thus a message-only
+#   `EBehavior`; the hand models keep a plain `Behavior` and prove
+#   `Gen.X.beh = lift beh` (see `lift` and `runE_lift` in Leanactors/Sys.lean).
+#
+# Unhandled messages: a GenServer with no matching handle_cast/handle_call
+#   clause dies with FunctionClauseError, so for every cast or call tag of a
+#   module that has no clause whose Lean pattern is total (all message
+#   arguments and all state fields plain variables) a crash clause
+#   `| _, _, .<mod> s_0 .., .<tag> _ .. => (state, [.exit .error])` is
+#   emitted; a guarded cast/call clause whose guard fails with nothing to
 #   fall through to crashes the same way. Unmatched handle_info messages are
 #   ignored, as on the BEAM. Assumption: each message tag of a module is
 #   handled by one kind of callback (cast, call or info); a tag seen in two
 #   kinds is an error. Clauses are emitted per module in source order except
 #   that handle_info clauses come after the handle_cast/handle_call clauses
 #   and the crash clauses, so an info catch-all does not shadow a crash.
-#   In message mode (plain `Behavior`, no exit effect) an uncovered cast or
-#   call tag only produces a warning on stderr and stays modelled as ignored.
 #
 # The @type declarations are the type oracle: they decide when a pattern
 # variable at an `Option` position needs `some`, when `nil` is `none`, and
@@ -59,7 +70,7 @@
 defmodule ToLean do
   defmodule Ctx do
     defstruct types: %{}, msg_ctors: [], st_ctors: [], pids: %{}, enums: %{}, ns: "Gen", warnings: [],
-              extra: [], awaits: %{}, reply_type: nil, effects: false, traps: %{}, pid_vars: [],
+              extra: [], awaits: %{}, reply_type: nil, traps: %{}, pid_vars: [],
               covered: [], inits: %{}, mods: [], kinds: %{}, loops: %{}, defers: []
   end
 
@@ -89,11 +100,10 @@ defmodule ToLean do
       for {name, _} <- loops,
           not Enum.any?(clauses, fn cl -> cl.mod == name and cl.guard == nil and bare?(cl.mpat) end),
           do: name
-    effects = map_size(traps) > 0 or map_size(loops) > 0 or Enum.any?(clauses, &effects_in?(&1.body))
-    ctx = %{ctx | traps: traps, effects: effects, inits: inits, mods: Enum.map(mods, &elem(&1, 0)),
+    ctx = %{ctx | traps: traps, inits: inits, mods: Enum.map(mods, &elem(&1, 0)),
                   loops: loops, defers: defers}
     ctx = %{ctx | kinds: classify(ctx, clauses)}
-    if effects and not List.keymember?(ctx.msg_ctors, :EXIT, 0) and map_size(traps) > 0,
+    if map_size(traps) > 0 and not List.keymember?(ctx.msg_ctors, :EXIT, 0),
       do: fail("a trapping module must declare {:EXIT, pid(), term()} in @type msg")
     {out, ctx} = render(ctx, clauses)
     IO.puts(out)
@@ -203,19 +213,6 @@ defmodule ToLean do
         end)
         state_expr(env, bound, cctor, cfields)
     end
-  end
-
-  defp effects_in?(body) do
-    {_, found} = Macro.prewalk(body, false, fn
-      {{:., _, [{:__aliases__, _, [:GenServer]}, f]}, _, _} = n, _ when f in [:start_link, :start] -> {n, true}
-      {{:., _, [{:__aliases__, _, [:Process]}, f]}, _, _} = n, _ when f in [:monitor, :send_after, :exit] -> {n, true}
-      {f, _, [_, _, _]} = n, _ when f in [:spawn, :spawn_link, :spawn_monitor] -> {n, true}
-      {:{}, _, [:noreply, _, _]} = n, _ -> {n, true}
-      {:exit, _, [_]} = n, _ -> {n, true}
-      {:{}, _, [:stop, _, _]} = n, _ -> {n, true}
-      n, acc -> {n, acc}
-    end)
-    found
   end
 
   defp top({:__block__, _, xs}), do: xs
@@ -452,26 +449,22 @@ defmodule ToLean do
 
     {beh_clauses, ctx} = render_clauses(ctx, clauses)
 
+    trap_arms =
+      Enum.map_join(ctx.st_ctors, "\n", fn {name, fields} ->
+        mod = Enum.find(ctx.pids |> Map.keys() |> Enum.concat(Enum.map(ctx.types, fn {{m, _}, _} -> Atom.to_string(m) end)) |> Enum.uniq(),
+                        fn m -> String.starts_with?(name, ctor_name(String.to_atom(m))) end)
+        traps = mod != nil and Map.get(ctx.traps, String.to_atom(mod), false)
+        wild = Enum.map_join(fields, "", fn _ -> " _" end)
+        "    | .#{name}#{wild} => #{traps}"
+      end)
+    down = if List.keymember?(ctx.msg_ctors, :DOWN, 0), do: "  downMsg := some fun p r => .DOWN p r\n", else: ""
+    exit_line =
+      if List.keymember?(ctx.msg_ctors, :EXIT, 0),
+        do: "  exitMsg := fun p r => .EXIT p r\n",
+        else: "  -- no module declares {:EXIT, ...}; nobody traps, so this codec is never used\n  exitMsg := #{placeholder_exit(ctx)}\n"
     sig =
-      if ctx.effects do
-        trap_arms =
-          Enum.map_join(ctx.st_ctors, "\n", fn {name, fields} ->
-            mod = Enum.find(ctx.pids |> Map.keys() |> Enum.concat(Enum.map(ctx.types, fn {{m, _}, _} -> Atom.to_string(m) end)) |> Enum.uniq(),
-                            fn m -> String.starts_with?(name, ctor_name(String.to_atom(m))) end)
-            traps = mod != nil and Map.get(ctx.traps, String.to_atom(mod), false)
-            wild = Enum.map_join(fields, "", fn _ -> " _" end)
-            "    | .#{name}#{wild} => #{traps}"
-          end)
-        down = if List.keymember?(ctx.msg_ctors, :DOWN, 0), do: "  downMsg := some fun p r => .DOWN p r\n", else: ""
-        exit_line =
-          if List.keymember?(ctx.msg_ctors, :EXIT, 0),
-            do: "  exitMsg := fun p r => .EXIT p r\n",
-            else: "  -- no module declares {:EXIT, ...}; nobody traps, so this codec is never used\n  exitMsg := fun _ _ => .go\n"
-        "/-- Who traps exits (from `Process.flag(:trap_exit, true)`), the EXIT message, the DOWN message. -/\n" <>
-          "def sig : Signals St Msg where\n  traps := fun\n#{trap_arms}\n" <> exit_line <> down <> "\n"
-      else
-        ""
-      end
+      "/-- Who traps exits (from `Process.flag(:trap_exit, true)`), the EXIT message, the DOWN message. -/\n" <>
+        "def sig : Signals St Msg where\n  traps := fun\n#{trap_arms}\n" <> exit_line <> down <> "\n"
 
     st =
       "inductive St\n" <>
@@ -485,16 +478,16 @@ defmodule ToLean do
         "\n"
       else
         "\n  -- Unmatched message: GenServer would crash (cast) or ignore (info). Modelled as ignore.\n" <>
-          if(ctx.effects, do: "  | _, _, s, _ => (s, [])\n", else: "  | _, s, _ => (s, [])\n")
+          "  | _, _, s, _ => (s, [])\n"
       end
     beh =
-      "def beh : #{if ctx.effects, do: "EBehavior", else: "Behavior"} St Msg\n" <>
+      "def beh : EBehavior St Msg\n" <>
         Enum.join(beh_clauses ++ ctx.extra, "\n") <> catch_all
 
 
     """
     -- GENERATED by elixir/to_lean.exs. Do not edit.
-    import Leanactors.#{if ctx.effects, do: "Sys", else: "Core"}
+    import Leanactors.Sys
 
     namespace #{ctx.ns}
 
@@ -508,6 +501,31 @@ defmodule ToLean do
     end #{ctx.ns}
     """
     |> then(&{&1, ctx})
+  end
+
+  # A total `exitMsg` for a file in which nobody traps (so the codec is never
+  # applied): the first nullary Msg constructor, else the first constructor
+  # applied to default arguments (`p`, `r`, 0, false, [], none, first enum alt).
+  defp placeholder_exit(ctx) do
+    {tag, ts} =
+      Enum.find(ctx.msg_ctors, fn {_, ts} -> ts == [] end) ||
+        List.first(ctx.msg_ctors) || fail("@type msg is empty")
+    args = Enum.map(ts, &default_of(ctx, &1))
+    binder = fn v -> if(v in args, do: v, else: "_") end
+    "fun #{binder.("p")} #{binder.("r")} => .#{tag}" <> Enum.map_join(args, "", &(" " <> paren_or(&1)))
+  end
+
+  defp default_of(_ctx, "Pid"), do: "p"
+  defp default_of(_ctx, "Reason"), do: "r"
+  defp default_of(_ctx, t) when t in ["Nat", "Int"], do: "0"
+  defp default_of(_ctx, "Bool"), do: "false"
+  defp default_of(_ctx, "List " <> _), do: "[]"
+  defp default_of(_ctx, "Option " <> _), do: "none"
+  defp default_of(ctx, t) do
+    case Enum.find(ctx.types, fn {{_, n}, _} -> n |> Atom.to_string() |> String.capitalize() == t end) do
+      {_, u} -> ".#{List.first(union(u))}"
+      nil -> fail("no default value of type #{t} for the exitMsg placeholder")
+    end
   end
 
   defp render_clauses(ctx, clauses) do
@@ -544,10 +562,7 @@ defmodule ToLean do
           else: c
       # a deferring fallback re-enqueues the whole message: name the pattern
       {me, mp} = if deferred, do: {"me", "#{msg_name(env)}@(#{mp})"}, else: {self_name(env), mp}
-      header =
-        if c.effects,
-          do: "  | #{me}, #{fresh_name(env)}, #{sp}, #{mp}",
-          else: "  | #{me}, #{sp}, #{mp}"
+      header = "  | #{me}, #{fresh_name(env)}, #{sp}, #{mp}"
       {{cl, lean_total?(cl, env), "#{header} => #{rhs}"}, c}
     end)
     {strs, ctx} = insert_crashes(ctx, rendered)
@@ -588,16 +603,7 @@ defmodule ToLean do
               tag not in covered,
               do: tag
         end
-      {crash, c} =
-        if c.effects do
-          {Enum.map(needed, &crash_clause(c, mod, &1)), c}
-        else
-          warnings =
-            for tag <- needed,
-                do: "#{c.kinds[{mod, tag}]} #{tag} in #{mod} is not handled in every state; " <>
-                    "an unmatched cast or call crashes on the BEAM, modelled as ignored (no exit effect in message mode)"
-          {[], %{c | warnings: c.warnings ++ warnings}}
-        end
+      crash = Enum.map(needed, &crash_clause(c, mod, &1))
       defer = if mod in c.defers, do: [defer_clause(c, mod)], else: []
       strs = fn xs -> Enum.map(xs, &elem(&1, 2)) end
       {strs.(ci) ++ crash ++ strs.(info) ++ defer, c}
@@ -657,7 +663,7 @@ defmodule ToLean do
   # the same module and callback kind whose patterns are at least as general.
   # That clause's variables are aliased to the current clause's Lean pattern
   # parts. In a raw process without a catch-all the message is deferred
-  # instead (third component true); a cast/call in effects mode crashes.
+  # instead (third component true); a cast/call crashes.
   defp fallthrough(ctx, clauses, i, env, sp) do
     cl = Enum.at(clauses, i)
     later = clauses |> Enum.with_index() |> Enum.filter(fn {c, j} -> j > i and c.mod == cl.mod and c.kind == cl.kind end)
@@ -668,7 +674,7 @@ defmodule ToLean do
           cl.mod in ctx.defers ->
             {"(#{sp}, [#{send_str(ctx, "me", msg_name(env))}])", ctx, true}
           # no cast/call clause matches: FunctionClauseError
-          ctx.effects and cl.kind != :handle_info ->
+          cl.kind != :handle_info ->
             {"(#{sp}, [.exit .error])", ctx, false}
           true ->
             ctx = %{ctx | warnings: ctx.warnings ++ ["clause #{i} guard has no fallthrough; Elixir would crash, modelled as no-op"]}
@@ -893,9 +899,9 @@ defmodule ToLean do
   defp blocking_call?(_), do: false
 
   # v = GenServer.call(Target, m); rest   ==>
-  #   this clause: sends-so-far ++ [(target, m me)], state := <mod>_await<i> captured
-  #   extra:       | _, .<mod>_await<i> captured, .reply v => rest
-  #                | me, .<mod>_await<i> captured, m => (.<mod>_await<i> captured, [(me, m)])
+  #   this clause: sends-so-far ++ [.send target (m me)], state := <mod>_await<i> captured
+  #   extra:       | _, _, .<mod>_await<i> captured, .reply v => rest
+  #                | me, _, .<mod>_await<i> captured, m => (.<mod>_await<i> captured, [.send me m])
   defp cps_split(ctx, mod, env, before, {:=, _, [lhs, {_, _, [{:__aliases__, _, [target]}, m | _timeout]}]}, rest) do
     ctx.reply_type || fail("GenServer.call used but no module declares @type reply")
     const = Map.get(ctx.pids, Atom.to_string(target)) || fail("no --pid mapping for #{target}")
@@ -926,8 +932,8 @@ defmodule ToLean do
     {cont, ctx} = body_stmts(ctx, mod, env2, rest)
     cont_self = if uses_self?(%{body: {:__block__, [], rest}}), do: "me", else: "_"
     extra = [
-      "  | #{cont_self}, #{if ctx.effects, do: "_, ", else: ""}.#{await}#{cap_str}, .reply #{lhs_pat} => #{cont}",
-      "  | me, #{if ctx.effects, do: "_, ", else: ""}.#{await}#{cap_str}, m => (.#{await}#{cap_str}, [#{send_str(ctx, "me", "m")}])"
+      "  | #{cont_self}, _, .#{await}#{cap_str}, .reply #{lhs_pat} => #{cont}",
+      "  | me, _, .#{await}#{cap_str}, m => (.#{await}#{cap_str}, [#{send_str(ctx, "me", "m")}])"
     ]
     {this, %{ctx | extra: ctx.extra ++ extra}}
   end
@@ -940,8 +946,8 @@ defmodule ToLean do
     Enum.uniq(vs)
   end
 
-  # a send, rendered as a pair (message mode) or an effect (effects mode)
-  defp send_str(ctx, to, m), do: if(ctx.effects, do: ".send #{paren_or(to)} #{paren_or(m)}", else: "(#{to}, #{m})")
+  # a send, rendered as an effect
+  defp send_str(_ctx, to, m), do: ".send #{paren_or(to)} #{paren_or(m)}"
 
   # Statements before the final tuple. Returns {strings, ctx, env}: spawns
   # bind their pid variable to `fresh`, `fresh + 1`, ...
@@ -954,10 +960,8 @@ defmodule ToLean do
             {send_str(c, const, msg_expr(c, e, m)), {c, e}}
           {:send, _, [to, m]} -> {send_str(c, expr(e, to, "Pid"), msg_expr(c, e, m)), {c, e}}
           {{:., _, [{:__aliases__, _, [:Process]}, :send_after]}, _, [to, m, _t]} ->
-            c.effects || fail("send_after outside effects mode")
             {".sendAfter #{paren_or(expr(e, to, "Pid"))} #{paren_or(msg_expr(c, e, m))}", {c, e}}
           {{:., _, [{:__aliases__, _, [:Process]}, :exit]}, _, [to, r]} ->
-            c.effects || fail("Process.exit outside effects mode")
             {".signal #{paren_or(expr(e, to, "Pid"))} #{reason_str(r)}", {c, e}}
           {{:., _, [{:__aliases__, _, [:GenServer]}, :cast]}, _, [{:__aliases__, _, [target]}, m]} ->
             const = Map.get(c.pids, Atom.to_string(target)) || fail("no --pid mapping for #{target}")
@@ -966,12 +970,10 @@ defmodule ToLean do
             c.reply_type || fail("GenServer.reply used but no @type reply")
             {send_str(c, expr(e, to, "Pid"), ".reply #{paren_or(expr(e, r, c.reply_type))}"), {c, e}}
           {:=, _, [{:ok, {v, _, nil}}, {{:., _, [{:__aliases__, _, [:GenServer]}, f]}, _, [{:__aliases__, _, [child]}, arg]}]} when is_atom(v) and f in [:start_link, :start] ->
-            c.effects || fail("spawn outside effects mode")
             {cctor, cfields} = List.keyfind(c.st_ctors, ctor_name(child), 0) || fail("unknown child module #{child}")
             init = child_state(c, e, child, arg, cctor, cfields)
             {if(f == :start_link, do: ".spawnLink (#{init})", else: ".spawn (#{init})"), {c, bind_fresh(e, v)}}
           {:=, _, [lhs, {f, _, [{:__aliases__, _, [child]}, fname, [arg]]}]} when f in [:spawn, :spawn_link, :spawn_monitor] ->
-            c.effects || fail("spawn outside effects mode")
             v =
               case {f, lhs} do
                 {:spawn_monitor, {{v, _, nil}, {ref, _, nil}}} when is_atom(v) and is_atom(ref) -> v
@@ -984,10 +986,8 @@ defmodule ToLean do
             eff = %{spawn: ".spawn", spawn_link: ".spawnLink", spawn_monitor: ".spawnMonitor"}[f]
             {"#{eff} (#{init})", {c, bind_fresh(e, v)}}
           {{:., _, [{:__aliases__, _, [:Process]}, :monitor]}, _, [target]} ->
-            c.effects || fail("monitor outside effects mode")
             {".monitor #{paren_or(expr(e, target, "Pid"))}", {c, e}}
           {:=, _, [{_ref, _, nil}, {{:., _, [{:__aliases__, _, [:Process]}, :monitor]}, _, [target]}]} ->
-            c.effects || fail("monitor outside effects mode")
             {".monitor #{paren_or(expr(e, target, "Pid"))}", {c, e}}
           other -> fail("unsupported statement #{Macro.to_string(other)}")
         end
@@ -1016,14 +1016,11 @@ defmodule ToLean do
           from = env[:__from__] || fail("{:reply, ...} outside handle_call")
           {state_expr(env, e, ctor, fields), [send_str(ctx, from, ".reply #{paren_or(expr(env, r, ctx.reply_type))}")]}
         {:{}, _, [:noreply, e, _t]} ->
-          ctx.effects || fail("{:noreply, s, timeout} outside effects mode")
           List.keymember?(ctx.msg_ctors, :timeout, 0) || fail("GenServer timeout used but :timeout not in @type msg")
           {state_expr(env, e, ctor, fields), [".sendAfter me .timeout"]}
         {:{}, _, [:stop, r, e]} ->
-          ctx.effects || fail("{:stop, ...} outside effects mode")
           {state_expr(env, e, ctor, fields), [".exit #{reason_str(r)}"]}
         {:exit, _, [r]} ->
-          ctx.effects || fail("exit/1 outside effects mode")
           st = env[{:alias, "__state__"}] || whole_state(env, ctor, fields)
           {st, [".exit #{reason_str(r)}"]}
         other -> fail("last statement must be {:noreply, state}, {:reply, r, state} or {:stop, r, state}, got #{Macro.to_string(other)}")
