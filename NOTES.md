@@ -6,12 +6,12 @@ and what was learned along the way. The README is the reference; this is
 the narrative. Node ids in parentheses refer to the decision graph exported
 in `docs/graph-data.json` (127 nodes when these notes were written; the
 workflow that merged the pieces described below added its own subtree
-under node 138, the second round (section 7) its own under node 219 and
-the third (section 8) under node 300; types
-goal/option/decision/action/outcome/observation), which was kept in
-real time as the work was done. Line counts and spans in sections 2-4
-were re-measured after round 2 and the file totals after round 3;
-sections 7 and 8 list what each round changed.
+under node 138, the second round (section 7) its own under node 219,
+the third (section 8) under node 300 and the fourth (section 9) under
+node 369; types goal/option/decision/action/outcome/observation), which
+was kept in real time as the work was done. Line counts and spans in
+sections 2-4 were re-measured after round 2 and the file totals after
+round 4; sections 7 to 9 list what each round changed.
 
 ## 1. The question and the thesis
 
@@ -166,9 +166,25 @@ that file: `omega` does not see through `abbrev Pid := Nat` on Lean
 v4.33.1, so pid arithmetic there uses `Nat.lt_of_lt_of_le` and
 `Nat.le_trans` explicitly (node 160).
 
+### Fair (`Leanactors/Fair.lean`, about 1,145 lines)
+
+Everything above is about `Reach`: what never happens. Round 4 added
+what must happen. A run is `st : Nat → _` with the choice taken at each
+time, `ch t : Option _`, where `none` is an idle step (the state repeats):
+`CRun beh env` over `Config` with an environment relation, `SysRun beh
+sig` over `Sys`. Weak fairness of a choice (`WeakFair c`: disabled
+infinitely often or taken infinitely often) and environment fairness
+(`EnvFair P e`: if `P` holds from some time on, an `e`-step eventually
+happens) are the assumptions; `Eventually`/`Always`/`LeadsTo` the
+vocabulary; `stable_until` and `rank_leads_to`, proved once over any
+`ρ : Nat → α`, the workhorses, with per-layer wrappers whose hypotheses
+need only hold on configurations reachable from `ρ.st 0`, so the safety
+invariants plug in unchanged. `LeadsTo.rank_induction` is well-founded
+leads-to over a `Nat` measure. Section 9 says why the idle step is there.
+
 ## 3. The translator
 
-`elixir/to_lean.exs` (about 1,445 lines, one module `ToLean`) reads a file
+`elixir/to_lean.exs` (about 1,680 lines, one module `ToLean`) reads a file
 of `GenServer` modules and emits one Lean file per source into
 `Leanactors/Gen/`. The invocation is fixed by `check.sh`, for example
 
@@ -181,7 +197,7 @@ constant pid `server` (0 in the generated file). Without any `--pid` flag
 the names are derived from the source (`name: __MODULE__`,
 `Process.register/2`; section 7), which is how `ttl.ex` is translated. The
 generated files are committed, and `check.sh` regenerates all six and
-fails if any differs; it then runs the 31 translator fixtures under
+fails if any differs; it then runs the 35 translator fixtures under
 `elixir/test/` (section 7).
 
 ### Conventions
@@ -220,6 +236,12 @@ fails if any differs; it then runs the 31 translator fixtures under
   whose every tag is covered or crashes gets neither a defer arm nor the
   catch-all (nodes 252, 284-287). See the README paragraphs on initial
   state, unhandled messages and raw processes.
+* `{:noreply, e, {:continue, x}}` and `{:reply, r, e, {:continue, x}}`
+  are inlined: the matching `handle_continue` body follows the clause's
+  sends and reply, with its patterns bound to `x` and `e` (round 4,
+  section 9). `{:reply, r, e, t}` arms the `:timeout` self-timer after
+  the reply, `{:stop, reason, r, e}` replies and exits, `:hibernate` is
+  no timeout.
 
 ### The type-directed decisions
 
@@ -414,7 +436,10 @@ popped message re-sent to self) is a frame case because it touches no
 counted message. The cost of keeping the core unchanged is in node 66: the
 re-enqueue spins under an unfair scheduler, which is harmless for safety
 proofs, blows up bounded exploration depth, and would need a fairness
-assumption for liveness.
+assumption for liveness. Round 4 supplied that assumption and the
+liveness proof: `LockLive.eventually_holds` (section 9), where the
+re-enqueue is exactly what makes the index of the awaited `reply ok`
+drop at every step of the blocked client.
 
 **The GenServer timeout reset.** Node 124, seen while writing
 `elixir/watchdog.exs`: "any message resets a GenServer timeout, including
@@ -425,7 +450,9 @@ arrived and the watchdog may kill a healthy worker. The property (a dead
 worker always has its restart in flight) does not care why the worker died,
 so the over-approximation costs nothing. Liveness of the watchdog (a hung
 worker is eventually replaced) would need the timer to actually fire, that
-is, a fairness assumption on timers plus a quiet mailbox.
+is, a fairness assumption on timers plus a quiet mailbox. `Fair.lean`
+(round 4) can state that assumption (`WeakFair (.timer i)`); the proof
+has not been attempted.
 
 **The crash-on-unhandled-cast gap.** Node 127 lists the remaining fidelity
 gaps as "semantic, not syntactic": crash-on-unhandled-cast, real time,
@@ -460,7 +487,15 @@ property proven over the model then also holds on the BEAM (for the
 modelled behaviours); liveness is where they hurt.
 
 * Any scheduler, including unfair ones. `Reach` and `SysReach` quantify
-  over all interleavings. Sound for safety; liveness would need fairness.
+  over all interleavings. Sound for safety; liveness needs fairness,
+  which round 4 added as a separate layer of runs (`Fair.lean`, section
+  9) without touching the safety theorems.
+* The `Sys` layer's reachability is closed: `SysReach` has no
+  environment step, so the supervisor, task, watchdog and TTL theorems
+  are about the system's own steps from `init`, and the environment
+  stimulus the checkers explore (`:crash`, `hang`, `put 0`) enters the
+  proofs only through the start system (`SysReachEnv`, round 4). The
+  lock's `ReachEnv`/`CRun` interleave environment ticks throughout.
 * Untimed timers (decision at node 119). Any pending timer may fire at any
   step, in any order, regardless of messages that arrived since it was
   armed. The BEAM under-fires when the mailbox is busy.
@@ -653,7 +688,7 @@ shapes (one more alternative, `reason` becomes `_`). What changed:
   env label changed from the hand-written `env hang` to the `repr`, but
   no recorded witness has an env step). Ttl and Lock keep local
   explorers: the current namespace beats the opened `Sys` one, so no
-  ambiguity (node 315).
+  ambiguity (node 315). (Ttl moved to `exploreWith` in round 4.)
 
 Counts after the round: 5,610 lines of hand-written Lean in 20 files
 under `Leanactors/`, 288 generated lines in six, 322 theorems, no
@@ -661,10 +696,136 @@ under `Leanactors/`, 288 generated lines in six, 322 theorems, no
 six translations, 31 fixtures (25 ok, 6 error), `lake build` and six
 drivers.
 
-## 9. What to try first
+## 9. Round 4
+
+Four builders on `wf4/*` branches, writing into the graph under node
+369: the fairness framework (goal 371) first, the two liveness proofs
+(goals 387, 388) branched from it, and the translator piece (goal 370)
+independent. The integrator (goal 408) merged translator, fair, sup-live
+and lock-live in that order with `--no-ff` (nodes 412-415). No merge had
+a textual conflict, the six regenerated `Gen/` files and the regenerated
+fixture expectations were byte-identical to the merge result, and
+`check.sh` was green on it. Two things were nevertheless wrong with the
+merged result, neither visible from inside any one piece; both were
+found while checking the theorem statements for this section and fixed
+on `main` (nodes 417-426):
+
+* **Runs could not idle.** `CRun` and `SysRun` took a labelled step at
+  every time, so a closed system in which nothing is enabled had no
+  infinite run at all. From `Supervisor.init` the only step is `run 0`
+  on `:start`, after which nothing is enabled: `restart_eventually`
+  quantified over an empty set of runs and was vacuously true (node
+  417). A run now takes a labelled step or an idle step (`ch t = none`,
+  the state repeats: `CStepI`/`SysStepI`), weak fairness compares
+  `ch t = some c`, and every wrapper kept its statement, so both liveness
+  files compiled unchanged. `CRun.idle`/`SysRun.idle` are the constant
+  runs, the witness that a run exists from every configuration. This is
+  the usual stuttering convention and should have been in the framework
+  from the start; the lesson for a framework builder is to prove, in the
+  file, that the objects the theorems quantify over exist.
+* **The supervisor's premise was unreachable.** A `SysRun` is closed,
+  and in a closed run from `init` nobody sends the worker `:crash`, so
+  "the current child is dead at `t`" never held along any run from
+  `init` (node 424). The theorem is now stated from any `Good` system
+  (`Inv` and `NoKillTo 0`, preserved by every step and by every
+  environment delivery, `Good.deliver` via `Inv.grows` and
+  `grows_deliver`), with `restart_eventually_env` for any system the
+  environment can drive the supervisor to (`SysReachEnv`, new in
+  `Fair.lean`: `SysReach` plus arbitrary deliveries),
+  `restart_eventually_init` as the vacuous `init` form, and
+  `dead_child_reachable` as the three-step witness (run 0, deliver
+  `:crash` to 1, run 1, by `rfl`). The same closedness has always been
+  true of the `Sys` safety theorems: `restart_in_flight` from `init`
+  never meets a dead child either; the checkers explore the environment,
+  the proofs do not (section 6). Environment steps inside `SysRun` are
+  the obvious next step and would let `restart_eventually` cover runs in
+  which the environment keeps sending; the stage lemmas already treat
+  every other actor's step as "only appends to the supervisor's
+  mailbox", which is what a delivery does.
+
+What the round added:
+
+* **Fairness framework** (goal 371, decision 374). A generic temporal
+  core over `ρ : Nat → α` (`Eventually`, `Always`, `LeadsTo` with
+  `trans`/`mono`/`or`/`rank_induction`; `WeakFairOn en tk` in the
+  disjunction form, with `WeakFairOn.iff` for the enabled-from-`t`-on
+  form; `stable_until`, `stable_until_leadsTo`, `rank_leads_to`) proved
+  once and instantiated for both layers (`CRun` with `CChoice`/`CStepL`/
+  `ReachE`/`CEnabled`/`WeakFair`/`EnvFair`, `SysRun` with `SysStepL`/
+  `SysEnabled`/`WeakFair`), rather than one copy per layer (option 373
+  rejected: the environment-fairness case would have been a third copy).
+  The wrappers guard their hypotheses by reachability from `ρ.st 0`, so
+  `Inv.step`/`Inv.env` and the `SysReach.inv` facts apply without
+  folding `Inv` into the predicate. `FairDemo` (a light that any message
+  switches on) is the sanity check: `off` leads to `on` under
+  `WeakFair (.run 0)` and an `EnvFair` delivering to pid 0.
+* **Supervisor liveness** (goal 388, decision 393). Two `rank_leads_to`
+  stages, on the position of the pending `(0, c, _)` signal in the FIFO
+  signal queue and on the position of `EXIT c _` in the supervisor's
+  mailbox, through `SysRun.rank_leads_to_of_step`, whose single
+  hypothesis is one labelled-step lemma returning `Q b ∨ (P b ∧ f b ≤ f
+  a ∧ (ch = c → f b < f a))`. The wrapper proves `LeadsTo (P ∧ ¬Q) Q`
+  internally because `rank_leads_to`'s hypotheses quantify over `P b`
+  even when `Q b` also holds (the `EXIT` delivered while a second
+  `(0, c, _)` signal is still queued), which would otherwise have needed
+  a proof that signals to `c` are unique (node 402). The generic
+  mailbox/signal append lemmas (`mboxOf_runE_append`,
+  `runE_signals_append`, `mboxOf_downE_append`, `mboxOf_timerE_append`)
+  and the two `findIdx` facts live in the file in namespaces
+  `Leanactors`/`Leanactors.Sys` and are candidates for `SysProps.lean`.
+  Stronger than asked: no `WeakFair .down`, and `NoKillTo 0` derived.
+* **Lock liveness** (goal 387, decision 397). A staged `LeadsTo` chain
+  with one measure family, `idxOf c q m` (the index of the first `m` in
+  `q`'s mailbox; `Has.append`/`Has.pop` are the two mailbox lemmas),
+  instead of one global measure (option 395 rejected: the stages need
+  different fair choices, server run, holder tick, holder run, `x` run).
+  The queued phase is `LeadsTo.rank_induction` on the FCFS rank, and per
+  rank a four-lemma chain moves the holder's token (grant in flight,
+  holding, ticked, release in flight) until the handover, where
+  `Step.rank_step` from `LockFcfs` says the rank drops by one or `x` is
+  granted. Fairness is exactly weak fairness of every actor's `run` plus
+  the holder-tick `EnvFair`; `Inv (ρ.st 0)` is the only fact used from
+  `initCfg n`. Nothing in `LockProof`, `LockFcfs` or `Fair` changed.
+* **Translator** (goal 370, decision 378). `handle_continue` is inlined
+  at the Elixir AST level (option 376, a self-message, rejected: on the
+  BEAM the continue runs before any queued message), reply-with-timeout
+  and stop-with-reply are new body tails, `:hibernate` is a no-op, and
+  `@type continue` is accepted and ignored. The exit-reason piece needed
+  no change (`reason_str` already rendered `:normal`/`:kill`; node 389),
+  only a fixture. `Ttl.lean` moved to `Sys.exploreWith` with per-pid
+  environment messages; the count went from 16,723 to 16,093 because the
+  local explorer had counted no-op deliveries to the dead cache (node
+  380, verified by restricting the old explorer to live pids). Fixtures
+  `continue.ex`, `error_continue_deep.ex`, `reply_timeout.ex`,
+  `stop_reply.ex`; `stop_kill.ex` gains a GenServer `exit(:kill)`.
+
+Lean notes from the round (nodes 382, 403, 407): `cases` naming on the
+labelled inductives `CStepL`/`SysStepL` is positional over *all*
+constructor fields (`| run _ p s m rest h`), whereas for `Step`/`SysStep`
+the first field is skipped; `obtain ⟨rfl, rfl⟩` on `q = 0 ∧ src = c`
+substitutes the theorem's `c` away (use `subst q; subst src`);
+`fun _ h => nomatch h, ?_` inside `⟨…⟩` parses the comma as a second
+`nomatch` discriminant; `Msg.EXIT` does not resolve through the `export`
+alias (`(.EXIT c r : Msg)` does); dot-notation with a leading explicit
+argument (`hh.srv hi`) must be parenthesised as an argument; a local
+config named `a` shadows the counter `a` (`unfold Lock.a`); lemmas meant
+for dot-notation on library types from inside `Examples.Lock` are
+declared `_root_.Leanactors.X.y`; `subst` with `p = server` replaces
+`p`. And one about the graph itself: with four agents writing
+concurrently, capture the id `deciduous add` prints rather than assuming
+`N+1` (two wrong edges were made and unlinked).
+
+Counts after the round: 8,411 lines of hand-written Lean in 23 files
+under `Leanactors/` (`Fair.lean` 1,145, `SupervisorLive.lean` 631,
+`LockLive.lean` 1,037), 288 generated lines in six, 487 theorems, no
+`sorry`, no `axiom`; the translator is about 1,680 lines; `check.sh`
+runs six translations, 35 fixtures (28 ok, 7 error), `lake build` and
+six drivers.
+
+## 10. What to try first
 
 1. `./check.sh` from the repo root (with `export PATH="$HOME/.elan/bin:$PATH"`).
-   It regenerates the six `Gen/` files and diffs them, runs the 31
+   It regenerates the six `Gen/` files and diffs them, runs the 35
    translator fixtures, runs `lake build` (which runs every `#eval
    explore`), greps for `sorry`, and runs the six drivers on the BEAM.
    First build takes a few minutes.
@@ -685,9 +846,12 @@ drivers.
    path for A and B and `none` for C at build time.
 5. Read `docs/graph-data.json` top to bottom, or `deciduous serve` if you
    have it. The observation nodes (16, 26, 29, 36, 47, 50, 57, 65, 66, 72,
-   81, 96, 97, 104, 115, 124, 127) are the honest record, including the
-   predictions that turned out wrong.
-6. To extend it: a seventh `elixir/src/*.ex` within the subset listed in
+   81, 96, 97, 104, 115, 124, 127, and 417 and 424 for round 4) are the
+   honest record, including the predictions that turned out wrong.
+6. Read `Leanactors/Fair.lean`'s header, then `FairDemo` at its end, then
+   `SupervisorLive.restart_eventually`: the liveness recipe is two
+   `rank_leads_to` stages, and the file is short enough to read whole.
+7. To extend it: a seventh `elixir/src/*.ex` within the subset listed in
    the header of `elixir/to_lean.exs`, two lines in `check.sh`, a hand
    model with `beh_eq_gen`, `checkInv` and `explore`, and only then the
    proof. A translator change starts with a fixture under
