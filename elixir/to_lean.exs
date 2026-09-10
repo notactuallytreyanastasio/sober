@@ -8,6 +8,9 @@
 #                  [T], T | nil, a union of atoms, a tuple, or a local type()
 #   @type call  :: (optional) union like msg; each becomes a Msg constructor
 #                  with a leading `from : Pid` (the caller)
+#   @type cast  :: (optional) union like msg, declaring the module's cast tags
+#   @type info  :: (optional) union like msg, declaring the module's info tags
+#                  (msg may be omitted when cast, info or call is declared)
 #   @type reply :: (optional) the reply type; becomes Msg constructor `reply`
 #   handle_cast/2, handle_info/2, handle_call/3 clauses, optional `when`
 #   guard, body = zero or more send/2 or GenServer.cast/2 calls followed by
@@ -80,9 +83,17 @@
 #   field; integer literals never do), and a module all of whose tags are
 #   covered or crash gets no defer clause and does not need the global
 #   catch-all, which Lean would reject as redundant. Unmatched handle_info messages are
-#   ignored, as on the BEAM. Assumption: each message tag of a module is
-#   handled by one kind of callback (cast, call or info); a tag seen in two
-#   kinds is an error. Clauses are emitted per module in source order except
+#   ignored, as on the BEAM. Message kinds: a tag declared under @type call
+#   is a call tag, under @type cast a cast tag and under @type info an info
+#   tag, whether or not any clause mentions it, so a cast or call tag with
+#   no clause at all gets a crash clause and an info tag with no clause is
+#   ignored; a tag under @type msg is a cast or an info tag, decided by the
+#   callback that handles it (a msg tag no clause mentions is not classified
+#   and gets no crash clause). A tag declared in two of msg/cast/info/call,
+#   a clause whose callback kind differs from the tag's declared kind (a
+#   handle_cast clause for an info tag), a msg tag handled by two kinds, and
+#   @type cast or call in a raw process are errors. Clauses are emitted per
+#   module in source order except
 #   that handle_info clauses come after the handle_cast/handle_call clauses
 #   and the crash clauses, so an info catch-all does not shadow a crash.
 #
@@ -131,6 +142,9 @@ defmodule ToLean do
           do: name
     ctx = %{ctx | traps: traps, inits: inits, mods: Enum.map(mods, &elem(&1, 0)),
                   loops: loops, defers: defers, afters: afters}
+    # a raw process has no handle_cast/handle_call: its messages are all info
+    for {name, _} <- loops, kt <- [:cast, :call], Map.has_key?(ctx.types, {name, kt}),
+        do: fail("#{name} is a raw process (receive loop) and cannot declare @type #{kt}")
     ctx = %{ctx | kinds: classify(ctx, clauses)}
     if map_size(traps) > 0 and not List.keymember?(ctx.msg_ctors, :EXIT, 0),
       do: fail("a trapping module must declare {:EXIT, pid(), term()} in @type msg")
@@ -150,20 +164,39 @@ defmodule ToLean do
     ci ++ info
   end
 
-  # Which callback handles each tag, keyed {module, tag}. Every @type call
-  # alternative is a call tag even if no handle_call clause mentions it.
-  # A tag handled by two kinds in one module would need two Lean clauses for
-  # one Msg constructor, so it is an error: tags are assumed kind-disjoint.
+  # the @type unions that declare message tags, with the callback kind each fixes
+  @kind_decls [msg: nil, cast: :handle_cast, info: :handle_info, call: :handle_call]
+
+  # Which callback handles each tag, keyed {module, tag}. The declarations
+  # come first: every @type call alternative is a call tag, @type cast a cast
+  # tag and @type info an info tag, whether or not a clause mentions it (a
+  # tag under two of msg/cast/info/call is an error). @type msg tags are
+  # cast-or-info, decided by the clauses. Then the clauses: a tag whose
+  # declared kind differs from the clause's callback is an error, and so is
+  # a msg tag handled by two kinds in one module, which would need two Lean
+  # clauses for one Msg constructor.
   defp classify(ctx, clauses) do
-    from_calls =
-      for mod <- ctx.mods, {:ok, t} <- [Map.fetch(ctx.types, {mod, :call})], alt <- union(t),
-          do: {{mod, tag_of(alt)}, :handle_call}
+    declared =
+      for mod <- ctx.mods, {name, kind} <- @kind_decls, {:ok, t} <- [Map.fetch(ctx.types, {mod, name})],
+          alt <- union(t), reduce: %{} do
+        acc ->
+          key = {mod, tag_of(alt)}
+          case Map.fetch(acc, key) do
+            {:ok, {other, _}} -> fail("message tag #{tag_of(alt)} in #{mod} is declared under both @type #{other} and @type #{name}")
+            :error -> Map.put(acc, key, {name, kind})
+          end
+      end
+    from_decls = for {key, {_, kind}} <- declared, kind != nil, into: %{}, do: {key, kind}
     from_clauses =
       for cl <- clauses, not bare?(cl.mpat), do: {{cl.mod, elem(msg_shape(cl.mpat), 0)}, cl.kind}
-    Enum.reduce(from_calls ++ from_clauses, %{}, fn {{mod, tag} = key, kind}, acc ->
+    Enum.reduce(from_clauses, from_decls, fn {{mod, tag} = key, kind}, acc ->
       case Map.fetch(acc, key) do
         {:ok, ^kind} -> acc
-        {:ok, other} -> fail("message tag #{tag} in #{mod} is handled by both #{other} and #{kind}")
+        {:ok, other} ->
+          case Map.get(declared, key) do
+            {name, ^other} -> fail("message tag #{tag} in #{mod} is declared under @type #{name} but handled by #{kind}")
+            _ -> fail("message tag #{tag} in #{mod} is handled by both #{other} and #{kind}")
+          end
         :error -> Map.put(acc, key, kind)
       end
     end)
@@ -294,9 +327,13 @@ defmodule ToLean do
       _, c -> c
     end)
     |> then(fn c ->
-      # msg union contributes constructors; state contributes one St constructor
-      msg = Map.fetch!(c.types, {mod, :msg})
-      c = Enum.reduce(union(msg), c, fn alt, cc -> add_msg_ctor(cc, mod, alt) end)
+      # the msg, cast and info unions contribute constructors (msg may be
+      # omitted when another of them, or call, is declared); state
+      # contributes one St constructor
+      alts = for name <- [:msg, :cast, :info], {:ok, t} <- [Map.fetch(c.types, {mod, name})], alt <- union(t), do: alt
+      if alts == [] and not Map.has_key?(c.types, {mod, :call}),
+        do: fail("#{mod} declares no messages: add @type msg (or @type cast, info, call)")
+      c = Enum.reduce(alts, c, fn alt, cc -> add_msg_ctor(cc, mod, alt) end)
       # a receive loop with `after` gets a model-only self-timer message
       c =
         case loop_of(body) do
@@ -395,8 +432,8 @@ defmodule ToLean do
   end
 
   defp enum_name(ctx, mod, alts) do
-    # find the @type whose union is exactly these atoms
-    case Enum.find(ctx.types, fn {{m, _}, t} -> m == mod and union(t) == alts end) do
+    # find the @type whose union is exactly these atoms (not a message union)
+    case Enum.find(ctx.types, fn {{m, n}, t} -> m == mod and n not in [:msg, :cast, :info, :call] and union(t) == alts end) do
       {{_, name}, _} -> name |> Atom.to_string() |> String.capitalize()
       nil -> fail("anonymous atom union #{inspect(alts)}; give it a @type name")
     end
@@ -547,7 +584,7 @@ defmodule ToLean do
       for {{mod, name}, t} <- ctx.types,
           alts = union(t),
           Enum.all?(alts, &is_atom/1) and not Enum.member?(alts, nil),
-          name not in [:msg, :call] do
+          name not in [:msg, :cast, :info, :call] do
         _ = mod
         ename = name |> Atom.to_string() |> String.capitalize()
         "inductive #{ename}\n" <> Enum.map_join(alts, "\n", &"  | #{&1}") <> "\n  deriving Repr, DecidableEq\n"
@@ -775,7 +812,8 @@ defmodule ToLean do
   defp plain?(part), do: part =~ ~r/^[A-Za-z_][A-Za-z0-9_']*$/ and part not in ["none", "true", "false"]
 
   # Per module: cast/call clauses, then one crash clause for each cast or
-  # call tag the module's clauses do not cover exhaustively, then info
+  # call tag (by clause or by @type cast/call) the module's clauses do not
+  # cover exhaustively, then info
   # clauses, then (raw process without a catch-all, unless its arms are
   # already exhaustive) the defer clause. A bare message variable in a
   # cast/call clause covers every tag. A receive loop has only info-kind
@@ -969,7 +1007,7 @@ defmodule ToLean do
           if String.starts_with?(name, "_"), do: {"_", %{}, []}, else: {name, %{name => "Msg"}, []}
         _ ->
           {tag, args} = msg_shape(cl.mpat)
-          {^tag, arg_types} = List.keyfind(ctx.msg_ctors, tag, 0) || fail("message tag #{inspect(tag)} not in @type msg")
+          {^tag, arg_types} = List.keyfind(ctx.msg_ctors, tag, 0) || fail("message tag #{inspect(tag)} not in @type msg, cast, info or call")
           {args, env0} =
             if cl.from do
               length(args) + 1 == length(arg_types) || fail("arity mismatch for call #{tag}")
