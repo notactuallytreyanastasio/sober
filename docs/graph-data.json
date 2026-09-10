@@ -3284,9 +3284,9 @@
       "node_type": "action",
       "title": "Workflow round 3 root",
       "description": null,
-      "status": "pending",
+      "status": "done",
       "created_at": "2026-09-10T15:35:54.597348-04:00",
-      "updated_at": "2026-09-10T15:35:54.597348-04:00",
+      "updated_at": "2026-09-10T16:11:58.378807-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":70}"
     },
     {
@@ -3970,6 +3970,28 @@
       "created_at": "2026-09-10T16:05:33.321853-04:00",
       "updated_at": "2026-09-10T16:05:33.321853-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":95}"
+    },
+    {
+      "id": 363,
+      "change_id": "baf1e721-c961-4d0e-bc57-4cef27421e03",
+      "node_type": "outcome",
+      "title": "Round 3 complete and verified: @type cast/info kinds with crash for unclassified casts (31 fixtures), exact receive-after via generation counters, TtlProof (cache_never_zero, no_zero_in_flight, stale_ignored), Reason.kill with NoKillTo side-invariants in the supervisor/watchdog proofs, generic Sys explorer; main at d8cd9dc, 322 theorems, chain green",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T16:11:58.233450-04:00",
+      "updated_at": "2026-09-10T16:11:58.233450-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":95}"
+    },
+    {
+      "id": 364,
+      "change_id": "723531b6-7624-48b6-b0b4-b85159b420d5",
+      "node_type": "observation",
+      "title": "Round 3 merged with zero textual conflicts; the one semantic conflict (TtlProof written against pre-kill SysProps) was fixed by the integrator. Kill changed the proof shape: a trapping actor can now die, so supervisor_alive needs a NoKillTo 0 side-invariant, which is the model saying 'nobody kills the supervisor' as an explicit assumption rather than a hidden one",
+      "description": "Remaining approximations recorded by builders: a process exiting itself with :kill reports error to links (BEAM: killed); a deferred/guard-failed message re-arms the after-timer where the BEAM keeps the old one running; timers untimed. Uncommitted owner WIP found on main: ./verify + elixir/verify.exs + README paragraph, a friendly front end for check.sh; left untouched, works on translate/fixtures stages.",
+      "status": "pending",
+      "created_at": "2026-09-10T16:11:58.323615-04:00",
+      "updated_at": "2026-09-10T16:11:58.323615-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":85}"
     }
   ],
   "edges": [
@@ -8559,6 +8581,28 @@
       "weight": 1.0,
       "rationale": "goal reached",
       "created_at": "2026-09-10T16:05:36.502569-04:00"
+    },
+    {
+      "id": 428,
+      "from_node_id": 300,
+      "to_node_id": 363,
+      "from_change_id": "28e1480c-8648-4934-a5d1-856b82f99176",
+      "to_change_id": "baf1e721-c961-4d0e-bc57-4cef27421e03",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "workflow finished",
+      "created_at": "2026-09-10T16:11:58.275283-04:00"
+    },
+    {
+      "id": 429,
+      "from_node_id": 363,
+      "to_node_id": 364,
+      "from_change_id": "baf1e721-c961-4d0e-bc57-4cef27421e03",
+      "to_change_id": "723531b6-7624-48b6-b0b4-b85159b420d5",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "what round 3 showed",
+      "created_at": "2026-09-10T16:11:58.351414-04:00"
     }
   ]
 }
