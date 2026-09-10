@@ -14,8 +14,10 @@ send(sup, :start)
 {child1, 0} = :sys.get_state(sup)
 true = Process.alive?(child1)
 
+# The worker is a raw process (no :sys.get_state); a job must leave it alive.
 send(child1, :job)
-1 = :sys.get_state(child1)
+Process.sleep(10)
+true = Process.alive?(child1)
 
 ref = Process.monitor(child1)
 send(child1, :crash)

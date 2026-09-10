@@ -134,16 +134,20 @@ theorem Inv.step {a b : Sys St Msg} (h : SysStep beh sig a b) (hi : Inv a) : Inv
             obtain rfl := Option.some.inj hrun
             exact Inv.frame hi (Nat.le_refl _) (hst _) (hal _) (fun _ h => h) (fun _ _ h => Or.inl h)
               (fun c _ r _ => hcnt _ _)
+          -- `start` and `EXIT` are not matched by the worker's `receive`: the
+          -- message is re-enqueued to `p`, which is not the supervisor
           | start =>
-            simp only [beh, applyEffects, List.foldl] at hrun
+            simp only [beh, applyEffects, List.foldl, applyEffect] at hrun
             obtain rfl := Option.some.inj hrun
-            exact Inv.frame hi (Nat.le_refl _) (hst _) (hal _) (fun _ h => h) (fun _ _ h => Or.inl h)
-              (fun c _ r _ => hcnt _ _)
+            exact Inv.frame hi (Nat.le_refl _) (by rw [stateOf_deliver]; exact hst _)
+              (fun c h => by rw [isSome_deliver]; exact hal _ c h) (fun _ h => h) (fun _ _ h => Or.inl h)
+              (fun c _ r _ => by rw [mcount_deliver]; exact Nat.le_trans (hcnt _ _) (Nat.le_add_right _ _))
           | EXIT who r =>
-            simp only [beh, applyEffects, List.foldl] at hrun
+            simp only [beh, applyEffects, List.foldl, applyEffect] at hrun
             obtain rfl := Option.some.inj hrun
-            exact Inv.frame hi (Nat.le_refl _) (hst _) (hal _) (fun _ h => h) (fun _ _ h => Or.inl h)
-              (fun c _ r _ => hcnt _ _)
+            exact Inv.frame hi (Nat.le_refl _) (by rw [stateOf_deliver]; exact hst _)
+              (fun c h => by rw [isSome_deliver]; exact hal _ c h) (fun _ h => h) (fun _ _ h => Or.inl h)
+              (fun c _ r _ => by rw [mcount_deliver]; exact Nat.le_trans (hcnt _ _) (Nat.le_add_right _ _))
         | sup child' k' =>
           -- if this is the real supervisor, its state is `child`, `k`
           have hp0 : p = 0 → child' = child ∧ k' = k := by
