@@ -36,13 +36,26 @@
 #   `{pid, _ref} = spawn_monitor(Mod, :run, [a])` map to spawn/spawnLink/
 #   spawnMonitor with Mod's state constructor applied to a.
 #   `receive do ... after t -> body end` (one after clause, t ignored): the
-#   module gets a model-only Msg constructor after_<loop>; every clause that
-#   re-enters the receive (a `loop(e)` tail, the defer clause, a failed
-#   guard) also arms `.sendAfter me .after_<loop>`, a spawn of the module
-#   arms it at the child, and the after body is a clause for that message
-#   with the loop parameter as its state (same tail rules). Timers are
-#   untimed, so a stale after-message may fire late, after other messages
-#   have been handled: an over-approximation, sound for safety.
+#   BEAM starts the timeout when the receive is entered and a processed
+#   message cancels it, so the model keeps a generation counter. The
+#   module's St constructor gets a hidden trailing field `(gen : Nat)`, the
+#   module gets a model-only Msg constructor `after_<loop> (a0 : Nat)`
+#   carrying a generation, and `gen` is the generation of the timer armed
+#   by the current receive: a spawn of the module starts the child at
+#   generation 0 and arms `.sendAfter child (.after_<loop> 0)`; every
+#   clause that re-enters the receive (a `loop(e)` tail, the defer clause,
+#   a failed guard, the after body itself) moves to `gen + 1` and arms
+#   `.sendAfter me (.after_<loop> (gen + 1))`; exit/raise/throw keep the
+#   state, gen included. The after body is the clause for
+#   `.after_<loop> gen'` with the loop parameter as its state, guarded by
+#   `if gen' = gen then <body> else (<state>, [])` (Lean has no non-linear
+#   patterns): a message of the current generation runs the after body, a
+#   stale one (an older generation, cancelled on the BEAM) is consumed and
+#   ignored, never deferred. Timers are still untimed (any pending timer
+#   may fire at any step), but a fired timer only acts if no message has
+#   been processed since it was armed, which is exactly the BEAM's rule.
+#   `gen` is reserved in such a module (a source variable of that name is
+#   an error) and a blocking call inside such a loop is not supported.
 #   A body whose last statement is `raise ...` or `throw ...` (any
 #   arguments) exits the process with reason error, keeping the current
 #   state, like `exit/1`; a raise or throw anywhere else is an error.
@@ -298,10 +311,12 @@ defmodule ToLean do
       msg = Map.fetch!(c.types, {mod, :msg})
       c = Enum.reduce(union(msg), c, fn alt, cc -> add_msg_ctor(cc, mod, alt) end)
       # a receive loop with `after` gets a model-only self-timer message
-      c =
+      # carrying a generation, and a hidden trailing `gen` field on its state
+      {after?, c} =
         case loop_of(body) do
-          {fname, _, _, ab} when ab != nil -> add_msg_ctor(c, mod, after_tag(fname))
-          _ -> c
+          {fname, _, _, ab} when ab != nil ->
+            {true, add_msg_ctor(c, mod, {after_tag(fname), {:non_neg_integer, [], []}})}
+          _ -> {false, c}
         end
       c =
         case Map.fetch(c.types, {mod, :call}) do
@@ -317,7 +332,7 @@ defmodule ToLean do
           :error -> c
         end
       st = Map.fetch!(c.types, {mod, :state})
-      fields = state_fields(c, mod, st)
+      fields = state_fields(c, mod, st) ++ if(after?, do: [{"gen", "Nat"}], else: [])
       %{c | st_ctors: c.st_ctors ++ [{ctor_name(mod), fields}]}
     end)
   end
@@ -439,11 +454,15 @@ defmodule ToLean do
             body = loop_tail(fname, atag, b)
             %{mod: mod, kind: :handle_info, mpat: mpat, spat: prune_param(param, body, guard), guard: guard, body: body, from: nil}
           end
-        # `after t -> body` is a clause for the self-timer message after_<loop>
+        # `after t -> body` is a clause for the self-timer message
+        # `after_<loop> gen'`, guarded by `gen' = gen` at render time (a
+        # stale generation is ignored); the parameter is kept whole because
+        # the ignore branch rebuilds the state from it
         after_cl =
           if after_body do
             body = loop_tail(fname, atag, after_body)
-            [%{mod: mod, kind: :handle_info, mpat: atag, spat: prune_param(param, body, nil), guard: nil, body: body, from: nil}]
+            [%{mod: mod, kind: :handle_info, mpat: {atag, {:"gen'", [], nil}}, spat: prune_param(param, body, :after),
+               guard: nil, body: body, from: nil, after: true}]
           else
             []
           end
@@ -516,12 +535,14 @@ defmodule ToLean do
     {:__block__, [], init ++ tail}
   end
 
-  # `Process.send_after(self(), :after_<loop>, _)`: entering the receive
-  # again arms the after-timer (untimed: it may fire late, after other
-  # messages have been handled, which over-approximates the BEAM)
+  # `Process.send_after(self(), {:after_<loop>, gen + 1}, _)`: entering the
+  # receive again arms the after-timer for the next generation (the state
+  # moves to `gen + 1` at the same time, see `plain_body`), which makes any
+  # earlier timer stale
   defp arm_after(nil), do: []
   defp arm_after(atag),
-    do: [{{:., [], [{:__aliases__, [], [:Process]}, :send_after]}, [], [{:self, [], []}, atag, 0]}]
+    do: [{{:., [], [{:__aliases__, [], [:Process]}, :send_after]}, [],
+          [{:self, [], []}, {atag, {:+, [], [{:gen, [], nil}, 1]}}, 0]}]
 
   defp value?(x) when is_atom(x) or is_integer(x) or is_list(x), do: true
   defp value?({v, _, nil}) when is_atom(v), do: true
@@ -672,11 +693,15 @@ defmodule ToLean do
       guard_str = Enum.map(guards, &guard_to_lean(env, &1)) ++ if(cl.guard, do: [guard_to_lean(env, cl.guard)], else: [])
       {body_str, c} = body(c, cl.mod, env, cl.body)
       {rhs, c, deferred} =
-        case guard_str do
-          [] -> {body_str, c, false}
-          gs ->
+        cond do
+          # the after body runs only for the current generation; a stale
+          # after-message was cancelled on the BEAM, so it is consumed and
+          # ignored (state unchanged, no re-entry), not deferred
+          cl[:after] -> {"if gen' = gen then #{body_str} else (#{sp}, [])", c, false}
+          guard_str == [] -> {body_str, c, false}
+          true ->
             {fallback, c, deferred} = fallthrough(c, clauses, i, env, sp)
-            {"if #{Enum.join(gs, " ∧ ")} then #{body_str} else #{fallback}", c, deferred}
+            {"if #{Enum.join(guard_str, " ∧ ")} then #{body_str} else #{fallback}", c, deferred}
         end
       c =
         if cl.guard == nil and bare?(cl.mpat) and bare?(cl.spat),
@@ -819,20 +844,43 @@ defmodule ToLean do
   end
 
   # `| me, _, .mod s_0 s_1 .., m => (.mod s_0 s_1 .., [.send me m])`
-  # (plus the after-timer if the loop has one: deferring re-enters the receive)
+  # (with an after-timer: `.mod s_0 .. gen` re-enters as `.mod s_0 .. (gen + 1)`
+  # and arms the new generation)
   defp defer_clause(ctx, mod) do
     {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(mod), 0)
-    parts = fields |> Enum.with_index() |> Enum.map(fn {_, i} -> "s_#{i}" end)
-    sp = if parts == [], do: ".#{ctor}", else: ".#{ctor} " <> Enum.join(parts, " ")
-    "  | me, _, #{sp}, m => (#{sp}, [#{Enum.join([send_str(ctx, "me", "m") | after_arm(ctx, mod, "me")], ", ")}])"
+    parts = visible_fields(ctx, mod, fields) |> Enum.with_index() |> Enum.map(fn {_, i} -> "s_#{i}" end)
+    gen = if Map.has_key?(ctx.afters, mod), do: ["gen"], else: []
+    sp = state_str(ctor, parts ++ gen)
+    sp2 = state_str(ctor, parts ++ Enum.map(gen, fn _ -> "(gen + 1)" end))
+    "  | me, _, #{sp}, m => (#{sp2}, [#{Enum.join([send_str(ctx, "me", "m") | after_arm(ctx, mod, "me", "(gen + 1)")], ", ")}])"
   end
 
-  # the effect that arms a loop's after-timer at pid `p`, if the module has one
-  defp after_arm(ctx, mod, p) do
+  # the effect that arms a loop's after-timer for generation `g` at pid `p`,
+  # if the module has one
+  defp after_arm(ctx, mod, p, g) do
     case Map.get(ctx.afters, mod) do
       nil -> []
-      tag -> [".sendAfter #{paren_or(p)} .#{tag}"]
+      tag -> [".sendAfter #{paren_or(p)} (.#{tag} #{g})"]
     end
+  end
+
+  # the state fields a source pattern or expression sees: the hidden `gen`
+  # of a loop with `after` is appended separately (`patterns`, `plain_body`,
+  # the spawn site)
+  defp visible_fields(ctx, mod, fields),
+    do: if(Map.has_key?(ctx.afters, mod), do: Enum.drop(fields, -1), else: fields)
+
+  # the generation a re-entered state and the child of a spawn carry
+  defp gen_suffix(ctx, mod), do: if(Map.has_key?(ctx.afters, mod), do: " (gen + 1)", else: "")
+  defp spawn_gen(ctx, mod), do: if(Map.has_key?(ctx.afters, mod), do: " 0", else: "")
+
+  defp state_str(ctor, []), do: ".#{ctor}"
+  defp state_str(ctor, parts), do: ".#{ctor} " <> Enum.join(parts, " ")
+
+  # the clause's state pattern re-entered: the visible parts unchanged, gen bumped
+  defp reenter_state(ctx, mod, env) do
+    {ctor, _} = List.keyfind(ctx.st_ctors, ctor_name(mod), 0)
+    state_str(ctor, env[:__vparts__]) <> gen_suffix(ctx, mod)
   end
 
   # the name for a whole message in a deferring clause (avoid the clause's own `m`)
@@ -876,10 +924,11 @@ defmodule ToLean do
     case Enum.find(later, fn {c, _} -> general?(c.mpat, cl.mpat) and general?(c.spat, cl.spat) end) do
       nil ->
         cond do
-          # a receive arm whose guard fails does not consume the message
+          # a receive arm whose guard fails does not consume the message;
+          # re-entering the receive bumps the after-timer generation
           cl.mod in ctx.defers ->
-            effs = [send_str(ctx, "me", msg_name(env)) | after_arm(ctx, cl.mod, "me")]
-            {"(#{sp}, [#{Enum.join(effs, ", ")}])", ctx, true}
+            effs = [send_str(ctx, "me", msg_name(env)) | after_arm(ctx, cl.mod, "me", "(gen + 1)")]
+            {"(#{reenter_state(ctx, cl.mod, env)}, [#{Enum.join(effs, ", ")}])", ctx, true}
           # no cast/call clause matches: FunctionClauseError
           cl.kind != :handle_info ->
             {"(#{sp}, [.exit .error])", ctx, false}
@@ -889,8 +938,8 @@ defmodule ToLean do
         end
       {c, _} ->
         env2 = aliases(c.mpat, cl.mpat, env, %{__msg_parts__: env[:__mparts__]})
-        {_, fields} = List.keyfind(ctx.st_ctors, ctor_name(cl.mod), 0)
-        env2 = whole_alias(c.spat, sp, fields, env2)
+        {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(cl.mod), 0)
+        env2 = whole_alias(c.spat, state_str(ctor, env[:__vparts__]), visible_fields(ctx, cl.mod, fields), env2)
         env2 = if uses_self?(c), do: Map.put(env2, :__self__, true), else: env2
         {b, ctx} = body(ctx, c.mod, env2, c.body)
         if c.guard, do: fail("chained guards are not supported (clause #{i})")
@@ -931,14 +980,14 @@ defmodule ToLean do
   # field, so an `Option` part such as `(some p')` is used as is) or to the
   # rebuilt constructor; a tuple of variables field by field
   defp whole_alias({v, _, nil}, sp, fields, env) when is_atom(v) do
-    case {env[:__sparts__], fields} do
+    case {env[:__vparts__], fields} do
       {[single], [{_, t}]} -> env |> Map.put({:alias, Atom.to_string(v)}, single) |> Map.put(lean_ident(Atom.to_string(v)), t)
       _ -> Map.put(env, {:alias, Atom.to_string(v)}, sp)
     end
   end
   defp whole_alias({a, b}, sp, fields, env), do: whole_alias({:{}, [], [a, b]}, sp, fields, env)
   defp whole_alias({:{}, _, xs}, _sp, fields, env) when length(xs) == length(fields) do
-    Enum.zip([xs, env[:__sparts__] || [], fields])
+    Enum.zip([xs, env[:__vparts__] || [], fields])
     |> Enum.reduce(env, fn
       {{v, _, nil}, part, {_, t}}, e when is_atom(v) ->
         name = Atom.to_string(v)
@@ -983,10 +1032,19 @@ defmodule ToLean do
           {if(parts == [], do: ".#{tag}", else: ".#{tag} " <> Enum.join(parts, " ")), Map.put(env, :__mparts__, parts), gs}
       end
     {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(cl.mod), 0)
-    sub = state_subpats(cl.spat, length(fields))
-    {sparts, env, gs} = pat_list(ctx, sub, Enum.map(fields, &elem(&1, 1)), env, gs)
-    sp = if(sparts == [], do: ".#{ctor}", else: ".#{ctor} " <> Enum.join(sparts, " "))
-    env = env |> Map.put(:__mp__, mp) |> Map.put(:__sparts__, sparts)
+    vfields = visible_fields(ctx, cl.mod, fields)
+    sub = state_subpats(cl.spat, length(vfields))
+    {vparts, env, gs} = pat_list(ctx, sub, Enum.map(vfields, &elem(&1, 1)), env, gs)
+    # a loop with `after`: the hidden generation field is the pattern variable `gen`
+    {sparts, env} =
+      if Map.has_key?(ctx.afters, cl.mod) do
+        if Map.has_key?(env, "gen"), do: fail("#{cl.mod}: `gen` is reserved for the after-timer generation")
+        {vparts ++ ["gen"], Map.put(env, "gen", "Nat")}
+      else
+        {vparts, env}
+      end
+    sp = state_str(ctor, sparts)
+    env = env |> Map.put(:__mp__, mp) |> Map.put(:__sparts__, sparts) |> Map.put(:__vparts__, vparts)
     {env, mp, sp, gs}
   end
 
@@ -1128,6 +1186,7 @@ defmodule ToLean do
   #                | me, _, .<mod>_await<i> captured, m => (.<mod>_await<i> captured, [.send me m])
   defp cps_split(ctx, mod, env, before, {:=, _, [lhs, {_, _, [{:__aliases__, _, [target]}, m | _timeout]}]}, rest) do
     ctx.reply_type || fail("GenServer.call used but no module declares @type reply")
+    Map.has_key?(ctx.afters, mod) && fail("#{mod}: a blocking call inside a receive loop with `after` is not supported")
     const = pid_const(ctx, target)
     i = Map.get(ctx.awaits, mod, 0)
     ctx = %{ctx | awaits: Map.put(ctx.awaits, mod, i + 1)}
@@ -1208,11 +1267,12 @@ defmodule ToLean do
               end
             Map.get(c.loops, child) == fname || fail("#{child}.#{fname} is not the receive loop of #{child}")
             {cctor, cfields} = List.keyfind(c.st_ctors, ctor_name(child), 0) || fail("unknown module #{child}")
-            init = state_expr(e, arg, cctor, cfields)
+            init = state_expr(e, arg, cctor, visible_fields(c, child, cfields)) <> spawn_gen(c, child)
             eff = %{spawn: ".spawn", spawn_link: ".spawnLink", spawn_monitor: ".spawnMonitor"}[f]
             e = bind_fresh(e, v)
-            # the child's first receive arms its after-timer, if it has one
-            arm = after_arm(c, child, e[{:alias, Atom.to_string(v)}])
+            # the child's first receive arms its after-timer, if it has one:
+            # the child starts at generation 0 and the timer carries 0
+            arm = after_arm(c, child, e[{:alias, Atom.to_string(v)}], "0")
             {Enum.join(["#{eff} (#{init})" | arm], ", "), {c, e}}
           {{:., _, [{:__aliases__, _, [:Process]}, :monitor]}, _, [target]} ->
             {".monitor #{paren_or(expr(e, target, "Pid"))}", {c, e}}
@@ -1240,17 +1300,20 @@ defmodule ToLean do
     {sends, [last]} = Enum.split(stmts, -1)
     {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(mod), 0)
     {send_strs, ctx, env} = sends(ctx, env, sends)
+    # a continuing state of a loop with `after` re-enters the receive at the
+    # next generation (an exit, raise or throw keeps the whole state instead)
+    next_state = fn e -> state_expr(env, e, ctor, visible_fields(ctx, mod, fields)) <> gen_suffix(ctx, mod) end
     {state, tail} =
       case last do
-        {:noreply, e} -> {state_expr(env, e, ctor, fields), []}
+        {:noreply, e} -> {next_state.(e), []}
         {:{}, _, [:reply, r, e]} ->
           from = env[:__from__] || fail("{:reply, ...} outside handle_call")
-          {state_expr(env, e, ctor, fields), [send_str(ctx, from, ".reply #{paren_or(expr(env, r, ctx.reply_type))}")]}
+          {next_state.(e), [send_str(ctx, from, ".reply #{paren_or(expr(env, r, ctx.reply_type))}")]}
         {:{}, _, [:noreply, e, _t]} ->
           List.keymember?(ctx.msg_ctors, :timeout, 0) || fail("GenServer timeout used but :timeout not in @type msg")
-          {state_expr(env, e, ctor, fields), [".sendAfter me .timeout"]}
+          {next_state.(e), [".sendAfter me .timeout"]}
         {:{}, _, [:stop, r, e]} ->
-          {state_expr(env, e, ctor, fields), [".exit #{reason_str(r)}"]}
+          {next_state.(e), [".exit #{reason_str(r)}"]}
         {:exit, _, [r]} ->
           st = env[{:alias, "__state__"}] || whole_state(env, ctor, fields)
           {st, [".exit #{reason_str(r)}"]}
