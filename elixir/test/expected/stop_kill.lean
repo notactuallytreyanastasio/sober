@@ -8,6 +8,7 @@ open Leanactors
 
 inductive Msg
   | quit
+  | bye
   | shut (a0 : Pid)
   | work
   | die
@@ -29,6 +30,7 @@ def sig : Signals St Msg where
 
 def beh : EBehavior St Msg
   | _, _, .boss n, .quit => (.boss n, [.exit .kill])
+  | _, _, .boss n, .bye => (.boss n, [.exit .kill])
   | _, _, .boss n, .shut p => (.boss n, [.signal p .error])
   | _, _, .grunt n, .work => (.grunt (n + 1), [])
   | _, _, .grunt n, .die => (.grunt n, [.exit .kill])
