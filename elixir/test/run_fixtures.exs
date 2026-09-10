@@ -17,6 +17,7 @@
 #                                    compile: it is copied to a scratch dir and
 #                                    `lake env lean FILE` is run from the repo
 #                                    root with no errors and no warnings
+#                                    (the runner builds Leanactors.Sys first)
 #
 # Each fixture is translated into namespace Leanactors.Fixtures.<CamelName>.
 # `--regen` rewrites every ok fixture's expected file from the translator's
@@ -42,6 +43,7 @@ defmodule Fixtures do
         _ -> Enum.filter(all, &(Path.basename(&1, ".ex") in names))
       end
     if picked == [], do: die("no fixtures found in #{@fixtures}")
+    if Enum.any?(picked, &(Map.get(directives(&1), "lean") == "check")), do: build_library()
 
     results = Enum.map(picked, &run_one(&1, scratch, regen?))
     failed = Enum.count(results, &(&1 == :fail))
@@ -153,6 +155,13 @@ defmodule Fixtures do
   defp camel(name), do: name |> String.split("_") |> Enum.map_join(&String.capitalize/1)
 
   defp indent(s), do: s |> String.trim_trailing() |> String.split("\n") |> Enum.map_join("\n", &("    " <> &1))
+
+  # the modules generated files import must be built before `lake env lean`
+  # can check a fixture (a no-op when check.sh or lake build already ran)
+  defp build_library do
+    {out, status} = System.cmd("lake", ["build", "Leanactors.Sys"], cd: @root, stderr_to_stdout: true)
+    if status != 0, do: die("lake build Leanactors.Sys failed\n#{indent(out)}")
+  end
 
   defp ensure_lake_on_path do
     if System.find_executable("lake") == nil do
