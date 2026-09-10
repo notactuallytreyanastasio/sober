@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b7e16fcf-8c63-459d-8e63-f6a748bf382d",
+  "created_at": "2026-09-10T14:07:14.476994-04:00",
+  "description": "Sequential chroniclers avoided database contention; parallel writers would need per-worktree records plus deciduous sync. The harness's own worktree isolation was unusable because the session predates git init; plain git worktrees created by the agents worked.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Deciduous worked as the inter-agent channel: chroniclers wrote each piece's options/decisions under the root, the integrator read them before resolving the translator conflict between crash (clause ordering) and receive (defer clause), and the verifier audited the tree. Quirk: read-only deciduous commands rewrite the sqlite file, which dirties git status",
+  "updated_at": "2026-09-10T14:07:14.476994-04:00"
+}
