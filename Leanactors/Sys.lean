@@ -11,10 +11,14 @@ Spawn, links and exits, as a layer over `Config`.
   FIFO of pending exit signals.
 * Exits propagate **asynchronously**, as on the BEAM: terminating `p` queues
   a signal `(q, p, reason)` for every linked `q`; a separate `signalE` step
-  delivers the oldest signal. A trapping target gets it as a message via
-  the codec `Signals.exitMsg`; a non-trapping target ignores `normal` and
-  is itself terminated by `error`, queueing more signals. No recursion, so
-  every step is a plain function.
+  delivers the oldest signal. A `kill` signal (`Process.exit(q, :kill)`)
+  terminates its target whether or not it traps, and the target's own
+  links and monitors then see `error` (`:killed`). Any other signal: a
+  trapping target gets it as a message via the codec `Signals.exitMsg`; a
+  non-trapping target ignores `normal` (so a remote `Process.exit(q,
+  :normal)` is a no-op, exactly as on the BEAM) and is itself terminated
+  by `error`, queueing more signals. No recursion, so every step is a
+  plain function.
 * Monitors are one-directional and never cascade: terminating `p` queues a
   DOWN notification for every watcher, delivered as a message via
   `Signals.downMsg` by the `downE` step (dropped if no codec is declared).
@@ -22,7 +26,10 @@ Spawn, links and exits, as a layer over `Config`.
   `timerE i` step fires the `i`-th pending timer, in any order. That
   over-approximates real durations, which is sound for safety.
 * `Effect.signal q r` is `Process.exit(q, r)`: it queues an exit signal to
-  `q` from self, handled exactly like a link-propagated exit.
+  `q` from self, handled exactly like a link-propagated exit (except that
+  `kill` is untrappable). `Effect.exit r` is a self-exit: the actor dies
+  with `r`, and its links and monitors see `r.propagated` (`kill` becomes
+  `error`, the BEAM's `:killed`).
 * `lift` embeds a message-only `Behavior`; `runE_lift` shows the old `step`
   is exactly the new one on systems with no links and no signals, so every
   earlier theorem still applies.
@@ -30,8 +37,23 @@ Spawn, links and exits, as a layer over `Config`.
 
 namespace Leanactors
 
-inductive Reason | normal | error
+/-- Exit reasons. `normal` and `error` are the BEAM's `:normal` and
+everything else; `kill` is the untrappable `:kill` of `Process.exit/2`. -/
+inductive Reason | normal | error | kill
   deriving Repr, DecidableEq
+
+/-- What links and monitors see when an actor dies with reason `r`: a
+death by `kill` is reported as `error` (the BEAM's `:killed`). -/
+def Reason.propagated : Reason → Reason
+  | .kill => .error
+  | r => r
+
+@[simp] theorem Reason.propagated_kill : Reason.kill.propagated = .error := rfl
+@[simp] theorem Reason.propagated_normal : Reason.normal.propagated = .normal := rfl
+@[simp] theorem Reason.propagated_error : Reason.error.propagated = .error := rfl
+
+theorem Reason.propagated_ne_kill (r : Reason) : r.propagated ≠ .kill := by
+  cases r <;> simp [Reason.propagated]
 
 inductive Effect (σ μ : Type)
   | send (to : Pid) (m : μ)
@@ -180,7 +202,8 @@ def applyEffect (p : Pid) : Sys σ μ × Option Reason → Effect σ μ → Sys 
 def applyEffects (p : Pid) (s : Sys σ μ) (effs : List (Effect σ μ)) : Sys σ μ × Option Reason :=
   effs.foldl (applyEffect p) (s, none)
 
-/-- Actor `p` handles the head of its mailbox. -/
+/-- Actor `p` handles the head of its mailbox. A self-exit with `reason`
+is reported to links and monitors as `reason.propagated`. -/
 def runE (beh : EBehavior σ μ) (s : Sys σ μ) (p : Pid) : Option (Sys σ μ) :=
   match s.cfg.get p with
   | some ⟨st, m :: rest⟩ =>
@@ -188,10 +211,12 @@ def runE (beh : EBehavior σ μ) (s : Sys σ μ) (p : Pid) : Option (Sys σ μ) 
     let r := applyEffects p { s with cfg := s.cfg.set p ⟨out.1, rest⟩ } out.2
     some (match r.2 with
       | none => r.1
-      | some reason => r.1.terminate p reason)
+      | some reason => r.1.terminate p reason.propagated)
   | _ => none
 
-/-- Deliver the oldest pending exit signal. -/
+/-- Deliver the oldest pending exit signal. `kill` is untrappable and the
+killed actor's links see `error`; otherwise a trapping target gets a
+message, a non-trapping one ignores `normal` and dies of `error`. -/
 def signalE (sig : Signals σ μ) (s : Sys σ μ) : Option (Sys σ μ) :=
   match s.signals with
   | [] => none
@@ -200,10 +225,12 @@ def signalE (sig : Signals σ μ) (s : Sys σ μ) : Option (Sys σ μ) :=
     some (match s.cfg.get q with
       | none => s'
       | some a =>
-        if sig.traps a.state then { s' with cfg := s'.cfg.deliver q (sig.exitMsg src r) }
-        else match r with
-          | .normal => s'
-          | .error => s'.terminate q r)
+        match r with
+        | .kill => s'.terminate q .error
+        | .normal => if sig.traps a.state then { s' with cfg := s'.cfg.deliver q (sig.exitMsg src r) } else s'
+        | .error =>
+          if sig.traps a.state then { s' with cfg := s'.cfg.deliver q (sig.exitMsg src r) }
+          else s'.terminate q .error)
 
 /-- Deliver the oldest pending DOWN notification (dropped without a codec
 or if the watcher is gone). -/

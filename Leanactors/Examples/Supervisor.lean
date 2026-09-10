@@ -86,8 +86,8 @@ def checkInv (s : Sys St Msg) : Bool :=
   | some (.sup none _) => true
   | some (.sup (some c) _) =>
     ((s.cfg.get c).isSome && s.links.contains (0, c)) ||
-    [Reason.normal, .error].any (fun r => s.signals.contains (0, c, r)) ||
-    [Reason.normal, .error].any (fun r => 0 < s.cfg.mcount 0 (.EXIT c r))
+    [Reason.normal, .error, .kill].any (fun r => s.signals.contains (0, c, r)) ||
+    [Reason.normal, .error, .kill].any (fun r => 0 < s.cfg.mcount 0 (.EXIT c r))
   | _ => false
 
 -- Every interleaving of actor runs, signal deliveries and environment

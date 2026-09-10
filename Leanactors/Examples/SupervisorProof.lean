@@ -18,8 +18,10 @@ actor other than the supervisor either survives its step (`Frame` plus
 `Grows`) or dies (`terminate_frame`), whatever it popped. Only the
 supervisor's own steps look at the message: a spawn or a no-op.
 
-The supervisor at pid 0 itself never dies: it never emits `exit`, and it
-traps, so signals reach it as messages.
+The supervisor at pid 0 itself never dies: it never emits `exit`, it
+traps, so `normal` and `error` signals reach it as messages, and nobody
+ever aims an untrappable `kill` at it (`Sys.NoKillTo 0`, kept beside `Inv`
+because no clause of `beh` emits `signal` at all: `beh_no_signal`).
 -/
 
 set_option linter.unusedSimpArgs false
@@ -183,7 +185,7 @@ theorem Inv.run_ne {a b : Sys St Msg} {p : Pid} (h : runE beh a p = some b) (hi 
     (beh p a.next st m).2
   rcases hs' with ⟨_, rfl⟩ | ⟨reason, _, rfl⟩
   · exact (hi.set_ne hp _).grows hg
-  · exact (hi.set_ne hp _).terminate_frame hp reason (hg.frame p) (fun c => hg.links (0, c))
+  · exact (hi.set_ne hp _).terminate_frame hp _ (hg.frame p) (fun c => hg.links (0, c))
 
 theorem Inv.run {a b : Sys St Msg} {p : Pid} (h : runE beh a p = some b) (hi : Inv a) : Inv b := by
   by_cases hp : p = 0
@@ -219,13 +221,15 @@ theorem Inv.run {a b : Sys St Msg} {p : Pid} (h : runE beh a p = some b) (hi : I
     · exact absurd (applyEffects_snd_some _ _ _ hr) (sup_no_exit _ _ _ _ _ _)
   · exact hi.run_ne h hp
 
-/-- A signal to the supervisor becomes an `EXIT` message (it traps); a
-signal to anyone else is a `Grows` or a termination. -/
-theorem Inv.signal {a b : Sys St Msg} (h : signalE sig a = some b) (hi : Inv a) : Inv b := by
+/-- A signal to the supervisor becomes an `EXIT` message (it traps, and it
+is never a `kill`); a signal to anyone else is a `Grows` or a termination. -/
+theorem Inv.signal {a b : Sys St Msg} (h : signalE sig a = some b) (hi : Inv a)
+    (hk : a.NoKillTo 0) : Inv b := by
   obtain ⟨q, src, r, rest, hsg, hc⟩ := signalE_cases h
   by_cases hq : q = 0
   · subst hq
-    rcases hc with ⟨hd, _⟩ | ⟨act, hget, _, rfl⟩ | ⟨act, hget, htr, _, _⟩ | ⟨act, hget, htr, _, _⟩
+    rcases hc with ⟨hd, _⟩ | ⟨act, hget, _, _, rfl⟩ | ⟨act, hget, htr, _, _⟩ | ⟨act, hget, htr, _, _⟩
+      | ⟨_, _, rfl, _⟩
     · obtain ⟨_, _, hsup⟩ := hi.sup_alive
       simp [stateOf, hd] at hsup
     · refine Inv.frame hi (Nat.le_refl _) (stateOf_deliver _ _ _ _)
@@ -237,12 +241,15 @@ theorem Inv.signal {a b : Sys St Msg} (h : signalE sig a = some b) (hi : Inv a) 
       · cases hs
         right; rw [mcount_deliver]; simp [sig, hget]
       · exact Or.inl hs
-    all_goals rw [sup_traps hi hget] at htr; cases htr
+    · rw [sup_traps hi hget] at htr; cases htr
+    · rw [sup_traps hi hget] at htr; cases htr
+    · exact absurd (by rw [hsg]; exact List.mem_cons_self) (hk src)
   · have hpop := hi.pop_signal hsg hq
-    rcases hc with ⟨_, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩
+    rcases hc with ⟨_, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩
     · exact hpop
     · exact hpop.grows (grows_deliver _ _ _)
     · exact hpop
+    · exact hpop.terminate_frame hq _ (Frame.refl _ _) (fun _ h => h)
     · exact hpop.terminate_frame hq _ (Frame.refl _ _) (fun _ h => h)
 
 /-- This program declares no DOWN codec, but the proof does not need to know. -/
@@ -253,12 +260,27 @@ theorem Inv.down {a b : Sys St Msg} (h : downE sig a = some b) (hi : Inv a) : In
 theorem Inv.timer {a b : Sys St Msg} {i : Nat} (h : timerE a i = some b) (hi : Inv a) : Inv b :=
   (hi.set_timers _).grows (timerE_grows h)
 
-theorem Inv.step {a b : Sys St Msg} (h : SysStep beh sig a b) (hi : Inv a) : Inv b := by
+theorem Inv.step {a b : Sys St Msg} (h : SysStep beh sig a b) (hi : Inv a) (hk : a.NoKillTo 0) :
+    Inv b := by
   cases h with
   | run p _ hrun => exact hi.run hrun
-  | signal _ hsig => exact hi.signal hsig
+  | signal _ hsig => exact hi.signal hsig hk
   | down _ hdown => exact hi.down hdown
   | timer i _ htimer => exact hi.timer htimer
+
+/-! ### Nobody is ever killed -/
+
+/-- No clause calls `Process.exit/2`. -/
+theorem beh_no_signal (me fresh : Pid) (st : St) (m : Msg) (q : Pid) (r : Reason) :
+    Effect.signal q r ∉ (beh me fresh st m).2 := by
+  cases st with
+  | sup c k => cases c <;> cases m <;> simp [beh] <;> split <;> simp
+  | worker n => cases m <;> simp [beh]
+
+/-- So no `kill` is ever aimed at the supervisor (or at anyone). -/
+theorem noKillTo_step {a b : Sys St Msg} (h : SysStep beh sig a b) (hk : a.NoKillTo 0) :
+    b.NoKillTo 0 :=
+  h.noKillTo hk (fun q st m _ _ => beh_no_signal q _ st m 0 .kill)
 
 /-! ### From the initial system -/
 
@@ -267,8 +289,11 @@ theorem init_inv : Inv init := by
   intro c k h
   simp [init, stateOf, Config.get] at h
 
+theorem init_noKillTo : init.NoKillTo 0 := NoKillTo.of_signals_nil rfl
+
 theorem reach_inv {s : Sys St Msg} (hr : SysReach beh sig init s) : Inv s :=
-  hr.inv (fun h hi => Inv.step h hi) init_inv
+  (hr.inv (I := fun s => Inv s ∧ s.NoKillTo 0)
+    (fun h ⟨hi, hk⟩ => ⟨Inv.step h hi hk, noKillTo_step h hk⟩) ⟨init_inv, init_noKillTo⟩).1
 
 /-- **The supervisor never dies.** -/
 theorem supervisor_alive {s : Sys St Msg} (hr : SysReach beh sig init s) :

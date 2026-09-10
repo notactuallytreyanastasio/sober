@@ -1,7 +1,9 @@
 # expect: ok
 # lean: check
-# Process.exit/2 is an exit signal; :normal stays :normal, any other reason
-# (including :kill, which is not modelled as untrappable) is error.
+# Process.exit/2 is an exit signal; :normal stays :normal (ignored by a
+# non-trapping target, an EXIT message to a trapping one), :kill is kill
+# (untrappable: the target dies whatever it traps and its links see error),
+# any other reason is error.
 defmodule Killer do
   use GenServer
 

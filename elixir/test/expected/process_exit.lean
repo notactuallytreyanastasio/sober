@@ -24,7 +24,7 @@ def sig : Signals St Msg where
   exitMsg := fun p _ => .kill p
 
 def beh : EBehavior St Msg
-  | _, _, .killer n, .kill p => (.killer (n + 1), [.signal p .error])
+  | _, _, .killer n, .kill p => (.killer (n + 1), [.signal p .kill])
   | _, _, .killer n, .halt p => (.killer n, [.signal p .normal])
 
 end Leanactors.Fixtures.ProcessExit
