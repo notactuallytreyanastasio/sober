@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "14c7f8ee-4e0c-440c-8d0a-63601be2f7a6",
+  "created_at": "2026-09-10T12:21:42.759939-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 65
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Task example from Elixir: caller GenServer.start + Process.monitor a worker; worker replies then stops or crashes; translator: GenServer.start, Process.monitor, {:DOWN, ref, :process, pid, reason} typing, downMsg codec",
+  "updated_at": "2026-09-10T12:21:42.759939-04:00"
+}

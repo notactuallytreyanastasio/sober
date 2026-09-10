@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "3f5a41f6-29af-448c-8617-208f32344e53",
+  "created_at": "2026-09-10T12:21:42.704026-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Sys monitors done: watchers/unmonitor, terminate queues DOWN, downE delivers via optional codec; SysChoice; supervisor proof gained a 12-line down case; all green",
+  "updated_at": "2026-09-10T12:21:42.704026-04:00"
+}

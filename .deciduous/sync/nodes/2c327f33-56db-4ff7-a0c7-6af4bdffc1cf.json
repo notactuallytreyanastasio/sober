@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "2c327f33-56db-4ff7-a0c7-6af4bdffc1cf",
+  "created_at": "2026-09-10T12:19:20.750928-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 65,
+    "prompt": "keep going"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Monitors: one-directional DOWN notifications, in Sys and the translator, with an async-task example proven",
+  "updated_at": "2026-09-10T12:19:20.750928-04:00"
+}

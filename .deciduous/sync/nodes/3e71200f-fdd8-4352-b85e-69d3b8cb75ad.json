@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "3e71200f-fdd8-4352-b85e-69d3b8cb75ad",
+  "created_at": "2026-09-10T12:27:01.505593-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "TaskProof done: frame/cleared/terminate_ne shapes; 22 cases; signal case closed by signals_nil; job_never_lost from init. Property-level mutant check: unmonitored crash loses the job at config 20. Chain passes with four drivers",
+  "updated_at": "2026-09-10T12:27:01.505593-04:00"
+}

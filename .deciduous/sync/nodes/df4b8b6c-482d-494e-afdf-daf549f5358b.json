@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "df4b8b6c-482d-494e-afdf-daf549f5358b",
+  "created_at": "2026-09-10T12:19:20.794869-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Monitors as a second list in Sys; terminate queues DOWN signals that are always delivered as messages via a downMsg codec; no cascade",
+  "updated_at": "2026-09-10T12:19:20.794869-04:00"
+}

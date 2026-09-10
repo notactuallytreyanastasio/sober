@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T12:19:20.769653-04:00",
+  "edge_id": "0fd1c7186fc00bada075",
+  "edge_type": "leads_to",
+  "from_change_id": "41989812-c7e6-404e-9d14-c67fe5aae5ca",
+  "rationale": "last common signal primitive; GenServer.call uses it to detect a dead server",
+  "to_change_id": "2c327f33-56db-4ff7-a0c7-6af4bdffc1cf",
+  "weight": 1.0
+}

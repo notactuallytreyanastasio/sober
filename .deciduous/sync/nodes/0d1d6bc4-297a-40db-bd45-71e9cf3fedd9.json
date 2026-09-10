@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "0d1d6bc4-297a-40db-bd45-71e9cf3fedd9",
+  "created_at": "2026-09-10T12:19:20.891684-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Separate monitor list and DOWN codec; the signal queue carries a kind tag (exit vs down)",
+  "updated_at": "2026-09-10T12:19:20.891684-04:00"
+}

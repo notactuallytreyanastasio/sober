@@ -10,9 +10,11 @@ for a pure subset of Elixir/BEAM programs. No Mathlib.
 | `Leanactors/Core.lean` | `Behavior`, `Config`, `Step` (relational), `step`/`run` (executable) |
 | `Leanactors/Props.lean` | Frame rule, domain preservation, mailbox-queue lemma, per-actor invariant induction, `run_sound` |
 | `Leanactors/Count.lean` | Message counting, `Step.chars` (a step as arithmetic over counts), config-level invariant induction, FIFO corollary |
-| `Leanactors/Sys.lean` | Spawn, links, exits: effects, fresh-pid counter, link list, asynchronous exit signals; `runE_lift` shows message-only behaviours are unchanged |
+| `Leanactors/Sys.lean` | Spawn, links, monitors, exits: effects, fresh-pid counter, link and monitor lists, asynchronous exit signals and DOWN notifications; `runE_lift` shows message-only behaviours are unchanged |
 | `Leanactors/Examples/Supervisor.lean` | One-for-one supervisor translated from `elixir/src/supervisor.ex`; bounded checker; the no-`trap_exit` mutant |
 | `Leanactors/Examples/SupervisorProof.lean` | The supervisor never dies and a missing child always has its restart in flight |
+| `Leanactors/Examples/Task.lean` | Async task translated from `elixir/src/task.ex`: caller spawns and monitors a worker; checker; the no-monitor mutant |
+| `Leanactors/Examples/TaskProof.lean` | A pending job is never lost: the reply or the DOWN is always on its way |
 | `Leanactors/Examples/Bank.lean` | Per-actor invariant: a bank's balance never goes negative under any scheduler |
 | `Leanactors/Examples/Lock.lean` | Cross-actor invariant: lock server + clients blocking in `GenServer.call`, token invariant, bounded model checker |
 | `Leanactors/Examples/LockProof.lean` | The invariant is inductive; `mutex_forever` and `progress_forever` under any scheduler and any environment ticks |
@@ -24,6 +26,7 @@ for a pure subset of Elixir/BEAM programs. No Mathlib.
 | `elixir/bank.exs` | Driver: casts plus two clients blocking in `GenServer.call`; checks the trace matches Lean |
 | `elixir/lock.exs` | Driver: clients block in `GenServer.call` under chaos ticks; event log checked for overlapping critical sections |
 | `elixir/supervisor.exs` | Driver: crashes the worker on the BEAM and checks the supervisor survived and restarted it |
+| `elixir/task.exs` | Driver: one job completes, one worker crashes; the caller clears both |
 
 ## Pipeline: Elixir source to Lean theorem
 
@@ -58,6 +61,14 @@ pid variable to `fresh`, maps any non-`:normal` reason to `error`, types
 `{:EXIT, pid(), term()}` as `EXIT (Pid) (Reason)`, and generates the
 `Signals` record from which modules trap. Files without effects keep
 producing a plain `Behavior`, byte for byte as before.
+
+**Monitors.** `{:ok, pid} = GenServer.start(Mod, arg)` becomes `spawn`,
+`Process.monitor(pid)` becomes `monitor`, and `{:DOWN, ref, :process, pid,
+reason}` is typed `DOWN (Pid) (Reason)` with the `ref` and `:process` atoms
+dropped. Termination queues one DOWN per watcher; a separate step delivers
+it as a message. The task example's invariant has four disjuncts (alive
+and monitored, DOWN queued, reply in mailbox, DOWN in mailbox) and the
+mutant that forgets `Process.monitor` loses the job at the crash.
 
 **Synchronous calls.** `handle_call/3` is supported on both sides. On the
 server, `@type call` alternatives become message constructors with a leading
@@ -154,6 +165,6 @@ termination lemma for the two places an actor dies.
 
 ## Not modelled yet
 
-Monitors, selective `receive` beyond the call-reply encoding, timeouts,
-multi-node delivery, monitors in the translator, and `GenServer.start_link`
-children whose `init` is not the identity.
+Selective `receive` beyond the call-reply encoding, timeouts, multi-node
+delivery, and `GenServer.start`/`start_link` children whose `init` is not
+the identity.

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "09805d02-a09a-4ea8-a7b7-f67d02a364be",
+  "created_at": "2026-09-10T12:27:01.557158-04:00",
+  "description": "Bank (per-actor), Lock (cross-actor + FCFS), Supervisor (links/exits), Task (monitors). Recurring pitfalls: apply with hypotheses about the source forces the target to unify with it; use bullets.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Four examples now translate from Elixir and each has an invariant proof with the same recipe: bounded check, then frame lemma + termination lemma + one example-specific shape. Per-example proof cost is now ~300 lines and mostly cases that are one 'apply'",
+  "updated_at": "2026-09-10T12:27:01.557158-04:00"
+}

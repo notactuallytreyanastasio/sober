@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5e1949ef-7ada-463d-b751-e4c825b08742",
+  "created_at": "2026-09-10T12:19:20.965657-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 75
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Extend Sys.lean: Effect.monitor/spawnMonitor, Sys.monitors, SigKind, downMsg; keep runE_lift",
+  "updated_at": "2026-09-10T12:19:20.965657-04:00"
+}

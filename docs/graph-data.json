@@ -1143,6 +1143,127 @@
       "created_at": "2026-09-10T12:18:39.781667-04:00",
       "updated_at": "2026-09-10T12:18:39.781667-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":85}"
+    },
+    {
+      "id": 105,
+      "change_id": "2c327f33-56db-4ff7-a0c7-6af4bdffc1cf",
+      "node_type": "goal",
+      "title": "Monitors: one-directional DOWN notifications, in Sys and the translator, with an async-task example proven",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T12:19:20.750928-04:00",
+      "updated_at": "2026-09-10T12:19:20.750928-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":65,\"prompt\":\"keep going\"}"
+    },
+    {
+      "id": 106,
+      "change_id": "df4b8b6c-482d-494e-afdf-daf549f5358b",
+      "node_type": "option",
+      "title": "Monitors as a second list in Sys; terminate queues DOWN signals that are always delivered as messages via a downMsg codec; no cascade",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T12:19:20.794869-04:00",
+      "updated_at": "2026-09-10T12:19:20.794869-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":80}"
+    },
+    {
+      "id": 107,
+      "change_id": "8655b6e4-2d35-49e4-9bcf-299ab90ae72c",
+      "node_type": "option",
+      "title": "Encode monitors as links plus trap_exit on the monitoring side",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T12:19:20.819568-04:00",
+      "updated_at": "2026-09-10T12:19:20.819568-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":30}"
+    },
+    {
+      "id": 108,
+      "change_id": "0d1d6bc4-297a-40db-bd45-71e9cf3fedd9",
+      "node_type": "decision",
+      "title": "Separate monitor list and DOWN codec; the signal queue carries a kind tag (exit vs down)",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T12:19:20.891684-04:00",
+      "updated_at": "2026-09-10T12:19:20.891684-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":80}"
+    },
+    {
+      "id": 109,
+      "change_id": "5e1949ef-7ada-463d-b751-e4c825b08742",
+      "node_type": "action",
+      "title": "Extend Sys.lean: Effect.monitor/spawnMonitor, Sys.monitors, SigKind, downMsg; keep runE_lift",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T12:19:20.965657-04:00",
+      "updated_at": "2026-09-10T12:19:20.965657-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":75}"
+    },
+    {
+      "id": 110,
+      "change_id": "3f5a41f6-29af-448c-8617-208f32344e53",
+      "node_type": "outcome",
+      "title": "Sys monitors done: watchers/unmonitor, terminate queues DOWN, downE delivers via optional codec; SysChoice; supervisor proof gained a 12-line down case; all green",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T12:21:42.704026-04:00",
+      "updated_at": "2026-09-10T12:21:42.704026-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":95}"
+    },
+    {
+      "id": 111,
+      "change_id": "14c7f8ee-4e0c-440c-8d0a-63601be2f7a6",
+      "node_type": "action",
+      "title": "Task example from Elixir: caller GenServer.start + Process.monitor a worker; worker replies then stops or crashes; translator: GenServer.start, Process.monitor, {:DOWN, ref, :process, pid, reason} typing, downMsg codec",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T12:21:42.759939-04:00",
+      "updated_at": "2026-09-10T12:21:42.759939-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":65}"
+    },
+    {
+      "id": 112,
+      "change_id": "67b47284-adc7-4c78-80c5-e83cb517ce91",
+      "node_type": "outcome",
+      "title": "Task translated exactly as designed (spawn + monitor as two effects, DOWN typed (Pid, Reason), downMsg codec generated). Model check 243526 configs clean; no-monitor mutant caught; BEAM driver: completed job counted, crashed job cleared, caller alive",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T12:24:39.343670-04:00",
+      "updated_at": "2026-09-10T12:24:39.343670-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":90}"
+    },
+    {
+      "id": 113,
+      "change_id": "d67dea5f-58a9-4a2d-9957-352abe984286",
+      "node_type": "action",
+      "title": "TaskProof: Inv.frame + Inv.terminate_ne again, plus a none_case shape for the caller clearing its pending job; signal case closed by signals_nil",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T12:24:39.397448-04:00",
+      "updated_at": "2026-09-10T12:24:39.397448-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":65}"
+    },
+    {
+      "id": 114,
+      "change_id": "3e71200f-fdd8-4352-b85e-69d3b8cb75ad",
+      "node_type": "outcome",
+      "title": "TaskProof done: frame/cleared/terminate_ne shapes; 22 cases; signal case closed by signals_nil; job_never_lost from init. Property-level mutant check: unmonitored crash loses the job at config 20. Chain passes with four drivers",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T12:27:01.505593-04:00",
+      "updated_at": "2026-09-10T12:27:01.505593-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":95}"
+    },
+    {
+      "id": 115,
+      "change_id": "09805d02-a09a-4ea8-a7b7-f67d02a364be",
+      "node_type": "observation",
+      "title": "Four examples now translate from Elixir and each has an invariant proof with the same recipe: bounded check, then frame lemma + termination lemma + one example-specific shape. Per-example proof cost is now ~300 lines and mostly cases that are one 'apply'",
+      "description": "Bank (per-actor), Lock (cross-actor + FCFS), Supervisor (links/exits), Task (monitors). Recurring pitfalls: apply with hypotheses about the source forces the target to unify with it; use bullets.",
+      "status": "pending",
+      "created_at": "2026-09-10T12:27:01.557158-04:00",
+      "updated_at": "2026-09-10T12:27:01.557158-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":85}"
     }
   ],
   "edges": [
@@ -2465,6 +2586,138 @@
       "weight": 1.0,
       "rationale": "state of the bridge",
       "created_at": "2026-09-10T12:18:39.804688-04:00"
+    },
+    {
+      "id": 121,
+      "from_node_id": 104,
+      "to_node_id": 105,
+      "from_change_id": "41989812-c7e6-404e-9d14-c67fe5aae5ca",
+      "to_change_id": "2c327f33-56db-4ff7-a0c7-6af4bdffc1cf",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "last common signal primitive; GenServer.call uses it to detect a dead server",
+      "created_at": "2026-09-10T12:19:20.769653-04:00"
+    },
+    {
+      "id": 122,
+      "from_node_id": 105,
+      "to_node_id": 106,
+      "from_change_id": "2c327f33-56db-4ff7-a0c7-6af4bdffc1cf",
+      "to_change_id": "df4b8b6c-482d-494e-afdf-daf549f5358b",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T12:19:20.838203-04:00"
+    },
+    {
+      "id": 123,
+      "from_node_id": 105,
+      "to_node_id": 107,
+      "from_change_id": "2c327f33-56db-4ff7-a0c7-6af4bdffc1cf",
+      "to_change_id": "8655b6e4-2d35-49e4-9bcf-299ab90ae72c",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T12:19:20.857885-04:00"
+    },
+    {
+      "id": 124,
+      "from_node_id": 106,
+      "to_node_id": 108,
+      "from_change_id": "df4b8b6c-482d-494e-afdf-daf549f5358b",
+      "to_change_id": "0d1d6bc4-297a-40db-bd45-71e9cf3fedd9",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "chosen: links are symmetric and cascade, monitors are neither",
+      "created_at": "2026-09-10T12:19:20.911501-04:00"
+    },
+    {
+      "id": 125,
+      "from_node_id": 107,
+      "to_node_id": 108,
+      "from_change_id": "8655b6e4-2d35-49e4-9bcf-299ab90ae72c",
+      "to_change_id": "0d1d6bc4-297a-40db-bd45-71e9cf3fedd9",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "rejected: wrong semantics for the monitored side",
+      "created_at": "2026-09-10T12:19:20.934331-04:00"
+    },
+    {
+      "id": 126,
+      "from_node_id": 108,
+      "to_node_id": 109,
+      "from_change_id": "0d1d6bc4-297a-40db-bd45-71e9cf3fedd9",
+      "to_change_id": "5e1949ef-7ada-463d-b751-e4c825b08742",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "step 1",
+      "created_at": "2026-09-10T12:19:20.985030-04:00"
+    },
+    {
+      "id": 127,
+      "from_node_id": 109,
+      "to_node_id": 110,
+      "from_change_id": "5e1949ef-7ada-463d-b751-e4c825b08742",
+      "to_change_id": "3f5a41f6-29af-448c-8617-208f32344e53",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "succeeded",
+      "created_at": "2026-09-10T12:21:42.723846-04:00"
+    },
+    {
+      "id": 128,
+      "from_node_id": 110,
+      "to_node_id": 111,
+      "from_change_id": "3f5a41f6-29af-448c-8617-208f32344e53",
+      "to_change_id": "14c7f8ee-4e0c-440c-8d0a-63601be2f7a6",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "step 2",
+      "created_at": "2026-09-10T12:21:42.778800-04:00"
+    },
+    {
+      "id": 129,
+      "from_node_id": 111,
+      "to_node_id": 112,
+      "from_change_id": "14c7f8ee-4e0c-440c-8d0a-63601be2f7a6",
+      "to_change_id": "67b47284-adc7-4c78-80c5-e83cb517ce91",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "model and runtime agree",
+      "created_at": "2026-09-10T12:24:39.366999-04:00"
+    },
+    {
+      "id": 130,
+      "from_node_id": 112,
+      "to_node_id": 113,
+      "from_change_id": "67b47284-adc7-4c78-80c5-e83cb517ce91",
+      "to_change_id": "d67dea5f-58a9-4a2d-9957-352abe984286",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "the proof",
+      "created_at": "2026-09-10T12:24:39.417266-04:00"
+    },
+    {
+      "id": 131,
+      "from_node_id": 113,
+      "to_node_id": 114,
+      "from_change_id": "d67dea5f-58a9-4a2d-9957-352abe984286",
+      "to_change_id": "3e71200f-fdd8-4352-b85e-69d3b8cb75ad",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "succeeded",
+      "created_at": "2026-09-10T12:27:01.527699-04:00"
+    },
+    {
+      "id": 132,
+      "from_node_id": 114,
+      "to_node_id": 115,
+      "from_change_id": "3e71200f-fdd8-4352-b85e-69d3b8cb75ad",
+      "to_change_id": "09805d02-a09a-4ea8-a7b7-f67d02a364be",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "where the method stands",
+      "created_at": "2026-09-10T12:27:01.576376-04:00"
     }
   ]
 }
