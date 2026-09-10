@@ -26,18 +26,21 @@ namespace Leanactors.Examples.Bank
 
 open Leanactors
 
--- `Msg` and `St` come from the translation of `elixir/src/bank.ex`.
-export Leanactors.Gen.Bank (Msg St)
+-- `Msg`, `St` and `bank` come from the translation of `elixir/src/bank.ex`.
+-- `St.client_await0` is the generated continuation state for the client's
+-- blocking `GenServer.call`.
+export Leanactors.Gen.Bank (Msg St bank)
 
-/-- The behaviour. Note the bank stores an `Int`, not a `Nat`: the
-non-negativity is a *proven invariant*, not baked into the type. This
-mirrors Elixir where the runtime value is just an integer. -/
+/-- The behaviour, hand-written. Note the bank stores an `Int`, not a `Nat`:
+non-negativity is a *proven invariant*, not baked into the type. -/
 def beh : Behavior St Msg
-  | _, .bank b,   .deposit n     => (.bank (b + n), [])
-  | _, .bank b,   .withdraw n    => if (n : Int) ≤ b then (.bank (b - n), []) else (.bank b, [])
-  | _, .bank b,   .balance to    => (.bank b, [(to, .reply b)])
-  | _, .client _, .reply v       => (.client (some v), [])
-  | _, s,         _              => (s, [])
+  | _,  .bank b, .deposit n      => (.bank (b + n), [])
+  | _,  .bank b, .withdraw n     => if (n : Int) ≤ b then (.bank (b - n), []) else (.bank b, [])
+  | _,  .bank b, .balance to     => (.bank b, [(to, .reply b)])
+  | me, .client _, .tick         => (.client_await0, [(bank, .balance me)])
+  | _,  .client_await0, .reply v => (.client (some v), [])
+  | me, .client_await0, m        => (.client_await0, [(me, m)])
+  | _,  s, _                     => (s, [])
 
 /-- The translated Elixir is extensionally the same behaviour. -/
 theorem beh_eq_gen : Gen.Bank.beh = beh := by
@@ -48,6 +51,7 @@ theorem beh_eq_gen : Gen.Bank.beh = beh := by
 def Ok : St → Prop
   | .bank b => 0 ≤ b
   | .client _ => True
+  | .client_await0 => True
 
 /-- Each handler clause preserves `Ok`. This is the only proof that touches
 the business logic. -/
@@ -55,6 +59,7 @@ theorem beh_preserves : Preserves beh Ok := by
   intro _ s m hs
   cases s with
   | client seen => cases m <;> simp [beh, Ok]
+  | client_await0 => cases m <;> simp [beh, Ok]
   | bank b =>
     simp [Ok] at hs
     cases m with
@@ -64,10 +69,11 @@ theorem beh_preserves : Preserves beh Ok := by
       split <;> simp [Ok] <;> omega
     | balance to => simpa [beh, Ok] using hs
     | reply v => simpa [beh, Ok] using hs
+    | tick => simpa [beh, Ok] using hs
 
-/-- Initial configuration: pid 0 is the bank with 10, pids 1 and 2 are clients. -/
+/-- Initial configuration: the bank with 10, clients at pids 1 and 2. -/
 def init : Config St Msg :=
-  Config.ofList [(0, .bank 10), (1, .client none), (2, .client none)]
+  Config.ofList [(bank, .bank 10), (1, .client none), (2, .client none)]
 
 theorem init_ok : AllStates Ok init :=
   Config.ofList_allStates _ (by simp [Ok])
@@ -81,37 +87,41 @@ theorem balance_never_negative {c₀ c : Config St Msg}
   intro p b mb h
   exact hr.preserves beh_preserves h₀ p _ h
 
-/-- Corollary for our concrete initial state plus *any* external stimulus. -/
-theorem init_balance_never_negative (stim : List (Pid × Msg)) {c : Config St Msg}
-    (hr : Reach beh (init.deliverAll stim) c) :
-    ∀ p b mb, c.get p = some ⟨.bank b, mb⟩ → 0 ≤ b :=
-  balance_never_negative (Config.deliverAll_allStates stim init_ok) hr
-
 /-! ## Executable trace
 
-`run_sound` says every `run` result is `Reach`-able, so the theorem above
-applies to this concrete trace with no extra work. -/
+The driver `elixir/bank.exs` performs the same interleaving on the BEAM:
+three casts, client 1 ticks and blocks on `GenServer.call`, one more cast,
+client 2 ticks. `run_sound` makes every `run` result reachable, so the
+theorem covers this trace with no extra proof. -/
 
-/-- External stimulus: what a shell would `GenServer.cast` in. -/
-def stimulus : List (Pid × Msg) :=
-  [ (0, .withdraw 4), (0, .deposit 3), (0, .withdraw 100), (0, .balance 1),
-    (0, .withdraw 9), (0, .balance 2) ]
+def stim1 : List (Pid × Msg) := [(bank, .withdraw 4), (bank, .deposit 3), (bank, .withdraw 100), (1, .tick)]
+def stim2 : List (Pid × Msg) := [(bank, .withdraw 9), (2, .tick)]
 
-def start : Config St Msg := init.deliverAll stimulus
-
-/-- Bank drains its mailbox, then clients read replies. -/
-def schedule : List Choice := [0, 0, 0, 0, 0, 0, 1, 2]
-
-def final : Config St Msg := run beh start schedule
+def mid : Config St Msg := run beh (init.deliverAll stim1) [1, 0, 0, 0, 0]
+def final : Config St Msg := run beh (mid.deliverAll stim2) [2, 0, 0, 1, 2]
 
 def snapshot (c : Config St Msg) (n : Nat) : List (Pid × Option (Actor St Msg)) :=
   (List.range n).map fun p => (p, c.get p)
 
 #eval snapshot final 3
 
-/-- The trace is a witness: `final` is reachable, so the theorem applies
-to it with no further proof. -/
+/-- **Selective receive check.** A second tick arrives while client 1 is
+blocked in its call. The model re-enqueues it behind the reply, so it is
+processed *after* the first call completes and triggers a second call,
+which sees the deposit made in between. A model that dropped messages
+during the call would end with `some 10`. -/
+def deferred : Config St Msg :=
+  let d1 := run beh (init.deliverAll [(1, .tick), (1, .tick)]) [1, 1, 0, 1, 1]
+  run beh (d1.deliverAll [(bank, .deposit 5)]) [0, 1, 0, 1]
+
+#eval snapshot deferred 2
+
+theorem final_ok : AllStates Ok final :=
+  (run_sound _ _).preserves beh_preserves
+    (Config.deliverAll_allStates _
+      ((run_sound _ _).preserves beh_preserves (Config.deliverAll_allStates _ init_ok)))
+
 example : ∀ p b mb, final.get p = some ⟨.bank b, mb⟩ → 0 ≤ b :=
-  init_balance_never_negative stimulus (run_sound start schedule)
+  fun p _ _ h => final_ok p _ h
 
 end Leanactors.Examples.Bank

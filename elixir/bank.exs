@@ -13,22 +13,15 @@ Code.require_file("src/bank.ex", __DIR__)
 {:ok, c1} = Client.start_link()
 {:ok, c2} = Client.start_link()
 
-# Same stimulus as `Bank.stimulus` in Lean, in the same order.
-for m <- [
-      {:withdraw, 4},
-      {:deposit, 3},
-      {:withdraw, 100},
-      {:balance, c1},
-      {:withdraw, 9},
-      {:balance, c2}
-    ],
-    do: GenServer.cast(bank, m)
-
-# `:sys.get_state` is a synchronous call, so it lands after all the casts.
-final_bank = :sys.get_state(bank)
-# Give the two client mailboxes a moment; a `read` is a sync round-trip.
+# Same interleaving as `Bank.stim1` / `Bank.stim2` in Lean.
+for m <- [{:withdraw, 4}, {:deposit, 3}, {:withdraw, 100}], do: GenServer.cast(bank, m)
+send(c1, :tick)
+# get_state queues behind :tick, whose handler blocks on GenServer.call(Bank, :balance)
 seen1 = :sys.get_state(c1)
+GenServer.cast(bank, {:withdraw, 9})
+send(c2, :tick)
 seen2 = :sys.get_state(c2)
+final_bank = :sys.get_state(bank)
 
 IO.puts("bank    = #{final_bank}")
 IO.puts("client1 = #{inspect(seen1)}")

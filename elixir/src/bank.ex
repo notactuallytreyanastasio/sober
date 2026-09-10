@@ -1,12 +1,19 @@
 # The bank as ordinary Elixir. Executed by ../bank.exs, translated by ../to_lean.exs.
+#
+# Bank answers `:balance` synchronously via handle_call/3. Client asks with a
+# blocking GenServer.call inside handle_info/2. The translator models the
+# call as a message carrying the caller pid plus a `reply` message, and
+# splits the client clause at the call into an await state.
 
 defmodule Bank do
   use GenServer
 
-  @type msg :: {:deposit, non_neg_integer()} | {:withdraw, non_neg_integer()} | {:balance, pid()}
+  @type msg :: {:deposit, non_neg_integer()} | {:withdraw, non_neg_integer()}
+  @type call :: :balance
+  @type reply :: integer()
   @type state :: integer()
 
-  def start_link(initial), do: GenServer.start_link(__MODULE__, initial)
+  def start_link(initial), do: GenServer.start_link(__MODULE__, initial, name: __MODULE__)
 
   @impl true
   def init(b), do: {:ok, b}
@@ -17,16 +24,15 @@ defmodule Bank do
   def handle_cast({:withdraw, n}, b) when n <= b, do: {:noreply, b - n}
   def handle_cast({:withdraw, _}, b), do: {:noreply, b}
 
-  def handle_cast({:balance, to}, b) do
-    send(to, {:reply, b})
-    {:noreply, b}
-  end
+  @impl true
+  @spec handle_call(call(), GenServer.from(), state()) :: {:reply, reply(), state()}
+  def handle_call(:balance, _from, b), do: {:reply, b, b}
 end
 
 defmodule Client do
   use GenServer
 
-  @type msg :: {:reply, integer()}
+  @type msg :: :tick
   @type state :: integer() | nil
 
   def start_link, do: GenServer.start_link(__MODULE__, nil)
@@ -36,5 +42,8 @@ defmodule Client do
 
   @impl true
   @spec handle_info(msg(), state()) :: {:noreply, state()}
-  def handle_info({:reply, v}, _), do: {:noreply, v}
+  def handle_info(:tick, _) do
+    v = GenServer.call(Bank, :balance)
+    {:noreply, v}
+  end
 end

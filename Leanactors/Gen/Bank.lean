@@ -9,21 +9,27 @@ open Leanactors
 inductive Msg
   | deposit (a0 : Nat)
   | withdraw (a0 : Nat)
-  | balance (a0 : Pid)
+  | balance (caller : Pid)
   | reply (a0 : Int)
+  | tick
   deriving Repr, DecidableEq
 
 inductive St
   | bank (s : Int)
   | client (s : Option Int)
+  | client_await0
   deriving Repr, DecidableEq
 
+/-- Registered name `Bank`. -/
+def bank : Pid := 0
 
 def beh : Behavior St Msg
   | _, .bank b, .deposit n => (.bank (b + n), [])
   | _, .bank b, .withdraw n => if (n ≤ b) then (.bank (b - n), []) else (.bank b, [])
-  | _, .bank b, .balance to => (.bank b, [(to, .reply b)])
-  | _, .client _, .reply v => (.client (some v), [])
+  | _, .bank b, .balance from_ => (.bank b, [(from_, .reply b)])
+  | me, .client _, .tick => (.client_await0, [(bank, .balance me)])
+  | _, .client_await0, .reply v => (.client (some v), [])
+  | me, .client_await0, m => (.client_await0, [(me, m)])
   -- Unmatched message: GenServer would crash (cast) or ignore (info). Modelled as ignore.
   | _, s, _ => (s, [])
 

@@ -17,7 +17,7 @@ for a pure subset of Elixir/BEAM programs. No Mathlib.
 | `Leanactors/Gen/*.lean` | Generated from `elixir/src/*.ex` by the translator; do not edit |
 | `elixir/src/bank.ex`, `elixir/src/lock.ex` | The Elixir source of truth: executed on the BEAM and translated to Lean |
 | `elixir/to_lean.exs` | The translator: `@type`-directed, small subset, unverified |
-| `elixir/bank.exs` | Driver: runs the bank with the Lean stimulus and checks the trace matches |
+| `elixir/bank.exs` | Driver: casts plus two clients blocking in `GenServer.call`; checks the trace matches Lean |
 | `elixir/lock.exs` | Driver: runs the lock under chaos ticks; event log checked for overlapping critical sections |
 
 ## Pipeline: Elixir source to Lean theorem
@@ -43,6 +43,18 @@ becomes a Lean pattern plus an equality guard. Nothing in the translator
 inspects values; every decision is type-directed. That is the division of
 labour the original question asked about: Elixir's set-theoretic types fix
 the shapes, Lean proves the interleavings.
+
+**Synchronous calls.** `handle_call/3` is supported on both sides. On the
+server, `@type call` alternatives become message constructors with a leading
+`caller : Pid`, and `{:reply, r, s}` sends `reply r` to the caller. On the
+client, a blocking `v = GenServer.call(Mod, m)` splits the clause: the part
+before it runs and sends the request, the actor enters a generated
+`<mod>_await<i>` state carrying whatever the rest of the body needs, a
+second clause resumes on `reply v`, and any other message arriving in the
+await state is re-enqueued to self. That re-enqueue is the standard encoding
+of selective receive in a FIFO mailbox model and keeps the core untouched.
+`Bank.deferred` in the Lean example shows a tick arriving mid-call being
+processed after the call, not lost.
 
 The translator is unverified and supports a small subset (see its header).
 The equivalence theorem is what makes that acceptable: if the translation

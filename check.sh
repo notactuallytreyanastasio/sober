@@ -6,7 +6,7 @@ export PATH="$HOME/.elan/bin:$PATH"
 
 echo "== translate"
 elixir elixir/to_lean.exs elixir/src/lock.ex Leanactors.Gen.Lock --pid Lock=server > /tmp/Gen.Lock.lean
-elixir elixir/to_lean.exs elixir/src/bank.ex Leanactors.Gen.Bank > /tmp/Gen.Bank.lean
+elixir elixir/to_lean.exs elixir/src/bank.ex Leanactors.Gen.Bank --pid Bank=bank > /tmp/Gen.Bank.lean
 diff -q /tmp/Gen.Lock.lean Leanactors/Gen/Lock.lean
 diff -q /tmp/Gen.Bank.lean Leanactors/Gen/Bank.lean
 echo "   generated files are up to date"

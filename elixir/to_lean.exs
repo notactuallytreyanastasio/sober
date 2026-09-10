@@ -6,9 +6,18 @@
 #   @type msg   :: union of atoms and tagged tuples {:tag, T...}
 #   @type state :: T, where T is pid(), integer(), non_neg_integer(),
 #                  [T], T | nil, a union of atoms, a tuple, or a local type()
-#   handle_cast/2 and handle_info/2 clauses, optional `when` guard, body =
-#   zero or more send/2 or GenServer.cast/2 calls followed by {:noreply, e};
-#   `if`/`case` are allowed around whole bodies.
+#   @type call  :: (optional) union like msg; each becomes a Msg constructor
+#                  with a leading `from : Pid` (the caller)
+#   @type reply :: (optional) the reply type; becomes Msg constructor `reply`
+#   handle_cast/2, handle_info/2, handle_call/3 clauses, optional `when`
+#   guard, body = zero or more send/2 or GenServer.cast/2 calls followed by
+#   {:noreply, e} or (handle_call only) {:reply, r, e}; `if`/`case` are
+#   allowed around whole bodies.
+#   A statement `v = GenServer.call(Mod, m)` splits the clause: everything
+#   before it runs, the request is sent, and the actor enters a generated
+#   await state <mod>_await<i> (capturing the variables the rest needs).
+#   A second clause resumes on `reply v`. Any other message that arrives
+#   while awaiting is re-enqueued to self, encoding selective receive.
 #
 # The @type declarations are the type oracle: they decide when a pattern
 # variable at an `Option` position needs `some`, when `nil` is `none`, and
@@ -17,7 +26,8 @@
 
 defmodule ToLean do
   defmodule Ctx do
-    defstruct types: %{}, msg_ctors: [], st_ctors: [], pids: %{}, enums: %{}, ns: "Gen", warnings: []
+    defstruct types: %{}, msg_ctors: [], st_ctors: [], pids: %{}, enums: %{}, ns: "Gen", warnings: [],
+              extra: [], awaits: %{}, reply_type: nil
   end
 
   # ---------- entry ----------
@@ -61,16 +71,34 @@ defmodule ToLean do
       # msg union contributes constructors; state contributes one St constructor
       msg = Map.fetch!(c.types, {mod, :msg})
       c = Enum.reduce(union(msg), c, fn alt, cc -> add_msg_ctor(cc, mod, alt) end)
+      c =
+        case Map.fetch(c.types, {mod, :call}) do
+          {:ok, call} -> Enum.reduce(union(call), c, fn alt, cc -> add_msg_ctor(cc, mod, alt, [{"from", "Pid"}]) end)
+          :error -> c
+        end
+      c =
+        case Map.fetch(c.types, {mod, :reply}) do
+          {:ok, rt} ->
+            lt = lean_type(c, mod, rt)
+            if c.reply_type != nil and c.reply_type != lt, do: fail("modules declare different @type reply")
+            %{c | reply_type: lt} |> add_msg_ctor(mod, {:reply, rt})
+          :error -> c
+        end
       st = Map.fetch!(c.types, {mod, :state})
       fields = state_fields(c, mod, st)
       %{c | st_ctors: c.st_ctors ++ [{ctor_name(mod), fields}]}
     end)
   end
 
+  defp tag_of(a) when is_atom(a), do: a
+  defp tag_of({a, _}) when is_atom(a), do: a
+  defp tag_of({:{}, _, [a | _]}) when is_atom(a), do: a
+  defp tag_of(_), do: nil
+
   defp union({:|, _, [a, b]}), do: union(a) ++ union(b)
   defp union(t), do: [t]
 
-  defp add_msg_ctor(ctx, mod, alt) do
+  defp add_msg_ctor(ctx, mod, alt, lead \\ []) do
     {tag, args} =
       case alt do
         a when is_atom(a) -> {a, []}
@@ -78,7 +106,7 @@ defmodule ToLean do
         {a, b} when is_atom(a) -> {a, [b]}
         other -> fail("unsupported message alternative: #{Macro.to_string(other)}")
       end
-    ltypes = Enum.map(args, &lean_type(ctx, mod, &1))
+    ltypes = Enum.map(lead, &elem(&1, 1)) ++ Enum.map(args, &lean_type(ctx, mod, &1))
     case List.keyfind(ctx.msg_ctors, tag, 0) do
       nil -> %{ctx | msg_ctors: ctx.msg_ctors ++ [{tag, ltypes}]}
       {^tag, ^ltypes} -> ctx
@@ -136,6 +164,13 @@ defmodule ToLean do
   end
 
   defp paren(s), do: if(String.contains?(s, " "), do: "(#{s})", else: s)
+
+  @lean_keywords ~w(from at in fun do then else if match with have show by let end where deriving open
+    def theorem instance structure class inductive mutual namespace section variable universe import
+    export private protected partial noncomputable abbrev macro syntax notation calc suffices obtain
+    exact intro cases induction rfl)
+  # Elixir variable -> Lean identifier (avoid Lean keywords)
+  defp lean_ident(name), do: if(name in @lean_keywords, do: name <> "_", else: name)
   defp ctor_name(mod), do: mod |> Atom.to_string() |> String.downcase()
 
   # ---------- clauses ----------
@@ -143,10 +178,19 @@ defmodule ToLean do
   defp clauses(mod, body) do
     for {:def, _, [head, [do: b]]} <- body,
         {fname, args, guard} = head_parts(head),
-        fname in [:handle_cast, :handle_info],
-        [mpat, spat] = args do
-      %{mod: mod, mpat: mpat, spat: spat, guard: guard, body: b}
+        fname in [:handle_cast, :handle_info, :handle_call],
+        cl = clause_of(mod, fname, args, guard, b),
+        cl != nil do
+      cl
     end
+  end
+
+  defp clause_of(mod, :handle_call, [mpat, fpat, spat], guard, b),
+    do: %{mod: mod, mpat: mpat, spat: spat, guard: guard, body: b, from: fpat}
+  defp clause_of(mod, _, [mpat, spat], guard, b),
+    do: %{mod: mod, mpat: mpat, spat: spat, guard: guard, body: b, from: nil}
+  defp clause_of(_, _, _, _, _) do
+    nil
   end
 
   defp head_parts({:when, _, [{f, _, args}, g]}), do: {f, args, g}
@@ -159,7 +203,7 @@ defmodule ToLean do
       for {{mod, name}, t} <- ctx.types,
           alts = union(t),
           Enum.all?(alts, &is_atom/1) and not Enum.member?(alts, nil),
-          name != :msg do
+          name not in [:msg, :call] do
         _ = mod
         ename = name |> Atom.to_string() |> String.capitalize()
         "inductive #{ename}\n" <> Enum.map_join(alts, "\n", &"  | #{&1}") <> "\n  deriving Repr, DecidableEq\n"
@@ -169,14 +213,11 @@ defmodule ToLean do
     msg =
       "inductive Msg\n" <>
         Enum.map_join(ctx.msg_ctors, "\n", fn {tag, ts} ->
-          fields = ts |> Enum.with_index() |> Enum.map_join(" ", fn {t, i} -> "(a#{i} : #{t})" end)
+          call? = Enum.any?(ctx.types, fn {{_, n}, t} -> n == :call and tag in Enum.map(union(t), &tag_of/1) end)
+          fields =
+            ts |> Enum.with_index()
+            |> Enum.map_join(" ", fn {t, i} -> if(call? and i == 0, do: "(caller : Pid)", else: "(a#{i} : #{t})") end)
           "  | #{tag}" <> if(fields == "", do: "", else: " " <> fields)
-        end) <> "\n  deriving Repr, DecidableEq\n"
-
-    st =
-      "inductive St\n" <>
-        Enum.map_join(ctx.st_ctors, "\n", fn {name, fields} ->
-          "  | #{name} " <> Enum.map_join(fields, " ", fn {f, t} -> "(#{f} : #{t})" end)
         end) <> "\n  deriving Repr, DecidableEq\n"
 
     pids =
@@ -186,9 +227,15 @@ defmodule ToLean do
 
     {beh_clauses, ctx} = render_clauses(ctx, clauses)
 
+    st =
+      "inductive St\n" <>
+        Enum.map_join(ctx.st_ctors, "\n", fn {name, fields} ->
+          String.trim_trailing("  | #{name} " <> Enum.map_join(fields, " ", fn {f, t} -> "(#{f} : #{t})" end))
+        end) <> "\n  deriving Repr, DecidableEq\n"
+
     beh =
       "def beh : Behavior St Msg\n" <>
-        Enum.join(beh_clauses, "\n") <>
+        Enum.join(beh_clauses ++ ctx.extra, "\n") <>
         "\n  -- Unmatched message: GenServer would crash (cast) or ignore (info). Modelled as ignore.\n" <>
         "  | _, s, _ => (s, [])\n"
 
@@ -219,6 +266,7 @@ defmodule ToLean do
     Enum.map_reduce(indexed, ctx, fn {cl, i}, c ->
       {env, mp, sp, guards} = patterns(c, cl)
       env = if uses_self?(cl), do: Map.put(env, :__self__, true), else: env
+      env = if cl.from, do: Map.put(env, :__from__, from_name(cl.from)), else: env
       guard_str = Enum.map(guards, &guard_to_lean(env, &1)) ++ if(cl.guard, do: [guard_to_lean(env, cl.guard)], else: [])
       {body_str, c} = body(c, cl.mod, env, cl.body)
       {rhs, c} =
@@ -234,10 +282,12 @@ defmodule ToLean do
 
   defp self_name(env), do: if(Map.has_key?(env, :__self__), do: "me", else: "_")
 
+  # `me` is needed if the body calls self() or contains a blocking call
+  # (the request carries the caller pid).
   defp uses_self?(cl) do
     {_, found} = Macro.prewalk(cl.body, false, fn
       {:self, _, []} = n, _ -> {n, true}
-      n, acc -> {n, acc}
+      n, acc -> {n, acc || blocking_call?(n)}
     end)
     found
   end
@@ -306,8 +356,16 @@ defmodule ToLean do
         _ ->
           {tag, args} = msg_shape(cl.mpat)
           {^tag, arg_types} = List.keyfind(ctx.msg_ctors, tag, 0) || fail("message tag #{inspect(tag)} not in @type msg")
-          length(args) == length(arg_types) || fail("arity mismatch for #{tag}")
-          {parts, env, gs} = pat_list(ctx, args, arg_types, %{}, [])
+          {args, env0} =
+            if cl.from do
+              length(args) + 1 == length(arg_types) || fail("arity mismatch for call #{tag}")
+              fname = from_name(cl.from)
+              {[{String.to_atom(fname), [], nil} | args], %{}}
+            else
+              length(args) == length(arg_types) || fail("arity mismatch for #{tag}")
+              {args, %{}}
+            end
+          {parts, env, gs} = pat_list(ctx, args, arg_types, env0, [])
           {if(parts == [], do: ".#{tag}", else: ".#{tag} " <> Enum.join(parts, " ")), env, gs}
       end
     {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(cl.mod), 0)
@@ -317,6 +375,11 @@ defmodule ToLean do
     env = env |> Map.put(:__mp__, mp) |> Map.put(:__sparts__, sparts)
     {env, mp, sp, gs}
   end
+
+  # the `from` argument of handle_call: a variable (possibly _-prefixed) or {pid, _ref}
+  defp from_name({v, _, nil}) when is_atom(v), do: v |> Atom.to_string() |> String.trim_leading("_") |> then(&if(&1 == "", do: "caller", else: &1)) |> lean_ident()
+  defp from_name({{v, _, nil}, _}) when is_atom(v), do: from_name({v, [], nil})
+  defp from_name(p), do: fail("unsupported from pattern #{Macro.to_string(p)}")
 
   defp msg_shape(a) when is_atom(a), do: {a, []}
   defp msg_shape({a, b}) when is_atom(a), do: {a, [b]}
@@ -359,8 +422,8 @@ defmodule ToLean do
   defp pat(ctx, {v, _, nil}, t, env, gs) when is_atom(v) do
     {name, whole?} =
       case Atom.to_string(v) do
-        "__whole__" <> rest -> {rest, true}
-        s -> {s, false}
+        "__whole__" <> rest -> {lean_ident(rest), true}
+        s -> {lean_ident(s), false}
       end
     cond do
       whole? ->
@@ -420,24 +483,82 @@ defmodule ToLean do
   end
   defp body(ctx, mod, env, b) do
     stmts = stmts(b)
+    case Enum.split_while(stmts, fn s -> not blocking_call?(s) end) do
+      {before, [call | rest]} when rest != [] -> cps_split(ctx, mod, env, before, call, rest)
+      {_, [_]} -> fail("a blocking call must be followed by the rest of the body")
+      _ -> plain_body(ctx, mod, env, stmts)
+    end
+  end
+
+  defp blocking_call?({:=, _, [{v, _, nil}, {{:., _, [{:__aliases__, _, [:GenServer]}, :call]}, _, _}]}) when is_atom(v), do: true
+  defp blocking_call?(_), do: false
+
+  # v = GenServer.call(Target, m); rest   ==>
+  #   this clause: sends-so-far ++ [(target, m me)], state := <mod>_await<i> captured
+  #   extra:       | _, .<mod>_await<i> captured, .reply v => rest
+  #                | me, .<mod>_await<i> captured, m => (.<mod>_await<i> captured, [(me, m)])
+  defp cps_split(ctx, mod, env, before, {:=, _, [{v, _, nil}, {_, _, [{:__aliases__, _, [target]}, m]}]}, rest) do
+    ctx.reply_type || fail("GenServer.call used but no module declares @type reply")
+    const = Map.get(ctx.pids, Atom.to_string(target)) || fail("no --pid mapping for #{target}")
+    i = Map.get(ctx.awaits, mod, 0)
+    ctx = %{ctx | awaits: Map.put(ctx.awaits, mod, i + 1)}
+    await = "#{ctor_name(mod)}_await#{i}"
+    # variables the continuation needs, with their types
+    rest_vars = free_vars({:__block__, [], rest}) |> Enum.reject(&(&1 == Atom.to_string(v)))
+    captured = Enum.filter(rest_vars, &Map.has_key?(env, &1)) |> Enum.map(&{&1, env[&1]})
+    ctx = %{ctx | st_ctors: ctx.st_ctors ++ [{await, captured}]}
+    cap_str = Enum.map_join(captured, "", fn {n, _} -> " " <> n end)
+    # the request: a call message with `me` as the from field
+    {tag, args} = msg_shape(m)
+    {^tag, [_ | ts]} = List.keyfind(ctx.msg_ctors, tag, 0) || fail("call #{tag} not declared in @type call")
+    parts = Enum.zip(args, ts) |> Enum.map(fn {a, t} -> paren_or(expr(env, a, t)) end)
+    req = "(#{const}, .#{tag} me" <> Enum.map_join(parts, "", &(" " <> &1)) <> ")"
+    {send_strs, ctx} = sends(ctx, env, before)
+    this = "(.#{await}#{cap_str}, [#{Enum.join(send_strs ++ [req], ", ")}])"
+    # the continuation, in an environment with the captured vars, v : reply, and me
+    env2 = Map.new(captured) |> Map.put(Atom.to_string(v), ctx.reply_type) |> Map.put(:__self__, true)
+    {cont, ctx} = plain_body(ctx, mod, env2, rest)
+    cont_self = if uses_self?(%{body: {:__block__, [], rest}}), do: "me", else: "_"
+    extra = [
+      "  | #{cont_self}, .#{await}#{cap_str}, .reply #{v} => #{cont}",
+      "  | me, .#{await}#{cap_str}, m => (.#{await}#{cap_str}, [(me, m)])"
+    ]
+    {this, %{ctx | extra: ctx.extra ++ extra}}
+  end
+
+  defp free_vars(ast) do
+    {_, vs} = Macro.prewalk(ast, [], fn
+      {v, _, nil} = n, acc when is_atom(v) -> {n, [Atom.to_string(v) | acc]}
+      n, acc -> {n, acc}
+    end)
+    Enum.uniq(vs)
+  end
+
+  defp sends(ctx, env, stmts) do
+    Enum.map_reduce(stmts, ctx, fn s, c ->
+      case s do
+        {:send, _, [to, m]} -> {"(#{expr(env, to, "Pid")}, #{msg_expr(c, env, m)})", c}
+        {{:., _, [{:__aliases__, _, [:GenServer]}, :cast]}, _, [{:__aliases__, _, [target]}, m]} ->
+          const = Map.get(c.pids, Atom.to_string(target)) || fail("no --pid mapping for #{target}")
+          {"(#{const}, #{msg_expr(c, env, m)})", c}
+        other -> fail("unsupported statement #{Macro.to_string(other)}")
+      end
+    end)
+  end
+
+  defp plain_body(ctx, mod, env, stmts) do
     {sends, [last]} = Enum.split(stmts, -1)
     {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(mod), 0)
-    state =
+    {state, reply} =
       case last do
-        {:noreply, e} -> state_expr(env, e, ctor, fields)
-        other -> fail("last statement must be {:noreply, state}, got #{Macro.to_string(other)}")
+        {:noreply, e} -> {state_expr(env, e, ctor, fields), []}
+        {:{}, _, [:reply, r, e]} ->
+          from = env[:__from__] || fail("{:reply, ...} outside handle_call")
+          {state_expr(env, e, ctor, fields), ["(#{from}, .reply #{paren_or(expr(env, r, ctx.reply_type))})"]}
+        other -> fail("last statement must be {:noreply, state} or {:reply, r, state}, got #{Macro.to_string(other)}")
       end
-    {send_strs, ctx} =
-      Enum.map_reduce(sends, ctx, fn s, c ->
-        case s do
-          {:send, _, [to, m]} -> {"(#{expr(env, to, "Pid")}, #{msg_expr(c, env, m)})", c}
-          {{:., _, [{:__aliases__, _, [:GenServer]}, :cast]}, _, [{:__aliases__, _, [target]}, m]} ->
-            const = Map.get(c.pids, Atom.to_string(target)) || fail("no --pid mapping for #{target}")
-            {"(#{const}, #{msg_expr(c, env, m)})", c}
-          other -> fail("unsupported statement #{Macro.to_string(other)}")
-        end
-      end)
-    {"(#{state}, [#{Enum.join(send_strs, ", ")}])", ctx}
+    {send_strs, ctx} = sends(ctx, env, sends)
+    {"(#{state}, [#{Enum.join(send_strs ++ reply, ", ")}])", ctx}
   end
 
   defp guess_type(env, {v, _, nil}) when is_atom(v), do: Map.get(env, Atom.to_string(v)) || fail("untyped scrutinee #{v}")
@@ -471,9 +592,9 @@ defmodule ToLean do
   defp expr(env, e, "Option " <> inner) do
     case e do
       {v, _, nil} when is_atom(v) ->
-        name = Atom.to_string(v)
+        name = lean_ident(Atom.to_string(v))
         case env[name] do
-          "Option " <> _ -> Map.get(env, {:alias, name}, name)
+          "Option " <> _ -> Map.get(env, {:alias, Atom.to_string(v)}, name)
           _ -> "some #{expr(env, e, unparen(inner))}"
         end
       _ -> "some " <> paren_or(expr(env, e, unparen(inner)))
@@ -484,7 +605,7 @@ defmodule ToLean do
   defp expr(_env, n, _t) when is_integer(n), do: "#{n}"
   defp expr(_env, [], _t), do: "[]"
   defp expr(env, xs, t) when is_list(xs), do: "[" <> Enum.map_join(xs, ", ", &expr(env, &1, elem_type(t))) <> "]"
-  defp expr(env, {v, _, nil}, _t) when is_atom(v), do: Map.get(env, {:alias, Atom.to_string(v)}, Atom.to_string(v))
+  defp expr(env, {v, _, nil}, _t) when is_atom(v), do: Map.get(env, {:alias, Atom.to_string(v)}, lean_ident(Atom.to_string(v)))
   defp expr(env, {op, _, [a, b]}, t) when op in [:+, :-, :++, :<=, :>=, :<, :>, :==, :!=, :and, :or] do
     lop = %{+: "+", -: "-", ++: "++", <=: "≤", >=: "≥", <: "<", >: ">", ==: "=", !=: "≠", and: "∧", or: "∨"}[op]
     at = if op in [:++], do: t, else: nil
