@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e4c782d2-1315-4751-bcc2-4c720b8f7c76",
+  "created_at": "2026-09-10T10:23:51.893539-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 75
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Elixir -> Lean translator using typespecs for the Lean inductives; first give Behavior access to self() so the translation is honest",
+  "updated_at": "2026-09-10T10:23:51.893539-04:00"
+}

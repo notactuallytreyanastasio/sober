@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "8aaff3b4-f6b2-4d34-9a97-fb1cb9b5b2c7",
+  "created_at": "2026-09-10T10:15:35.891091-04:00",
+  "description": "Errors across iterations: by_contra missing (no Mathlib), cases pattern arity, subst replacing a def-valued pid, List.count on singletons not reduced by default simp, match on srv catch-all not reducing without cases on the Option. None were about the invariant, which the bounded model check had already validated.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Proof cost driver was not the protocol but Lean plumbing: if-then-else on pids, singleton List.count, and subst renaming. A tactic that normalises Step.chars output would cut the proof in half",
+  "updated_at": "2026-09-10T10:15:35.891091-04:00"
+}

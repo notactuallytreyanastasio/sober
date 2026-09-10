@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e32a1675-e8cc-48b7-b2fb-a8b62ba39512",
+  "created_at": "2026-09-10T10:05:15.152343-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Invariant holds on 64k configs (2 clients, depth 9) and 22k (3 clients, depth 7) incl. arbitrary env ticks; Inv.mutex proven",
+  "updated_at": "2026-09-10T10:05:15.152343-04:00"
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b5ee63e1-5941-4733-881e-96438b428499",
+  "created_at": "2026-09-10T10:31:50.065656-04:00",
+  "description": "Type-directed decisions in the translator: variable at Option position already bound at base type -> some x' with guard; nil at Option -> none; atom at enum type -> constructor; {:noreply, v} with v : Int at Option Int -> some v. Guards become if-then-else with fallthrough to the next subsuming clause; subsumed clauses are dropped since Lean rejects redundant alternatives.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "The @type declarations were sufficient as the type oracle: Option wrapping, none/nil, list cons, enum atoms, and the non-linear pattern {p, [n|rest]} all resolved from types alone. No @spec needed beyond msg/state",
+  "updated_at": "2026-09-10T10:31:50.065656-04:00"
+}

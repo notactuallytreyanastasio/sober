@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5b270593-5c8e-4e6c-8a98-9b86f54aad54",
+  "created_at": "2026-09-10T10:22:21.449855-04:00",
+  "description": "First two mutants I wrote (no sender check on release; release on any message while holding) were both unreachable under honest clients and explored the same state space as the original. The invariant predicted this: r c p = 0 for non-holders, and no grant reaches a holding client. Replaced with grant-while-held (mutex violation) and duplicate-acquire (Inv violation only).",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "The invariant is stronger than the property: it catches the lost-token bug that mutual exclusion alone misses, and it identifies which defensive checks are load-bearing (none of the sender checks are, with honest clients)",
+  "updated_at": "2026-09-10T10:22:21.449855-04:00"
+}

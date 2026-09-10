@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e5c5e359-1527-4f63-9c5f-072fa0a99cd4",
+  "created_at": "2026-09-10T10:25:43.808359-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 65
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Write elixir/to_lean.exs: parse @type + handle_cast/handle_info clauses into Lean inductives and a Behavior",
+  "updated_at": "2026-09-10T10:25:43.808359-04:00"
+}

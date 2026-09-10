@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "6b95dd5d-29a4-46ee-a000-b9137ef39bdf",
+  "created_at": "2026-09-10T10:22:21.380850-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Grant-while-held caught at 279 configs, duplicate-acquire (token loss, mutex still holds) caught at 59 via Inv, no-sender-check unreachable: identical 64303-config state space",
+  "updated_at": "2026-09-10T10:22:21.380850-04:00"
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "6197f854-4cc1-49de-99f4-64756f63de94",
+  "created_at": "2026-09-10T10:23:51.591059-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 75,
+    "prompt": "could we use a combination of Lean and Elixir's gradual type system to formally verify elixir programs"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Bridge to real Elixir source: translate typespec-annotated GenServer modules into the Lean model",
+  "updated_at": "2026-09-10T10:23:51.591059-04:00"
+}

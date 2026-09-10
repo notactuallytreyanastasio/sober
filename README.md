@@ -12,7 +12,7 @@ for a pure subset of Elixir/BEAM programs. No Mathlib.
 | `Leanactors/Count.lean` | Message counting, `Step.chars` (a step as arithmetic over counts), config-level invariant induction, FIFO corollary |
 | `Leanactors/Examples/Bank.lean` | Per-actor invariant: a bank's balance never goes negative under any scheduler |
 | `Leanactors/Examples/Lock.lean` | Cross-actor invariant: lock server + clients, token invariant, bounded model checker |
-| `Leanactors/Examples/LockProof.lean` | The invariant is inductive; `mutex_forever` under any scheduler and any environment ticks |
+| `Leanactors/Examples/LockProof.lean` | The invariant is inductive; `mutex_forever` and `progress_forever` under any scheduler and any environment ticks |
 | `Leanactors/Examples/LockMutants.lean` | Three protocol bugs: two caught with witness traces, one shown unreachable |
 | `Leanactors/Gen/*.lean` | Generated from `elixir/src/*.ex` by the translator; do not edit |
 | `elixir/src/bank.ex`, `elixir/src/lock.ex` | The Elixir source of truth: executed on the BEAM and translated to Lean |
@@ -83,9 +83,15 @@ catches a lost-token bug that mutual exclusion alone would miss, and it
 identifies which defensive checks are load-bearing. The release-sender
 check is not, with honest clients.
 
+**Deadlock freedom comes from the same invariant.** `progress_forever`
+says a waiting client always has either an enabled actor step or a holder
+in the critical section that only the environment can move. About fifty
+lines, no new machinery.
+
 **Safety here does not need FIFO.** The out-of-order case (a client's
 `acquire` processed while its `release` is still in flight) is absorbed by
-the equation `acquire + queued = waiting`. FIFO will matter for liveness.
+the equation `acquire + queued = waiting`. FIFO will matter for bounded waiting, which is the one liveness property
+not yet attempted.
 
 ## Not modelled yet
 

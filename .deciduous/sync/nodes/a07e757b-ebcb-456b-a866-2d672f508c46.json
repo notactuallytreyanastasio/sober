@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "a07e757b-ebcb-456b-a866-2d672f508c46",
+  "created_at": "2026-09-10T10:05:15.217395-04:00",
+  "description": "While designing the numeric token invariant I expected to need Step.prefix (FIFO). Instead the a+qn=w equation handles the out-of-order case. FIFO matters for liveness (the token is not lost), not for mutual exclusion.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 70
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Invariant does not need FIFO: the non-FIFO case (acquire h while h still holder) is absorbed by a+qn=w. Suggests many BEAM protocols are FIFO-agnostic for safety",
+  "updated_at": "2026-09-10T10:05:15.217395-04:00"
+}

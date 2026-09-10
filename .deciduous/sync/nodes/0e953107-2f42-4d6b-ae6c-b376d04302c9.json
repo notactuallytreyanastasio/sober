@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "0e953107-2f42-4d6b-ae6c-b376d04302c9",
+  "created_at": "2026-09-10T10:33:26.323673-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "beh_eq_gen proven for Lock and Bank by funext+cases+rfl. Chain is now: lock.ex --to_lean--> Gen.Lock.beh = Lock.beh --Inv.step--> mutex_forever",
+  "updated_at": "2026-09-10T10:33:26.323673-04:00"
+}

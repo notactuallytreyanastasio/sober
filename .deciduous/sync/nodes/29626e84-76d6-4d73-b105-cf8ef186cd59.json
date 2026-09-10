@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "29626e84-76d6-4d73-b105-cf8ef186cd59",
+  "created_at": "2026-09-10T10:15:35.830060-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Inv.step proven: ~450 lines, zero sorry. Client half ~150 lines, server half ~250. Every case is Step.chars + simp on singleton counts + omega",
+  "updated_at": "2026-09-10T10:15:35.830060-04:00"
+}

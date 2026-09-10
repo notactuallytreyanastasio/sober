@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b95b0f50-b626-429b-97da-2ae3471fbc9e",
+  "created_at": "2026-09-10T10:36:31.720076-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "progress + progress_forever proven in ~50 lines using only Inv (plus the new queue_empty field). No FIFO needed here either",
+  "updated_at": "2026-09-10T10:36:31.720076-04:00"
+}

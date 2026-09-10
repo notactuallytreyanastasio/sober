@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T10:23:51.938207-04:00",
+  "edge_id": "638932b4143475d8bde9",
+  "edge_type": "leads_to",
+  "from_change_id": "7ba8e8d2-0a75-4924-85a6-e365e9383a1b",
+  "rationale": "deferred: unverified emitter, loses the Elixir-first story",
+  "to_change_id": "e4c782d2-1315-4751-bcc2-4c720b8f7c76",
+  "weight": 1.0
+}

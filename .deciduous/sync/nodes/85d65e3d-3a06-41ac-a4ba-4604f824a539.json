@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "85d65e3d-3a06-41ac-a4ba-4604f824a539",
+  "created_at": "2026-09-10T10:36:31.785027-04:00",
+  "description": "Earlier I predicted FIFO would be needed for liveness. The deadlock-freedom proof went through with Inv alone. The invariant's a+qn=w equation absorbs message reordering. Bounded waiting (a queued client is granted within k releases) is where queue order and hence FIFO would enter.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "For this protocol FIFO is not needed for safety or deadlock freedom. It would only matter for a fairness argument (bounded waiting), which needs a ranking function and a fair scheduler. Step.prefix exists but is unused by any example",
+  "updated_at": "2026-09-10T10:36:31.785027-04:00"
+}

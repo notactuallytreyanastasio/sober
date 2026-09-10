@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T10:22:21.474329-04:00",
+  "edge_id": "b25163b9d8a7081c28c2",
+  "edge_type": "leads_to",
+  "from_change_id": "6b95dd5d-29a4-46ee-a000-b9137ef39bdf",
+  "rationale": "what the mutants taught",
+  "to_change_id": "5b270593-5c8e-4e6c-8a98-9b86f54aad54",
+  "weight": 1.0
+}

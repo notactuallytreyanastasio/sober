@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "6c4516a5-a82a-4807-9d2c-091eaf31e9a3",
+  "created_at": "2026-09-10T10:18:03.937506-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Mutation test: break the release-sender check in beh and confirm the bounded checker finds a violating trace",
+  "updated_at": "2026-09-10T10:18:03.937506-04:00"
+}
