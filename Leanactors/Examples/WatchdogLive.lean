@@ -81,30 +81,11 @@ set_option linter.unusedSimpArgs false
 
 namespace Leanactors
 
-/-! ## Two more list facts -/
-
-theorem List.mem_eraseIdx_of_ne {α : Type} {l : List α} {i : Nat} {x y : α}
-    (hx : x ∈ l) (hy : l[i]? = some y) (hne : y ≠ x) : x ∈ l.eraseIdx i := by
-  induction l generalizing i with
-  | nil => cases hx
-  | cons a l ih =>
-    cases i with
-    | zero =>
-      simp only [List.getElem?_cons_zero, Option.some.injEq] at hy
-      subst hy
-      rw [List.eraseIdx_cons_zero]
-      rcases List.mem_cons.mp hx with rfl | h
-      · exact absurd rfl hne
-      · exact h
-    | succ i =>
-      rw [List.eraseIdx_cons_succ]
-      rcases List.mem_cons.mp hx with rfl | h
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem _ (ih h (by simpa using hy))
+/-! ## Two more generic facts -/
 
 /-- Removing an index other than the first hit does not move the first hit
 later. -/
-theorem List.findIdx_eraseIdx_le {α : Type} {p : α → Bool} {l : List α} {i : Nat}
+theorem List.findIdx_eraseIdx_le_of_ne {α : Type} {p : α → Bool} {l : List α} {i : Nat}
     (hi : i ≠ l.findIdx p) (hex : ∃ x ∈ l, p x = true) :
     (l.eraseIdx i).findIdx p ≤ l.findIdx p := by
   induction l generalizing i with
@@ -162,60 +143,7 @@ theorem exists_stable_of_nonincreasing (f : Nat → Nat) (t : Nat) (h : ∀ u �
       have h2 : ¬ f u < f t := fun hc => hlt ⟨u, hu, hc⟩
       omega
 
-/-! ## Generic `Sys` plumbing: timers only grow, except when one fires -/
-
 variable {σ μ : Type}
-
-namespace Sys
-
-theorem timers_applyEffect_append (p : Pid) (s : Sys σ μ) (d : Option Reason) (e : Effect σ μ) :
-    ∃ new, (applyEffect p (s, d) e).1.timers = s.timers ++ new := by
-  cases e with
-  | link q' => exact ⟨[], by simp only [applyEffect]; split <;> simp⟩
-  | monitor q' => exact ⟨[], by simp only [applyEffect]; split <;> simp⟩
-  | sendAfter to m => exact ⟨_, rfl⟩
-  | _ => exact ⟨[], by simp [applyEffect]⟩
-
-theorem timers_foldl_applyEffect_append (p : Pid) (effs : List (Effect σ μ)) (s : Sys σ μ)
-    (d : Option Reason) :
-    ∃ new, (effs.foldl (applyEffect p) (s, d)).1.timers = s.timers ++ new := by
-  induction effs generalizing s d with
-  | nil => exact ⟨[], by simp⟩
-  | cons e rest ih =>
-    rw [List.foldl_cons]
-    have h1 := timers_applyEffect_append p s d e
-    revert h1
-    generalize applyEffect p (s, d) e = x
-    obtain ⟨s1, d1⟩ := x
-    intro h1
-    obtain ⟨n1, h1⟩ := h1
-    obtain ⟨n2, h2⟩ := ih s1 d1
-    exact ⟨n1 ++ n2, by rw [h2, h1, List.append_assoc]⟩
-
-/-- A `runE` only appends to `timers`. -/
-theorem runE_timers_append {beh : EBehavior σ μ} {s s' : Sys σ μ} {p : Pid}
-    (h : runE beh s p = some s') : ∃ new, s'.timers = s.timers ++ new := by
-  obtain ⟨st, m, rest, _, hs'⟩ := runE_cases h
-  simp only at hs'
-  obtain ⟨new, hnew⟩ := timers_foldl_applyEffect_append p (beh p s.next st m).2
-    { s with cfg := s.cfg.set p ⟨(beh p s.next st m).1, rest⟩ } none
-  simp only at hnew
-  rcases hs' with ⟨_, rfl⟩ | ⟨reason, _, rfl⟩
-  · exact ⟨new, hnew⟩
-  · exact ⟨new, by rw [terminate_timers]; exact hnew⟩
-
-theorem signalE_timers {sig : Signals σ μ} {s s' : Sys σ μ} (h : signalE sig s = some s') :
-    s'.timers = s.timers := by
-  obtain ⟨_, _, _, _, _, hc⟩ := signalE_cases h
-  rcases hc with ⟨_, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩ <;> rfl
-
-theorem downE_timers {sig : Signals σ μ} {s s' : Sys σ μ} (h : downE sig s = some s') :
-    s'.timers = s.timers := by
-  obtain ⟨_, _, _, _, _, hc⟩ := downE_cases h
-  rcases hc with ⟨_, _, _, rfl⟩ | rfl <;> rfl
-
-end Sys
-
 theorem Config.get_of_stateOf {c : Config σ μ} {q : Pid} {x : σ} (h : c.stateOf q = some x) :
     ∃ mb, c.get q = some ⟨x, mb⟩ := by
   unfold Config.stateOf at h
@@ -292,7 +220,7 @@ theorem timerFair_of_weakFair_timers [DecidableEq μ] (ρ : SysRun beh sig) {to 
         obtain ⟨to', m', hi, hb⟩ := Sys.timerE_cases htimer
         rw [hb]
         show ((ρ.st u).timers.eraseIdx i).findIdx p ≤ (ρ.st u).timers.findIdx p
-        apply List.findIdx_eraseIdx_le _ (hex u hu)
+        apply List.findIdx_eraseIdx_le_of_ne _ (hex u hu)
         intro heq
         apply hno' u hu i hch
         have hl := List.findIdx_lt_length_of_exists (hex u hu)
@@ -711,7 +639,7 @@ theorem Armed.step {a b : Sys St Msg} (h : SysStep beh sig a b) (hg : Good a) : 
     · rcases hg.armed w hw with ht | ⟨mb, hmb, hm⟩
       · left
         rw [hb]
-        exact List.mem_eraseIdx_of_ne ht hti hx
+        exact List.mem_eraseIdx_of_ne ht hti (Ne.symm hx)
       · right
         obtain ⟨new, hnew⟩ := mboxOf_timerE_append htimer 0
         exact ⟨mb ++ new, by rw [hnew, hmb]; rfl, List.mem_append_left _ hm⟩

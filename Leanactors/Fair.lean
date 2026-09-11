@@ -252,6 +252,64 @@ and `LeadsTo.trans`.
 
 namespace Leanactors
 
+/-! ## List facts for rank arguments: erasing an entry that is not the hit
+
+Used by the timer-driven liveness proofs (`WatchdogLive`, `TtlLive`): a
+firing timer is an `eraseIdx` on `timers`. -/
+
+/-- Erasing some other entry keeps `y` in the list. -/
+theorem List.mem_eraseIdx_of_ne {α : Type} {l : List α} {i : Nat} {x y : α} (hy : y ∈ l)
+    (hx : l[i]? = some x) (hne : y ≠ x) : y ∈ l.eraseIdx i := by
+  induction l generalizing i with
+  | nil => cases hy
+  | cons a rest ih =>
+    cases i with
+    | zero =>
+      simp only [List.getElem?_cons_zero, Option.some.injEq] at hx
+      subst hx
+      rw [List.eraseIdx_cons_zero]
+      rcases List.mem_cons.mp hy with rfl | h
+      · exact absurd rfl hne
+      · exact h
+    | succ j =>
+      simp only [List.getElem?_cons_succ] at hx
+      rw [List.eraseIdx_cons_succ]
+      rcases List.mem_cons.mp hy with rfl | h
+      · exact List.mem_cons_self
+      · exact List.mem_cons_of_mem _ (ih h hx)
+
+/-- Erasing an entry that does not satisfy `p` never moves the first hit later. -/
+theorem List.findIdx_eraseIdx_le {α : Type} {l : List α} {p : α → Bool} {i : Nat} {x : α}
+    (hx : l[i]? = some x) (hpx : p x = false) : (l.eraseIdx i).findIdx p ≤ l.findIdx p := by
+  induction l generalizing i with
+  | nil => simp at hx
+  | cons a rest ih =>
+    cases i with
+    | zero =>
+      simp only [List.getElem?_cons_zero, Option.some.injEq] at hx
+      subst hx
+      rw [List.eraseIdx_cons_zero, List.findIdx_cons, hpx, cond_false]
+      exact Nat.le_succ _
+    | succ j =>
+      simp only [List.getElem?_cons_succ] at hx
+      rw [List.eraseIdx_cons_succ]
+      simp only [List.findIdx_cons]
+      cases p a with
+      | true => exact Nat.le_refl _
+      | false => exact Nat.succ_le_succ (ih hx)
+
+/-- Erasing the head when it is not the hit moves the first hit earlier. -/
+theorem List.findIdx_eraseIdx_zero {α : Type} {l : List α} {p : α → Bool} {x : α}
+    (hx : l[0]? = some x) (hpx : p x = false) : (l.eraseIdx 0).findIdx p < l.findIdx p := by
+  cases l with
+  | nil => simp at hx
+  | cons a rest =>
+    simp only [List.getElem?_cons_zero, Option.some.injEq] at hx
+    subst hx
+    rw [List.eraseIdx_cons_zero, List.findIdx_cons, hpx, cond_false]
+    exact Nat.lt_succ_self _
+
+
 /-! ## Temporal combinators over an arbitrary run -/
 
 section Temporal

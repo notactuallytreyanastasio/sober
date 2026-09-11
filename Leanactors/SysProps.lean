@@ -1370,4 +1370,68 @@ theorem SysReach.noKillTo_of_no_signal {beh : EBehavior σ μ} {sig : Signals σ
     (hb : ∀ q fresh st m q' r, Effect.signal q' r ∉ (beh q fresh st m).2) : s'.NoKillTo p :=
   h.inv (fun hst hk => hst.noKillTo hk (fun q st m _ _ => hb q _ st m p .kill)) hk
 
+/-! ## Timers only grow, except by firing
+
+Every `runE` appends to `timers` (a death keeps them), a signal or DOWN
+step leaves them alone; the timer-driven liveness proofs rank a pending
+timer by its position in the list. -/
+
+namespace Sys
+
+/-- One effect only appends to `timers`. -/
+theorem timers_applyEffect_append (p : Pid) (s : Sys σ μ) (d : Option Reason) (e : Effect σ μ) :
+    ∃ new, (applyEffect p (s, d) e).1.timers = s.timers ++ new := by
+  cases e with
+  | link q' => exact ⟨[], by simp only [applyEffect]; split <;> simp⟩
+  | monitor q' => exact ⟨[], by simp only [applyEffect]; split <;> simp⟩
+  | sendAfter to m => exact ⟨_, rfl⟩
+  | _ => exact ⟨[], by simp [applyEffect]⟩
+
+theorem timers_foldl_applyEffect_append (p : Pid) (effs : List (Effect σ μ)) (s : Sys σ μ)
+    (d : Option Reason) :
+    ∃ new, (effs.foldl (applyEffect p) (s, d)).1.timers = s.timers ++ new := by
+  induction effs generalizing s d with
+  | nil => exact ⟨[], by simp⟩
+  | cons e rest ih =>
+    rw [List.foldl_cons]
+    have h1 := timers_applyEffect_append p s d e
+    revert h1
+    generalize applyEffect p (s, d) e = x
+    obtain ⟨s1, d1⟩ := x
+    intro h1
+    obtain ⟨n1, h1⟩ := h1
+    obtain ⟨n2, h2⟩ := ih s1 d1
+    exact ⟨n1 ++ n2, by rw [h2, h1, List.append_assoc]⟩
+
+theorem timers_applyEffects_append (p : Pid) (s : Sys σ μ) (effs : List (Effect σ μ)) :
+    ∃ new, (applyEffects p s effs).1.timers = s.timers ++ new :=
+  timers_foldl_applyEffect_append p effs s none
+
+/-- A `runE` only appends to `timers` (a death keeps them). -/
+theorem runE_timers_append {beh : EBehavior σ μ} {s s' : Sys σ μ} {p : Pid}
+    (h : runE beh s p = some s') : ∃ new, s'.timers = s.timers ++ new := by
+  obtain ⟨st, m, rest, _, hs'⟩ := runE_cases h
+  simp only at hs'
+  obtain ⟨new, hnew⟩ := timers_applyEffects_append p
+    { s with cfg := s.cfg.set p ⟨(beh p s.next st m).1, rest⟩ } (beh p s.next st m).2
+  simp only at hnew
+  rcases hs' with ⟨_, rfl⟩ | ⟨reason, _, rfl⟩
+  · exact ⟨new, hnew⟩
+  · exact ⟨new, by rw [terminate_timers, hnew]⟩
+
+/-- A signal step never touches `timers`. -/
+theorem signalE_timers {sig : Signals σ μ} {s s' : Sys σ μ} (h : signalE sig s = some s') :
+    s'.timers = s.timers := by
+  obtain ⟨q, src, r, rest, _, hc⟩ := signalE_cases h
+  rcases hc with ⟨_, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩
+    <;> rfl
+
+/-- Nor does a DOWN step. -/
+theorem downE_timers {sig : Signals σ μ} {s s' : Sys σ μ} (h : downE sig s = some s') :
+    s'.timers = s.timers := by
+  obtain ⟨w, t, r, rest, _, hc⟩ := downE_cases h
+  rcases hc with ⟨_, _, _, rfl⟩ | rfl <;> rfl
+
+end Sys
+
 end Leanactors
