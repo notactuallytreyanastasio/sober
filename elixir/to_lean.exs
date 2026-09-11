@@ -115,6 +115,51 @@
 #   `@type reply :: :ok | {:error, err()} | {:found, pid()} | :not_found`
 #   is `inductive Reply`; a tagged tuple at that type, in a pattern or an
 #   expression, is the constructor applied to its fields.
+#   Structs: `defstruct f: d, ..` with `@type t :: %__MODULE__{f: T, ..}`
+#   is a Lean `structure` with the same fields, each defaulting to `d`
+#   (a field with no declared type takes Nat/Int/Bool from its default;
+#   anything else must be declared). `%Mod{f: e}` is
+#   `({ f := e } : Mod)` with the other fields at their defaults, `%{s | f:
+#   e}` is `{ s with f := e }`, `x.f` is the projection, and a pattern
+#   `%Mod{f: p}` is the anonymous constructor `⟨.., p, ..⟩` with a wildcard
+#   for every field not named (`%Mod{..} = v` binds the whole value as
+#   `v@⟨..⟩`). A GenServer whose `@type state` is its own struct (`t()` or
+#   `%__MODULE__{}`) has it flattened into the state constructor, one field
+#   per defstruct field in order and under the struct's own names: `state.f`
+#   is then the part the clause's pattern bound to f, `%{state | f: e}`
+#   rebuilds the constructor with the named parts replaced, and a whole-state
+#   value cannot be bound to a variable (it does not exist in the model).
+#   Such a module's own struct is not emitted as a Lean `structure` unless
+#   some other type mentions it. Declarations are emitted in dependency
+#   order; a cycle would need a `mutual` block and is an error.
+#   Enum over lists: Enum.filter/reject are `List.filter` (reject of the
+#   negated predicate), map `List.map`, count `List.length` (of the filtered
+#   list when a predicate is given), any?/all? `List.any`/`List.all`,
+#   member? `∈`, reverse/take/drop the same names, at `l[i]?` (an Option),
+#   empty? `List.isEmpty`; `length` is `List.length`, `tl` `List.tail`,
+#   `++` `++`, and `hd` is `List.headD` at the element type's default (it
+#   raises on the BEAM, which an expression here cannot; an element type
+#   with no default value is an error). The predicate is a literal
+#   `fn x -> e end` or a capture `&(&1..)`, whose argument is the Lean
+#   binder `x1` (so `x1` is reserved, and only `&1` may appear). A
+#   comprehension `for x <- l, c, .., do: e` is `List.map` of the body over
+#   the list filtered by each condition in source order.
+#   :queue is the list, oldest first: `:queue.queue(T)` is `List T`,
+#   `:queue.new()` is `[]`, `:queue.in(x, q)` is `q ++ [x]`,
+#   `:queue.to_list(q)` is `q`, `:queue.len`/`:queue.is_empty` are the List
+#   functions, `:queue.peek(q)` is `List.head?` (matched with `{:value, x}`
+#   and `:empty`), `{_, q} = :queue.out(q0)` is `let q := List.tail q0` (out
+#   of an empty queue gives it back, as `tail` does), and
+#   `case :queue.out(q)` matches the list: `{{:value, x}, rest}` is
+#   `x :: rest` and `{:empty, q}` is `[]` with q aliased to it.
+#   A local binding `v = e` is a Lean `let` wrapped around the clause's
+#   result. Statements may be followed by an if/case body, in which case the
+#   bindings wrap the whole branch; a statement with an effect of its own
+#   (a send, a spawn) there is an error, because it would have to be pushed
+#   into every branch.
+#   A module attribute holding a literal (`@max 3`) is substituted into
+#   every later read of it in the module body, so a defstruct default, a
+#   guard or a state expression may name one.
 #   After a blocking call the rest of the body may be a single if/case.
 #   PubSub: `Phoenix.PubSub.subscribe(server, topic)` is the effect
 #   `.subscribe me topic`, `Phoenix.PubSub.unsubscribe(server, topic)` is
@@ -196,7 +241,8 @@ defmodule ToLean do
     defstruct types: %{}, msg_ctors: [], st_ctors: [], pids: %{}, enums: %{}, ns: "Gen", warnings: [],
               extra: [], awaits: %{}, reply_type: nil, traps: %{}, pid_vars: [],
               covered: [], inits: %{}, mods: [], kinds: %{}, loops: %{}, defers: [], afters: %{},
-              pubsub: [[:Phoenix, :PubSub], [:PubSub]], attrs: %{}, init_subs: %{}
+              pubsub: [[:Phoenix, :PubSub], [:PubSub]], attrs: %{}, init_subs: %{},
+              structs: %{}, struct_states: %{}, struct_order: []
   end
 
   # ---------- entry ----------
@@ -220,16 +266,28 @@ defmodule ToLean do
       end)
 
     {:ok, ast} = src |> File.read!() |> Code.string_to_quoted(columns: false)
-    mods = for {:defmodule, _, [{:__aliases__, _, [name]}, [do: body]]} <- top(ast), do: {name, stmts(body)}
+    mods = for {:defmodule, _, [{:__aliases__, _, [name]}, [do: body]]} <- top(ast), do: {name, subst_attrs(stmts(body))}
     # registered names: the --pid flags if any are given, else derived from
     # the source (name: __MODULE__ in start_link/start, Process.register/2)
     pids = if map_size(pids) == 0, do: register_names(mods), else: pids
     ctx = %Ctx{ns: ns, pids: pids}
     ctx = %{ctx | pubsub: ctx.pubsub ++ pubsubs}
+    # every module's @type declarations and defstruct first (a struct or a
+    # remote type `Mod.t()` may be used before the module that declares it),
+    # then the message and state constructors of the GenServer modules
+    ctx = Enum.reduce(mods, ctx, fn {name, body}, c -> collect_raw_types(c, name, body) end)
+    ctx = collect_structs(ctx)
+    # a module with a defstruct and no callbacks or receive loop only
+    # declares a struct: it has no state and no clauses
+    mods = Enum.reject(mods, fn {name, body} -> struct_only?(ctx, name, body) end)
     ctx = Enum.reduce(mods, ctx, fn {name, body}, c -> collect_types(c, name, body) end)
-    # the tagged unions by Lean name, for the expression and pattern
-    # renderers (which do not carry the context)
+    # the tagged unions and structs by Lean name, for the expression and
+    # pattern renderers (which do not carry the context)
     Process.put(:to_lean_unions, tagged_unions(ctx))
+    Process.put(:to_lean_structs, ctx.structs)
+    Process.put(:to_lean_struct_states, ctx.struct_states)
+    # the first alternative of every enum, the only default value `hd/1` has
+    Process.put(:to_lean_firsts, first_ctors(ctx))
     clauses = for {name, body} <- mods, cl <- ordered(clauses(name, body)), do: cl
     traps = for {name, body} <- mods, traps?(body), into: %{}, do: {name, true}
     inits0 = for {name, body} <- mods, init = init_of(ctx, name, body), init != nil, do: {name, init}
@@ -480,18 +538,122 @@ defmodule ToLean do
   defp stmts({:__block__, _, xs}), do: xs
   defp stmts(x), do: [x]
 
+  # Module attributes used as constants: `@name literal` is substituted for
+  # every later read `@name` in the module body (a defstruct default, a
+  # guard, a state expression). Only literal values are substituted; the
+  # attributes with a meaning to the compiler (@type, @spec, @impl, @doc,
+  # ...) are left alone.
+  @compiler_attrs [:type, :typep, :opaque, :spec, :impl, :doc, :moduledoc, :typedoc, :behaviour,
+                   :derive, :enforce_keys, :callback, :macrocallback, :optional_callbacks, :dialyzer,
+                   :external_resource, :on_load, :before_compile, :after_compile, :compile, :deprecated]
+  defp subst_attrs(body) do
+    {rev, _} =
+      Enum.reduce(body, {[], %{}}, fn
+        {:@, _, [{name, _, [value]}]} = s, {acc, attrs} when name not in @compiler_attrs ->
+          if literal?(value), do: {acc, Map.put(attrs, name, value)}, else: {[s | acc], attrs}
+        s, {acc, attrs} ->
+          s2 =
+            Macro.prewalk(s, fn
+              {:@, _, [{name, _, nil}]} = n when is_atom(name) ->
+                case Map.fetch(attrs, name) do
+                  {:ok, v} -> v
+                  :error -> n
+                end
+              n -> n
+            end)
+          {[s2 | acc], attrs}
+      end)
+    Enum.reverse(rev)
+  end
+
+  defp literal?(x) when is_atom(x) or is_integer(x) or is_binary(x), do: true
+  defp literal?(xs) when is_list(xs), do: Enum.all?(xs, &literal?/1)
+  defp literal?({a, b}), do: literal?(a) and literal?(b)
+  defp literal?({:{}, _, xs}), do: Enum.all?(xs, &literal?/1)
+  defp literal?(_), do: false
+
   # ---------- types ----------
 
-  # Local @type declarations, keyed {module, name}
-  defp collect_types(ctx, mod, body) do
+  # Local @type declarations, keyed {module, name}, and the module's
+  # defstruct (field, default) pairs
+  defp collect_raw_types(ctx, mod, body) do
     Enum.reduce(body, ctx, fn
       {:@, _, [{:type, _, [{:"::", _, [{tname, _, _}, t]}]}]}, c ->
         put_in(c.types[{mod, tname}], t)
       # a string-valued module attribute (a PubSub topic)
       {:@, _, [{name, _, [v]}]}, c when is_atom(name) and is_binary(v) ->
         put_in(c.attrs[{mod, name}], v)
+      {:defstruct, _, [fields]}, c ->
+        Map.has_key?(c.structs, mod) && fail("#{mod}: more than one defstruct")
+        pairs =
+          Enum.map(fields, fn
+            {f, d} when is_atom(f) -> {f, d}
+            f when is_atom(f) -> {f, nil}
+            other -> fail("#{mod}: unsupported defstruct field #{Macro.to_string(other)}")
+          end)
+        %{c | structs: Map.put(c.structs, mod, pairs), struct_order: c.struct_order ++ [mod]}
       _, c -> c
     end)
+  end
+
+  # The Lean fields of every struct: [{name, lean type, default AST}] in
+  # defstruct order, keyed by the Lean name (the module name). A field's type
+  # comes from `@type t :: %__MODULE__{f: T, ..}`; without one it is read
+  # off the default (an integer is Nat or Int, a boolean Bool), and
+  # anything else needs the declaration.
+  defp collect_structs(ctx) do
+    structs =
+      for {mod, pairs} <- ctx.structs, into: %{} do
+        declared =
+          case Map.fetch(ctx.types, {mod, :t}) do
+            {:ok, {:%, _, [{:__MODULE__, _, _}, {:%{}, _, kvs}]}} -> Map.new(kvs)
+            {:ok, other} -> fail("#{mod}: @type t must be %__MODULE__{field: type, ..}, got #{Macro.to_string(other)}")
+            :error -> %{}
+          end
+        Enum.each(Map.keys(declared), fn f ->
+          List.keymember?(pairs, f, 0) || fail("#{mod}: @type t mentions #{f}, which is not a defstruct field")
+        end)
+        fields =
+          for {f, d} <- pairs do
+            t =
+              case Map.fetch(declared, f) do
+                {:ok, t} -> lean_type(ctx, mod, t)
+                :error ->
+                  cond do
+                    is_integer(d) and d >= 0 -> "Nat"
+                    is_integer(d) -> "Int"
+                    is_boolean(d) -> "Bool"
+                    true -> fail("#{mod}: declare the type of struct field #{f} in @type t :: %__MODULE__{#{f}: ..}")
+                  end
+              end
+            {Atom.to_string(f), t, d}
+          end
+        {struct_name(mod), fields}
+      end
+    %{ctx | structs: structs}
+  end
+
+  defp struct_name(mod), do: Atom.to_string(mod)
+
+  # a module that declares a struct and neither callbacks nor a receive loop
+  defp struct_only?(ctx, mod, body) do
+    Map.has_key?(ctx.structs, struct_name(mod)) and loop_of(body) == nil and
+      not Enum.any?(body, fn
+        {:def, _, [head, _]} -> elem(head_parts(head), 0) in [:handle_cast, :handle_info, :handle_call, :handle_continue]
+        _ -> false
+      end)
+  end
+
+  # the fields [{name, type, default}] of a Lean struct type, or nil
+  defp struct_fields(nil), do: nil
+  defp struct_fields(t), do: Map.get(Process.get(:to_lean_structs, %{}), t)
+
+  # the struct a state constructor flattens, or nil
+  defp struct_state_of(ctor), do: Map.get(Process.get(:to_lean_struct_states, %{}), ctor)
+
+  # The message and state constructors of a GenServer module
+  defp collect_types(ctx, mod, body) do
+    ctx
     |> then(fn c ->
       # the msg, cast and info unions contribute constructors (msg may be
       # omitted when another of them, or call, is declared); state
@@ -522,7 +684,8 @@ defmodule ToLean do
           :error -> c
         end
       st = Map.fetch!(c.types, {mod, :state})
-      fields = state_fields(c, mod, st) ++ if(after?, do: [{"gen", "Nat"}], else: [])
+      {fields, c} = state_fields(c, mod, st)
+      fields = fields ++ if(after?, do: [{"gen", "Nat"}], else: [])
       %{c | st_ctors: c.st_ctors ++ [{ctor_name(mod), fields}]}
     end)
   end
@@ -556,10 +719,19 @@ defmodule ToLean do
     end
   end
 
-  # A state type becomes one constructor of St with positional fields.
-  defp state_fields(ctx, mod, {:{}, _, ts}), do: ts |> Enum.with_index() |> Enum.map(fn {t, i} -> {"f#{i}", lean_type(ctx, mod, t)} end)
+  # A state type becomes one constructor of St with positional fields; a
+  # state that is a struct (the module's own `t()` or `%__MODULE__{}`, or
+  # another module's) is flattened into one field per struct field, in
+  # defstruct order and under the struct's field names.
+  defp state_fields(ctx, mod, {:{}, _, ts}), do: {ts |> Enum.with_index() |> Enum.map(fn {t, i} -> {"f#{i}", lean_type(ctx, mod, t)} end), ctx}
   defp state_fields(ctx, mod, {a, b}), do: state_fields(ctx, mod, {:{}, [], [a, b]})
-  defp state_fields(ctx, mod, t), do: [{"s", lean_type(ctx, mod, t)}]
+  defp state_fields(ctx, mod, t) do
+    lt = lean_type(ctx, mod, t)
+    case Map.get(ctx.structs, lt) do
+      nil -> {[{"s", lt}], ctx}
+      fields -> {Enum.map(fields, fn {f, ft, _} -> {f, ft} end), %{ctx | struct_states: Map.put(ctx.struct_states, ctor_name(mod), lt)}}
+    end
+  end
 
   # Elixir type AST -> Lean type (string)
   defp lean_type(_ctx, _mod, {:pid, _, []}), do: "Pid"
@@ -567,6 +739,20 @@ defmodule ToLean do
   defp lean_type(_ctx, _mod, {:integer, _, []}), do: "Int"
   defp lean_type(_ctx, _mod, {:non_neg_integer, _, []}), do: "Nat"
   defp lean_type(_ctx, _mod, {:boolean, _, []}), do: "Bool"
+  # a struct type: the module's own `%__MODULE__{}`, or `%Mod{}` (the fields
+  # in the type, if any, are checked by collect_structs for `@type t`)
+  defp lean_type(ctx, mod, {:%, _, [{:__MODULE__, _, _}, {:%{}, _, _}]}), do: struct_type(ctx, mod)
+  defp lean_type(ctx, _mod, {:%, _, [{:__aliases__, _, [m]}, {:%{}, _, _}]}), do: struct_type(ctx, m)
+  # a remote type `Mod.name()`
+  defp lean_type(ctx, _mod, {{:., _, [{:__aliases__, _, [m]}, name]}, _, []}) when is_atom(name) do
+    case Map.fetch(ctx.types, {m, name}) do
+      {:ok, t} -> named_type(ctx, m, name, t)
+      :error -> fail("unknown type #{m}.#{name}()")
+    end
+  end
+  # `:queue.queue(T)` is a list, oldest first (see the :queue calls in `expr`)
+  defp lean_type(ctx, mod, {{:., _, [:queue, :queue]}, _, [t]}), do: "List " <> paren(lean_type(ctx, mod, t))
+  defp lean_type(_ctx, _mod, {{:., _, [:queue, :queue]}, _, []} = t), do: fail("#{Macro.to_string(t)} needs an element type: :queue.queue(T)")
   defp lean_type(ctx, mod, a) when is_atom(a) and a not in [nil, true, false], do: enum_name(ctx, mod, [a])
   defp lean_type(ctx, mod, [t]), do: "List " <> paren(lean_type(ctx, mod, t))
   # a map %{K => V} is an association list; see Leanactors/AssocList.lean
@@ -595,6 +781,13 @@ defmodule ToLean do
     end
   end
   defp lean_type(_ctx, _mod, t), do: fail("unsupported type #{Macro.to_string(t)}")
+
+  defp struct_type(ctx, mod) do
+    name = struct_name(mod)
+    Map.has_key?(ctx.structs, mod) or Map.has_key?(ctx.structs, name) ||
+      fail("#{mod} declares no defstruct")
+    name
+  end
 
   # A named local type that is a union of atoms becomes a Lean enum with the
   # capitalised name, a tagged union a Lean inductive with the same name;
@@ -659,6 +852,16 @@ defmodule ToLean do
       [k, v] -> {k, v}
       _ -> nil
     end
+  end
+
+  # enum name -> its first alternative, the default `hd/1` falls back to
+  defp first_ctors(ctx) do
+    for {{_mod, name}, t} <- ctx.types,
+        name not in @not_enums,
+        alts = union(t),
+        alts != [] and Enum.all?(alts, &is_atom/1) and not Enum.member?(alts, nil),
+        into: %{},
+        do: {name |> Atom.to_string() |> String.capitalize(), ".#{hd(alts)}"}
   end
 
   defp enum_name(ctx, mod, alts) do
@@ -957,7 +1160,7 @@ defmodule ToLean do
   # every variable occurrence (not deduplicated), as atoms
   defp all_vars(ast) do
     {_, vs} = Macro.prewalk(ast, [], fn
-      {v, _, nil} = n, acc when is_atom(v) -> {n, [v | acc]}
+      {v, _, nil} = n, acc when is_atom(v) and v != :__MODULE__ -> {n, [v | acc]}
       n, acc -> {n, acc}
     end)
     Enum.reverse(vs)
@@ -1001,6 +1204,29 @@ defmodule ToLean do
 
   # ---------- rendering ----------
 
+  # Lean has no forward references, so every declaration is emitted after the
+  # ones its field types mention; within one batch the source order is kept.
+  # A cycle would need a `mutual` block, which the model does not use.
+  defp order_decls(decls) do
+    names = Enum.map(decls, &elem(&1, 0))
+    order_loop(for({n, ts, txt} <- decls, do: {n, decl_deps(ts, names) -- [n], txt}), [], [])
+  end
+
+  defp order_loop([], _done, acc), do: Enum.reverse(acc)
+  defp order_loop(pending, done, acc) do
+    case Enum.split_with(pending, fn {_n, deps, _} -> deps -- done == [] end) do
+      {[], [{n, _, _} | _]} ->
+        fail("#{n} and the types its fields mention are mutually recursive; Lean would need a `mutual` block")
+      {ready, rest} ->
+        order_loop(rest, done ++ Enum.map(ready, &elem(&1, 0)),
+                   Enum.reverse(Enum.map(ready, &elem(&1, 2))) ++ acc)
+    end
+  end
+
+  # the declared type names a list of Lean types mentions
+  defp decl_deps(types, names),
+    do: for(n <- names, Enum.any?(types, &Regex.match?(~r/\b#{n}\b/, &1)), do: n)
+
   defp render(ctx, clauses) do
     enums =
       for {{mod, name}, t} <- ctx.types,
@@ -1016,18 +1242,41 @@ defmodule ToLean do
     # tagged unions, after the enums their fields may mention
     unions =
       for {name, ctors} <- Process.get(:to_lean_unions, %{}) |> Enum.sort() do
-        "inductive #{name}\n" <>
-          Enum.map_join(ctors, "\n", fn {tag, ts} ->
-            String.trim_trailing("  | #{tag} " <> (ts |> Enum.with_index() |> Enum.map_join(" ", fn {t, i} -> "(a#{i} : #{t})" end)))
-          end) <> "\n  deriving Repr, DecidableEq\n"
+        {name, Enum.flat_map(ctors, &elem(&1, 1)),
+         "inductive #{name}\n" <>
+           Enum.map_join(ctors, "\n", fn {tag, ts} ->
+             String.trim_trailing("  | #{tag} " <> (ts |> Enum.with_index() |> Enum.map_join(" ", fn {t, i} -> "(a#{i} : #{t})" end)))
+           end) <> "\n  deriving Repr, DecidableEq\n"}
       end
-    enums = enums ++ unions
-
-    # a map anywhere in the types needs the association-list helpers
-    all_types =
+    # structs, in source order, when some message, state field, union or
+    # other struct mentions them as a value type (a struct that is only
+    # the flattened state of its module is not emitted)
+    struct_names = Enum.map(ctx.struct_order, &struct_name/1)
+    base_types =
       Enum.flat_map(ctx.msg_ctors, &elem(&1, 1)) ++
         Enum.flat_map(ctx.st_ctors, fn {_, fields} -> Enum.map(fields, &elem(&1, 1)) end) ++
         Enum.flat_map(Map.values(Process.get(:to_lean_unions, %{})), fn ctors -> Enum.flat_map(ctors, &elem(&1, 1)) end)
+    mentioned = fn types, name -> Enum.any?(types, &Regex.match?(~r/\b#{name}\b/, &1)) end
+    used_structs =
+      Enum.reduce(struct_names, [], fn _, acc ->
+        for name <- struct_names, name not in acc,
+            mentioned.(base_types ++ Enum.flat_map(acc, fn n -> Enum.map(ctx.structs[n], &elem(&1, 1)) end), name),
+            reduce: acc do
+          a -> a ++ [name]
+        end
+      end)
+    used_structs = Enum.filter(struct_names, &(&1 in used_structs))
+    structs =
+      for name <- used_structs do
+        {name, Enum.map(ctx.structs[name], &elem(&1, 1)),
+         "structure #{name} where\n" <>
+           Enum.map_join(ctx.structs[name], "\n", fn {f, t, d} -> "  #{f} : #{t} := #{expr(%{}, d, t)}" end) <>
+           "\n  deriving Repr, DecidableEq\n"}
+      end
+    enums = enums ++ order_decls(unions ++ structs)
+
+    # a map anywhere in the types needs the association-list helpers
+    all_types = base_types ++ Enum.flat_map(used_structs, fn n -> Enum.map(ctx.structs[n], &elem(&1, 1)) end)
     maps_import = if Enum.any?(all_types, &String.contains?(&1, " × ")), do: "import Leanactors.AssocList\n", else: ""
 
     msg =
@@ -1113,6 +1362,7 @@ defmodule ToLean do
     "fun #{binder.("p")} #{binder.("r")} => .#{tag}" <> Enum.map_join(args, "", &(" " <> paren_or(&1)))
   end
 
+  defp default_of(ctx, t) when is_map_key(ctx.structs, t), do: "({} : #{t})"
   defp default_of(_ctx, "Pid"), do: "p"
   defp default_of(_ctx, "Reason"), do: "r"
   defp default_of(_ctx, t) when t in ["Nat", "Int"], do: "0"
@@ -1130,6 +1380,17 @@ defmodule ToLean do
         end
       nil -> fail("no default value of type #{t} for the exitMsg placeholder")
     end
+  end
+
+  # A whole-state part the clause's right-hand side never mentions (a struct
+  # state whose every field is replaced, say) would trip Lean's unused
+  # variable linter, so it is renamed `_part` in the state pattern.
+  defp hide_unused_parts(env, sp, rhs) do
+    parts =
+      for {k, v} <- env, is_binary(k), String.starts_with?(k, "__whole__"), is_list(v), p <- v, plain?(p), do: p
+    Enum.reduce(Enum.uniq(parts), sp, fn p, acc ->
+      if Regex.match?(~r/\b#{p}\b/, rhs), do: acc, else: Regex.replace(~r/\b#{p}\b/, acc, "_" <> p)
+    end)
   end
 
   defp render_clauses(ctx, clauses) do
@@ -1178,6 +1439,7 @@ defmodule ToLean do
           else: c
       # a deferring fallback re-enqueues the whole message: name the pattern
       {me, mp} = if deferred, do: {"me", "#{msg_name(env)}@(#{mp})"}, else: {self_name(env), mp}
+      sp = hide_unused_parts(env, sp, rhs)
       header = "  | #{me}, #{fresh_name(env)}, #{sp}, #{mp}"
       {{cl, {env[:__sparts__] || [], env[:__mparts__] || []}, "#{header} => #{rhs}"}, c}
     end)
@@ -1240,17 +1502,34 @@ defmodule ToLean do
   defp head_of("none"), do: :none
   defp head_of("(some " <> _), do: :some
   defp head_of("[]"), do: :nil
+  # a struct pattern `⟨..⟩`, possibly named `e@⟨..⟩`: the one constructor
+  defp head_of("⟨" <> _), do: {:ctor, "mk"}
   defp head_of("." <> name), do: {:ctor, name}
   defp head_of("(." <> _ = p), do: {:ctor, p |> String.slice(2..-1//1) |> String.split(" ", parts: 2) |> hd() |> String.trim_trailing(")")}
   defp head_of("(" <> _ = p), do: if(length(split_cons(p)) == 2, do: :cons, else: {:opaque, p})
-  defp head_of(p), do: if(plain?(p) or p == "_", do: :var, else: {:opaque, p})
+  defp head_of(p) do
+    cond do
+      plain?(p) or p == "_" -> :var
+      String.contains?(p, "@⟨") -> {:ctor, "mk"}
+      true -> {:opaque, p}
+    end
+  end
+
+  # `e@⟨a, b⟩` -> `⟨a, b⟩`
+  defp strip_at(p) do
+    case String.split(p, "@", parts: 2) do
+      [name, rest] -> if plain?(name), do: rest, else: p
+      _ -> p
+    end
+  end
 
   defp signature(_ctx, "Bool"), do: [{:true, []}, {:false, []}]
   defp signature(_ctx, "Option " <> inner), do: [{:none, []}, {:some, [unparen(inner)]}]
   defp signature(_ctx, "List " <> inner = t), do: [{:nil, []}, {:cons, [unparen(inner), t]}]
   defp signature(ctx, t) do
-    case union_ctors(t) do
-      nil ->
+    case {struct_fields(t), union_ctors(t)} do
+      {fields, _} when fields != nil -> [{{:ctor, "mk"}, Enum.map(fields, &elem(&1, 1))}]
+      {_, nil} ->
         case Enum.find(ctx.types, fn {{_, n}, _} -> n |> Atom.to_string() |> String.capitalize() == t end) do
           {_, u} ->
             if(enum_type?(t) and Enum.all?(union(u), &is_atom/1),
@@ -1258,13 +1537,19 @@ defmodule ToLean do
               else: nil)
           nil -> nil
         end
-      ctors -> for {tag, ts} <- ctors, do: {{:ctor, Atom.to_string(tag)}, ts}
+      {_, ctors} -> for {tag, ts} <- ctors, do: {{:ctor, Atom.to_string(tag)}, ts}
     end
   end
 
   defp sub_parts("(some " <> rest, :some), do: [String.replace_suffix(rest, ")", "")]
   defp sub_parts(p, :cons), do: split_cons(p)
   defp sub_parts("(." <> _ = p, {:ctor, _}), do: split_ctor_args(p)
+  defp sub_parts(p, {:ctor, "mk"}) do
+    case strip_at(p) do
+      "⟨" <> rest -> rest |> String.replace_suffix("⟩", "") |> split_top(0, "", ", ")
+      _ -> []
+    end
+  end
   defp sub_parts(_, _), do: []
 
   # `(h :: t)` -> ["h", "t"], splitting at the top-level `::` only
@@ -1277,6 +1562,8 @@ defmodule ToLean do
     do: [acc | split_top(binary_part(s, byte_size(sep), byte_size(s) - byte_size(sep)), 0, "", sep)]
   defp split_top("(" <> rest, d, acc, sep), do: split_top(rest, d + 1, acc <> "(", sep)
   defp split_top(")" <> rest, d, acc, sep), do: split_top(rest, d - 1, acc <> ")", sep)
+  defp split_top("⟨" <> rest, d, acc, sep), do: split_top(rest, d + 1, acc <> "⟨", sep)
+  defp split_top("⟩" <> rest, d, acc, sep), do: split_top(rest, d - 1, acc <> "⟩", sep)
   defp split_top(<<c::utf8, rest::binary>>, d, acc, sep), do: split_top(rest, d, acc <> <<c::utf8>>, sep)
 
   defp plain?(part), do: part =~ ~r/^[A-Za-z_][A-Za-z0-9_']*$/ and part not in ["none", "true", "false"]
@@ -1371,9 +1658,12 @@ defmodule ToLean do
 
   defp bare?({v, _, nil}) when is_atom(v), do: true
   # a map pattern renders as a variable (its keys become guards), so it is
-  # as bare as one for coverage and fallthrough
+  # as bare as one for coverage and fallthrough; a struct pattern whose
+  # fields are all variables matches every value of the struct
   defp bare?({:%{}, _, _}), do: true
   defp bare?({:=, _, [{:%{}, _, _}, {v, _, nil}]}) when is_atom(v), do: true
+  defp bare?({:%, _, [_, {:%{}, _, kvs}]}), do: Enum.all?(kvs, fn {_, p} -> bare?(p) end)
+  defp bare?({:=, _, [{:%, _, _} = p, {v, _, nil}]}) when is_atom(v), do: bare?(p)
   defp bare?(_), do: false
 
   defp self_name(env), do: if(Map.has_key?(env, :__self__), do: "me", else: "_")
@@ -1444,6 +1734,8 @@ defmodule ToLean do
   # a map pattern is a variable in Lean (its keys are inlined guards)
   defp general?({:%{}, _, _}, _), do: true
   defp general?({:=, _, [{:%{}, _, _}, {v, _, nil}]}, _) when is_atom(v), do: true
+  defp general?({:%, _, _} = p, _), do: bare?(p)
+  defp general?({:=, _, [{:%, _, _} = p, {v, _, nil}]}, _) when is_atom(v), do: bare?(p)
   defp general?(a, a), do: true
   defp general?({:{}, _, xs}, {v, _, nil}) when is_atom(v), do: Enum.all?(xs, &bare?/1)
   defp general?({a, b}, {v, _, nil}) when is_atom(v), do: bare?(a) and bare?(b)
@@ -1476,9 +1768,15 @@ defmodule ToLean do
   defp whole_alias({v, _, nil}, sp, fields, env) when is_atom(v) do
     case {env[:__vparts__], fields} do
       {[single], [{_, t}]} -> env |> Map.put({:alias, Atom.to_string(v)}, single) |> Map.put(lean_ident(Atom.to_string(v)), t)
-      _ -> Map.put(env, {:alias, Atom.to_string(v)}, sp)
+      # a struct state: the general clause's `v.f` and `%{v | ..}` see the parts
+      _ -> env |> Map.put({:alias, Atom.to_string(v)}, sp) |> Map.put("__whole__" <> Atom.to_string(v), env[:__vparts__])
     end
   end
+  # the general clause names the struct state `%__MODULE__{} = v` or `%{} = v`
+  defp whole_alias({:=, _, [{:%, _, [_, {:%{}, _, []}]}, {v, _, nil}]}, sp, fields, env) when is_atom(v),
+    do: whole_alias({v, [], nil}, sp, fields, env)
+  defp whole_alias({:=, _, [{:%{}, _, []}, {v, _, nil}]}, sp, fields, env) when is_atom(v),
+    do: whole_alias({v, [], nil}, sp, fields, env)
   defp whole_alias({a, b}, sp, fields, env), do: whole_alias({:{}, [], [a, b]}, sp, fields, env)
   defp whole_alias({:{}, _, xs}, _sp, fields, env) when length(xs) == length(fields) do
     Enum.zip([xs, env[:__vparts__] || [], fields])
@@ -1527,8 +1825,13 @@ defmodule ToLean do
       end
     {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(cl.mod), 0)
     vfields = visible_fields(ctx, cl.mod, fields)
-    sub = state_subpats(cl.spat, length(vfields))
+    struct = Map.get(ctx.struct_states, ctor_name(cl.mod))
+    {sub, whole} = state_subpats(cl.spat, length(vfields), struct, vfields)
     {vparts, env, gs} = pat_list(ctx, sub, Enum.map(vfields, &elem(&1, 1)), env, gs)
+    # a struct state pattern `%__MODULE__{f: p} = v`: the whole variable
+    # names all the parts, the named fields included
+    env = if whole, do: Map.put(env, "__whole__" <> whole, vparts), else: env
+    env = if struct, do: Map.put(env, :__struct_state__, struct), else: env
     # a loop with `after`: the hidden generation field is the pattern variable `gen`
     {sparts, env} =
       if Map.has_key?(ctx.afters, cl.mod) do
@@ -1562,6 +1865,37 @@ defmodule ToLean do
   # a variable/underscore against a multi-field state -> that many wildcards
   # is NOT allowed (we need the fields); so we bind whole-state variables
   # by reconstructing. Single-field states take the pattern directly.
+  #
+  # A struct state (`@type state :: t()`) takes a struct pattern
+  # `%__MODULE__{f: p, ..}`, `%Mod{..}` or `%{f: p, ..}`, optionally `= v`:
+  # the named fields take their patterns, the others are wildcards, or the
+  # parts of `v` when the whole struct is named (returned as the second
+  # component so `patterns` can bind `v` to every part).
+  defp state_subpats({:=, _, [{:%, _, [_, {:%{}, _, kvs}]}, {v, _, nil}]}, _n, struct, fields) when is_atom(v) and struct != nil,
+    do: {struct_subpats(struct, fields, kvs, v), Atom.to_string(v)}
+  defp state_subpats({:=, _, [{:%{}, _, kvs}, {v, _, nil}]}, n, struct, fields) when is_atom(v) and struct != nil and n > 0,
+    do: {struct_subpats(struct, fields, kvs, v), Atom.to_string(v)}
+  defp state_subpats({:%, _, [_, {:%{}, _, kvs}]}, _n, struct, fields) when struct != nil,
+    do: {struct_subpats(struct, fields, kvs, nil), nil}
+  defp state_subpats({:%{}, _, kvs}, _n, struct, fields) when struct != nil and kvs != [],
+    do: {struct_subpats(struct, fields, kvs, nil), nil}
+  defp state_subpats(p, n, _struct, _fields), do: {state_subpats(p, n), nil}
+
+  defp struct_subpats(struct, fields, kvs, v) do
+    Enum.each(kvs, fn
+      {k, _} when is_atom(k) -> List.keymember?(fields, Atom.to_string(k), 0) || fail("#{struct} has no field #{k}")
+      {k, _} -> fail("struct pattern keys must be atoms, got #{Macro.to_string(k)}")
+    end)
+    fields
+    |> Enum.with_index()
+    |> Enum.map(fn {{f, _}, i} ->
+      case List.keyfind(kvs, String.to_atom(f), 0) do
+        {_, p} -> p
+        nil -> if v, do: {:"__whole__#{v}@#{i}", [], nil}, else: {:_, [], nil}
+      end
+    end)
+  end
+
   defp state_subpats(p, 1), do: [p]
   defp state_subpats({:{}, _, xs}, n) when length(xs) == n, do: xs
   defp state_subpats({a, b}, 2), do: [a, b]
@@ -1589,6 +1923,25 @@ defmodule ToLean do
     {"(some #{ps})", env, gs}
   end
   defp pat(_ctx, :error, "Option " <> _, env, gs), do: {"none", env, gs}
+  # `{:value, p}` and `:empty` at an Option position: the result of :queue.peek/1
+  defp pat(ctx, {:value, p}, "Option " <> inner, env, gs) do
+    {ps, env, gs} = pat(ctx, p, unparen(inner), env, gs)
+    {"(some #{ps})", env, gs}
+  end
+  defp pat(_ctx, :empty, "Option " <> _, env, gs), do: {"none", env, gs}
+  # A struct pattern `%Mod{f: p, ..}` (or `%{f: p, ..}` at a struct type) is
+  # the anonymous constructor `⟨p0, p1, ..⟩` with a wildcard for every field
+  # not mentioned; `%Mod{..} = v` names the whole value, `v@⟨..⟩`.
+  defp pat(ctx, {:=, _, [{:%, _, _} = sp, {v, _, nil}]}, t, env, gs) when is_atom(v),
+    do: pat(ctx, sp, t, Map.put(env, :__structalias__, lean_ident(Atom.to_string(v))), gs)
+  defp pat(ctx, {:%, _, [m, {:%{}, _, kvs}]} = p, t, env, gs) do
+    struct_fields(t) || fail("struct pattern #{Macro.to_string(p)} at non-struct type #{t}")
+    case m do
+      {:__aliases__, _, [name]} -> Atom.to_string(name) == t || fail("struct pattern #{Macro.to_string(p)} at type #{t}")
+      _ -> :ok
+    end
+    struct_pat(ctx, t, kvs, env, gs)
+  end
   # A map pattern. `%{}` matches any map (a wildcard). `%{k => p, ...}` with
   # literal keys binds the whole map to a fresh Lean name `map<i>` and adds
   # guards on it: `_` is `hasKey`, a literal or an already-bound variable is
@@ -1601,43 +1954,15 @@ defmodule ToLean do
     Map.has_key?(env, name) && fail("variable #{name} bound twice (map alias)")
     pat(ctx, mp, t, Map.put(env, :__mapalias__, name), gs)
   end
+  # `%{f: p, ..}` at a struct type is a struct pattern, not a map pattern
   defp pat(ctx, {:%{}, _, pairs} = p, t, env, gs) do
-    {kt, vt} = map_type(t) || fail("map pattern #{Macro.to_string(p)} at non-map type #{t}")
-    {alias_name, env} = Map.pop(env, :__mapalias__)
-    if pairs == [] do
-      if alias_name, do: {alias_name, Map.put(env, alias_name, t), gs}, else: pat(ctx, {:_, [], nil}, t, env, gs)
+    if struct_fields(t) != nil and pairs != [] do
+      struct_pat(ctx, t, pairs, env, gs)
     else
-      i = Map.get(env, :__maps__, 0)
-      name = alias_name || "map#{i}"
-      env = env |> Map.put(:__maps__, i + 1) |> Map.put(name, t)
-      {env, gs} =
-        Enum.reduce(pairs, {env, gs}, fn {k, vp}, {e, g} ->
-          {ks, _, []} =
-            if is_atom(k) or is_integer(k),
-              do: pat(ctx, k, kt, %{}, []),
-              else: fail("map pattern keys must be literals, got #{Macro.to_string(k)}")
-          case vp do
-            {:_, _, nil} -> {e, g ++ [{:map_has, name, ks}]}
-            {v, _, nil} when is_atom(v) ->
-              vn = lean_ident(Atom.to_string(v))
-              cond do
-                String.starts_with?(vn, "_") -> {e, g ++ [{:map_has, name, ks}]}
-                Map.has_key?(e, vn) ->
-                  e[vn] == vt || fail("variable #{vn} bound at #{e[vn]} reused at #{vt} in a map pattern")
-                  {e, g ++ [{:map_eq, name, ks, vn}]}
-                true ->
-                  e = e |> Map.put(vn, vt) |> Map.update(:__mapbinds__, [{name, ks, vn}], &(&1 ++ [{name, ks, vn}]))
-                  {e, g}
-              end
-            lit ->
-              {ls, _, []} = pat(ctx, lit, vt, %{}, [])
-              {e, g ++ [{:map_eq, name, ks, ls}]}
-          end
-        end)
-      {name, env, gs}
+      map_pat(ctx, p, t, env, gs)
     end
   end
-  # a GenServer.from() value {pid, ref} matched at a Pid position: keep the pid
+
   defp pat(ctx, {x, {r, _, nil}}, t, env, gs) when t in ["Pid", "Option Pid"] and is_atom(r) do
     String.starts_with?(Atom.to_string(r), "_") || fail("ref in from-pattern must be a wildcard")
     pat(ctx, x, t, env, gs)
@@ -1662,8 +1987,14 @@ defmodule ToLean do
       end
     cond do
       whole? ->
-        # a whole-state variable: bind field-wise as name_i and remember to rebuild
-        i = map_size(Map.filter(env, fn {k, _} -> is_binary(k) and String.starts_with?(k, name <> "_") end))
+        # a whole-state variable: bind field-wise as name_i and remember to
+        # rebuild (`name@i` fixes the index: a struct pattern names some
+        # fields itself)
+        {name, i} =
+          case String.split(name, "@") do
+            [n, i] -> {n, String.to_integer(i)}
+            [n] -> {n, map_size(Map.filter(env, fn {k, _} -> is_binary(k) and String.starts_with?(k, n <> "_") end))}
+          end
         fname = "#{name}_#{i}"
         env = Map.put(env, fname, t) |> Map.update("__whole__" <> name, [fname], &(&1 ++ [fname]))
         {fname, env, gs}
@@ -1703,6 +2034,62 @@ defmodule ToLean do
   end
   defp pat(_ctx, p, t, _env, _gs), do: fail("unsupported pattern #{Macro.to_string(p)} at type #{t}")
 
+  defp map_pat(ctx, {:%{}, _, pairs} = p, t, env, gs) do
+    {kt, vt} = map_type(t) || fail("map pattern #{Macro.to_string(p)} at non-map type #{t}")
+    {alias_name, env} = Map.pop(env, :__mapalias__)
+    if pairs == [] do
+      if alias_name, do: {alias_name, Map.put(env, alias_name, t), gs}, else: pat(ctx, {:_, [], nil}, t, env, gs)
+    else
+      i = Map.get(env, :__maps__, 0)
+      name = alias_name || "map#{i}"
+      env = env |> Map.put(:__maps__, i + 1) |> Map.put(name, t)
+      {env, gs} =
+        Enum.reduce(pairs, {env, gs}, fn {k, vp}, {e, g} ->
+          {ks, _, []} =
+            if is_atom(k) or is_integer(k),
+              do: pat(ctx, k, kt, %{}, []),
+              else: fail("map pattern keys must be literals, got #{Macro.to_string(k)}")
+          case vp do
+            {:_, _, nil} -> {e, g ++ [{:map_has, name, ks}]}
+            {v, _, nil} when is_atom(v) ->
+              vn = lean_ident(Atom.to_string(v))
+              cond do
+                String.starts_with?(vn, "_") -> {e, g ++ [{:map_has, name, ks}]}
+                Map.has_key?(e, vn) ->
+                  e[vn] == vt || fail("variable #{vn} bound at #{e[vn]} reused at #{vt} in a map pattern")
+                  {e, g ++ [{:map_eq, name, ks, vn}]}
+                true ->
+                  e = e |> Map.put(vn, vt) |> Map.update(:__mapbinds__, [{name, ks, vn}], &(&1 ++ [{name, ks, vn}]))
+                  {e, g}
+              end
+            lit ->
+              {ls, _, []} = pat(ctx, lit, vt, %{}, [])
+              {e, g ++ [{:map_eq, name, ks, ls}]}
+          end
+        end)
+      {name, env, gs}
+    end
+  end
+  # a GenServer.from() value {pid, ref} matched at a Pid position: keep the pid
+  # the fields of struct `t` against the pairs of a struct pattern
+  defp struct_pat(ctx, t, kvs, env, gs) do
+    fields = struct_fields(t)
+    {alias_name, env} = Map.pop(env, :__structalias__)
+    Enum.each(kvs, fn
+      {k, _} when is_atom(k) -> List.keymember?(fields, Atom.to_string(k), 0) || fail("#{t} has no field #{k}")
+      {k, _} -> fail("struct pattern keys must be atoms, got #{Macro.to_string(k)}")
+    end)
+    if alias_name && Map.has_key?(env, alias_name), do: fail("variable #{alias_name} bound twice (struct alias)")
+    subs = for {f, ft, _} <- fields, do: {Keyword.get(kvs, String.to_atom(f), {:_, [], nil}), ft}
+    {parts, env, gs} = pat_list(ctx, Enum.map(subs, &elem(&1, 0)), Enum.map(subs, &elem(&1, 1)), env, gs)
+    cond do
+      alias_name && kvs == [] -> {alias_name, Map.put(env, alias_name, t), gs}
+      alias_name -> {"#{alias_name}@⟨#{Enum.join(parts, ", ")}⟩", Map.put(env, alias_name, t), gs}
+      kvs == [] -> pat(ctx, {:_, [], nil}, t, env, gs)
+      true -> {"⟨#{Enum.join(parts, ", ")}⟩", env, gs}
+    end
+  end
+
   defp paren_or(t) do
     cond do
       not String.contains?(t, " ") -> t
@@ -1728,12 +2115,31 @@ defmodule ToLean do
     {sb, ctx} = body(ctx, mod, env, b)
     {"if #{expr(env, c, nil)} then #{sa} else #{sb}", ctx}
   end
+  # `case :queue.out(q)`: a match on the list itself, `{{:value, x}, rest}`
+  # being `x :: rest` and `{:empty, q'}` being `[]` (with q' aliased to `[]`)
+  defp body(ctx, mod, env, {:case, m, [{{:., _, [:queue, :out]}, _, [q]}, [do: arms]]}) do
+    arms =
+      for {:->, am, [[p], b]} <- arms do
+        p2 =
+          case p do
+            {{:value, x}, rest} -> [{:|, [], [x, rest]}]
+            {:empty, {v, _, nil}} when is_atom(v) -> {:__queue_empty__, [], [v]}
+            _ -> fail("case :queue.out: arms must be {{:value, x}, rest} and {:empty, q}, got #{Macro.to_string(p)}")
+          end
+        {:->, am, [[p2], b]}
+      end
+    body(ctx, mod, env, {:case, m, [q, [do: arms]]})
+  end
   defp body(ctx, mod, env, {:case, _, [scrut, [do: arms]]}) do
     st = guess_type(env, scrut)
     {arm_strs, {ctx, _}} =
       Enum.map_reduce(arms, {ctx, false}, fn {:->, _, [[p], b]}, {c, saw_nil} ->
         {pstr, env2, []} =
           case {p, st} do
+            {{:__queue_empty__, _, [v]}, "List " <> _} ->
+              name = lean_ident(Atom.to_string(v))
+              env2 = if String.starts_with?(name, "_"), do: env, else: env |> Map.put(name, st) |> Map.put({:alias, Atom.to_string(v)}, "[]")
+              {"[]", env2, []}
             # after a `nil` arm, a variable arm over an Option binds the value itself
             {{v, _, nil}, "Option " <> inner} when is_atom(v) and saw_nil ->
               name = lean_ident(Atom.to_string(v))
@@ -1752,7 +2158,26 @@ defmodule ToLean do
   # the rest of a body after a blocking call may be a single `if`/`case`
   defp body_stmts(ctx, mod, env, [{:if, _, _} = e]), do: body(ctx, mod, env, e)
   defp body_stmts(ctx, mod, env, [{:case, _, _} = e]), do: body(ctx, mod, env, e)
-  defp body_stmts(ctx, mod, env, stmts) do
+  # Bindings followed by an `if`/`case` body: the bindings become `let`s
+  # around the whole branch. A statement with an effect of its own cannot be
+  # lifted like that (it would have to be pushed into every branch), so it is
+  # an error here.
+  defp body_stmts(ctx, mod, env, stmts)
+       when length(stmts) > 1 do
+    {pre, [last]} = Enum.split(stmts, -1)
+    if match?({tag, _, _} when tag in [:if, :case], last) and not Enum.any?(stmts, &blocking_call?/1) do
+      {effs, ctx, env2} = sends(ctx, env, pre)
+      effs == [] ||
+        fail("#{mod}: a statement with an effect before an `if`/`case` body is not supported: #{Macro.to_string(hd(pre))}")
+      {s, ctx} = body(ctx, mod, Map.delete(env2, :__lets__), last)
+      {wrap_lets(env2, s), ctx}
+    else
+      split_body(ctx, mod, env, stmts)
+    end
+  end
+  defp body_stmts(ctx, mod, env, stmts), do: split_body(ctx, mod, env, stmts)
+
+  defp split_body(ctx, mod, env, stmts) do
     case Enum.split_while(stmts, fn s -> not blocking_call?(s) end) do
       {before, [call | rest]} when rest != [] -> cps_split(ctx, mod, env, before, call, rest)
       {_, [_]} -> fail("a blocking call must be followed by the rest of the body")
@@ -1790,8 +2215,8 @@ defmodule ToLean do
     {^tag, [_ | ts]} = List.keyfind(ctx.msg_ctors, tag, 0) || fail("call #{tag} not declared in @type call")
     parts = Enum.zip(args, ts) |> Enum.map(fn {a, t} -> paren_or(expr(env, a, t)) end)
     req = send_str(ctx, const, ".#{tag} me" <> Enum.map_join(parts, "", &(" " <> &1)))
-    {send_strs, ctx, _} = sends(ctx, Map.put(env, :__mod__, mod), before)
-    this = "(.#{await}#{cap_str}, [#{Enum.join(send_strs ++ [req], ", ")}])"
+    {send_strs, ctx, env_after} = sends(ctx, Map.put(env, :__mod__, mod), before)
+    this = wrap_lets(env_after, "(.#{await}#{cap_str}, [#{Enum.join(send_strs ++ [req], ", ")}])")
     # the continuation, in an environment with the captured vars, v : reply, and me
     env2 = Map.new(captured) |> Map.put(:__self__, true)
     env2 = if lhs_var, do: Map.put(env2, lhs_var, ctx.reply_type), else: env2
@@ -1807,7 +2232,7 @@ defmodule ToLean do
 
   defp free_vars(ast) do
     {_, vs} = Macro.prewalk(ast, [], fn
-      {v, _, nil} = n, acc when is_atom(v) -> {n, [Atom.to_string(v) | acc]}
+      {v, _, nil} = n, acc when is_atom(v) and v != :__MODULE__ -> {n, [Atom.to_string(v) | acc]}
       n, acc -> {n, acc}
     end)
     Enum.uniq(vs)
@@ -1870,6 +2295,15 @@ defmodule ToLean do
             {".monitor #{paren_or(expr(e, target, "Pid"))}", {c, e}}
           {f, _, args} when f in [:raise, :throw] and is_list(args) ->
             fail("#{f} is only supported as the last statement of a body (it exits the process): #{Macro.to_string(s)}")
+          # `{_, q} = :queue.out(q0)`: the queue without its oldest element
+          # (`:queue.out` of an empty queue gives it back unchanged, as `tail` does)
+          {:=, _, [{{:_, _, nil}, {v, _, nil}}, {{:., _, [:queue, :out]}, _, [q]}]} when is_atom(v) ->
+            {nil, {c, let_bind(e, v, "List.tail #{paren_or(expr(e, q, type_of(e, q)))}", type_of(e, q))}}
+          # a local binding `v = e` is a `let`
+          {:=, _, [{v, _, nil}, rhs]} when is_atom(v) ->
+            t = type_of(e, rhs)
+            struct_state_of_type(t) && fail("#{v} = #{Macro.to_string(rhs)}: a whole state value cannot be bound; bind its fields or return it")
+            {nil, {c, let_bind(e, v, expr(e, rhs, t), t)}}
           other ->
             case pubsub_call(c, Map.get(e, :__mod__), other) do
               {:subscribe, topic, nil} -> {".subscribe me #{topic}", {c, e}}
@@ -1879,8 +2313,30 @@ defmodule ToLean do
             end
         end
       end)
-    {strs, c, e}
+    {Enum.reject(strs, &is_nil/1), c, e}
   end
+
+  # record `let v := s` (rendered by `wrap_lets` around the clause result)
+  defp let_bind(env, v, s, t) do
+    name = lean_ident(Atom.to_string(v))
+    Map.has_key?(env, name) && fail("variable #{name} bound twice (let)")
+    env
+    |> Map.put(name, t)
+    |> Map.update(:__lets__, ["let #{name} := #{s}"], &(&1 ++ ["let #{name} := #{s}"]))
+  end
+
+  defp wrap_lets(env, s) do
+    case env[:__lets__] do
+      nil -> s
+      [] -> s
+      lets -> "(" <> Enum.join(lets, "; ") <> "; " <> s <> ")"
+    end
+  end
+
+  # is `t` the struct some module's state flattens? (such a value never
+  # exists in the model: the state is the constructor)
+  defp struct_state_of_type(nil), do: false
+  defp struct_state_of_type(t), do: t in Map.values(Process.get(:to_lean_struct_states, %{}))
 
   # bind the pid variable of a spawn to `fresh`, `fresh + 1`, ...
   defp bind_fresh(env, v) do
@@ -1933,7 +2389,7 @@ defmodule ToLean do
           {st, [".exit .error"]}
         other -> fail("last statement must be {:noreply, state}, {:reply, r, state}, {:stop, r, state}, exit/1, raise or throw, got #{Macro.to_string(other)}")
       end
-    {"(#{state}, [#{Enum.join(send_strs ++ tail, ", ")}])", ctx}
+    {wrap_lets(env, "(#{state}, [#{Enum.join(send_strs ++ tail, ", ")}])"), ctx}
   end
 
   # `.send <caller> (.reply r)`: the reply of a handle_call clause
@@ -1959,17 +2415,31 @@ defmodule ToLean do
       _ -> vt
     end
   end
-  defp guess_type(_env, e), do: fail("case scrutinee must be a variable or Map.get/Map.fetch, got #{Macro.to_string(e)}")
+  defp guess_type(env, e),
+    do: type_of(env, e) || fail("case scrutinee must be a variable, Map.get/Map.fetch, :queue.out/peek or an Enum call of known type, got #{Macro.to_string(e)}")
 
   # the Lean type of a variable bound by the patterns, or nil
   defp var_type(env, {v, _, nil}) when is_atom(v), do: Map.get(env, lean_ident(Atom.to_string(v)))
   defp var_type(_env, _), do: nil
 
   # rebuild the state constructor from an expression of the state type
-  defp state_expr(env, {:{}, _, xs}, ctor, fields) when length(xs) == length(fields),
+  defp state_expr(env, e, ctor, fields) do
+    case {struct_state_of(ctor), e} do
+      {st, {:%, _, [m, {:%{}, _, kvs}]}} when st != nil ->
+        case m do
+          {:__aliases__, _, [name]} -> struct_name(name) == st || fail("#{Macro.to_string(e)} is not a #{st} (the state)")
+          _ -> :ok
+        end
+        struct_state_expr(env, e, kvs, ctor, fields)
+      {st, {:%{}, _, kvs}} when st != nil -> struct_state_expr(env, e, kvs, ctor, fields)
+      _ -> state_expr_plain(env, e, ctor, fields)
+    end
+  end
+
+  defp state_expr_plain(env, {:{}, _, xs}, ctor, fields) when length(xs) == length(fields),
     do: ".#{ctor} " <> Enum.map_join(Enum.zip(xs, fields), " ", fn {x, {_, t}} -> paren_or(expr(env, x, t)) end)
-  defp state_expr(env, {a, b}, ctor, [_, _] = fields), do: state_expr(env, {:{}, [], [a, b]}, ctor, fields)
-  defp state_expr(env, {v, _, nil}, ctor, fields) when is_atom(v) and length(fields) > 1 do
+  defp state_expr_plain(env, {a, b}, ctor, [_, _] = fields), do: state_expr_plain(env, {:{}, [], [a, b]}, ctor, fields)
+  defp state_expr_plain(env, {v, _, nil}, ctor, fields) when is_atom(v) and length(fields) > 1 do
     # whole-state variable: an alias from a fallthrough, or rebuilt from its pattern parts
     case Map.get(env, {:alias, Atom.to_string(v)}) do
       nil ->
@@ -1978,8 +2448,38 @@ defmodule ToLean do
       s -> s
     end
   end
-  defp state_expr(env, e, ctor, [{_, t}]), do: ".#{ctor} " <> paren_or(expr(env, e, t))
-  defp state_expr(_env, e, _ctor, _fields), do: fail("state expression #{Macro.to_string(e)} does not fit the state type")
+  defp state_expr_plain(env, e, ctor, [{_, t}]), do: ".#{ctor} " <> paren_or(expr(env, e, t))
+  defp state_expr_plain(_env, e, _ctor, _fields), do: fail("state expression #{Macro.to_string(e)} does not fit the state type")
+
+  defp struct_state_expr(env, e, kvs, ctor, fields) do
+    sfields = struct_fields(struct_state_of(ctor))
+    {base, kvs} =
+      case kvs do
+        [{:|, _, [b, kvs]}] -> {b, kvs}
+        _ -> {nil, kvs}
+      end
+    Enum.each(kvs, fn
+      {k, _} when is_atom(k) -> List.keymember?(sfields, Atom.to_string(k), 0) || fail("#{struct_state_of(ctor)} has no field #{k}")
+      _ -> fail("struct fields must be atoms in #{Macro.to_string(e)}")
+    end)
+    base_parts =
+      case base do
+        nil -> Enum.map(sfields, fn {_, t, d} -> paren_or(expr(env, d, t)) end)
+        {v, _, nil} when is_atom(v) ->
+          Map.get(env, "__whole__" <> Atom.to_string(v)) ||
+            fail("#{Macro.to_string(e)}: #{v} is not the state bound by the clause's pattern")
+        other -> fail("#{Macro.to_string(e)}: the updated value must be the state variable, got #{Macro.to_string(other)}")
+      end
+    parts =
+      Enum.zip([sfields, base_parts, fields])
+      |> Enum.map(fn {{f, t, _}, part, _} ->
+        case List.keyfind(kvs, String.to_atom(f), 0) do
+          {_, x} -> paren_or(expr(env, x, t))
+          nil -> part
+        end
+      end)
+    ".#{ctor} " <> Enum.join(parts, " ")
+  end
 
   defp msg_expr(ctx, env, m) do
     {tag, args} = msg_shape(m)
@@ -1999,21 +2499,81 @@ defmodule ToLean do
           "Option " <> _ -> Map.get(env, {:alias, Atom.to_string(v)}, name)
           _ -> "some #{expr(env, e, unparen(inner))}"
         end
-      # Map.get/2 and Map.fetch/2 already return an Option
+      # Map.get/2, Map.fetch/2, Enum.at/2 and :queue.peek/1 already return one
       {{:., _, [{:__aliases__, _, [:Map]}, f]}, _, [_, _]} when f in [:get, :fetch] -> expr(env, e, nil)
+      {{:., _, [{:__aliases__, _, [:Enum]}, :at]}, _, [_, _]} -> expr(env, e, nil)
+      {{:., _, [:queue, :peek]}, _, [_]} -> expr(env, e, nil)
       _ -> "some " <> paren_or(expr(env, e, unparen(inner)))
     end
   end
   defp expr(_env, {:self, _, []}, _t), do: "me"
   # ---- maps: Leanactors/AssocList.lean ----
-  defp expr(_env, {:%{}, _, []}, _t), do: "[]"
+  defp expr(_env, {:%{}, _, []}, t), do: if(struct_fields(t) != nil, do: "({} : #{t})", else: "[]")
+  # `%{s | f: e, ..}`: a struct update when the base has a struct type
+  defp expr(env, {:%{}, _, [{:|, _, [b, kvs]}]} = e, t) do
+    st = t || type_of(env, b) || fail("#{Macro.to_string(e)}: the type of #{Macro.to_string(b)} is not known")
+    struct_fields(st) || fail("#{Macro.to_string(e)}: #{st} is not a struct")
+    check_fields(st, kvs)
+    "{ #{expr(env, b, st)} with " <>
+      Enum.map_join(kvs, ", ", fn {f, v} -> "#{f} := #{expr(env, v, field_type(st, f))}" end) <> " }"
+  end
+  # `%{f: e, ..}` at a struct type is a struct literal, otherwise a map
   defp expr(env, {:%{}, _, pairs} = e, t) do
-    {kt, vt} = map_type(t) || fail("map literal #{Macro.to_string(e)} at #{t || "an unknown type"}: a map type is needed here")
-    "[" <> Enum.map_join(pairs, ", ", fn {k, v} -> "(#{expr(env, k, kt)}, #{expr(env, v, vt)})" end) <> "]"
+    if struct_fields(t) != nil, do: struct_lit(env, t, pairs), else: map_lit(env, e, pairs, t)
   end
   defp expr(env, {{:., _, [{:__aliases__, _, [:Map]}, f]}, _, args}, t), do: map_call(env, f, args, t)
   defp expr(env, {:is_map_key, _, [m, k]}, t), do: map_call(env, :has_key?, [m, k], t)
   defp expr(env, {:map_size, _, [m]}, _t), do: "AssocList.size #{paren_or(expr(env, m, nil))}"
+  # ---- structs ----
+  # `%Mod{f: e, ..}` is the Lean structure instance, the fields not named
+  # taking their defstruct defaults; `x.f` is the field. The clause's own
+  # state variable is not a value in the model (the state is a constructor
+  # of St), so `state.f` is the pattern part that was bound to f.
+  defp expr(env, {:%, _, [m, {:%{}, _, kvs}]} = e, t) do
+    st =
+      case m do
+        {:__aliases__, _, [n]} -> Atom.to_string(n)
+        _ -> t || fail("#{Macro.to_string(e)}: the struct type is not known")
+      end
+    struct_fields(st) || fail("#{Macro.to_string(e)}: #{st} is not a struct")
+    (t == nil or t == st) || fail("#{Macro.to_string(e)} at type #{t}")
+    struct_lit(env, st, kvs)
+  end
+  defp expr(env, {{:., _, [{v, _, nil}, f]}, _, []} = e, _t) when is_atom(v) and is_atom(f) do
+    case state_field(env, v, f) do
+      {part, _} -> part
+      nil ->
+        name = lean_ident(Atom.to_string(v))
+        st = Map.get(env, name) || fail("#{Macro.to_string(e)}: the type of #{v} is not known")
+        struct_fields(st) || fail("#{Macro.to_string(e)}: #{v} is not a struct (#{st})")
+        field_type(st, f)
+        "#{name}.#{f}"
+    end
+  end
+  # ---- Enum over lists, and the list builtins ----
+  defp expr(env, {{:., _, [{:__aliases__, _, [:Enum]}, f]}, _, args} = e, t), do: enum_call(env, e, f, args, t)
+  defp expr(env, {:length, _, [l]}, _t), do: "List.length #{paren_or(expr(env, l, type_of(env, l)))}"
+  defp expr(env, {:tl, _, [l]}, t), do: "List.tail #{paren_or(expr(env, l, t || type_of(env, l)))}"
+  # `hd/1` raises on an empty list, which an expression cannot do here, so it
+  # is `List.headD` at the element type's default value
+  defp expr(env, {:hd, _, [l]}, t) do
+    lt = type_of(env, l) || (t && "List " <> paren(t))
+    et = t || elem_type(lt) || fail("hd/1: the element type of #{Macro.to_string(l)} is not known")
+    "List.headD #{paren_or(expr(env, l, lt))} #{paren_or(default_expr(et))}"
+  end
+  defp expr(env, {:for, _, _} = e, t), do: comprehension(env, e, t)
+  # ---- :queue as a list, oldest first ----
+  defp expr(_env, {{:., _, [:queue, :new]}, _, []}, _t), do: "[]"
+  defp expr(env, {{:., _, [:queue, :in]}, _, [x, q]}, t) do
+    qt = t || type_of(env, q)
+    "(#{expr(env, q, qt)} ++ [#{expr(env, x, elem_type(qt))}])"
+  end
+  defp expr(env, {{:., _, [:queue, :to_list]}, _, [q]}, t), do: expr(env, q, t || type_of(env, q))
+  defp expr(env, {{:., _, [:queue, :len]}, _, [q]}, _t), do: "List.length #{paren_or(expr(env, q, type_of(env, q)))}"
+  defp expr(env, {{:., _, [:queue, :is_empty]}, _, [q]}, _t), do: "List.isEmpty #{paren_or(expr(env, q, type_of(env, q)))}"
+  defp expr(env, {{:., _, [:queue, :peek]}, _, [q]}, _t), do: "List.head? #{paren_or(expr(env, q, type_of(env, q)))}"
+  defp expr(_env, {{:., _, [:queue, f]}, _, args} = e, _t) when is_list(args),
+    do: fail("unsupported :queue function :queue.#{f}/#{length(args)} in #{Macro.to_string(e)}")
   defp expr(env, {:not, _, [a]}, _t), do: "(¬ #{expr(env, a, nil)})"
   defp expr(_env, b, _t) when is_boolean(b), do: "#{b}"
   defp expr(_env, a, _t) when is_atom(a) and a not in [nil, true, false], do: ".#{a}"
@@ -2050,6 +2610,11 @@ defmodule ToLean do
   end
   defp expr(_env, e, _t), do: fail("unsupported expression #{Macro.to_string(e)}")
 
+  defp map_lit(env, e, pairs, t) do
+    {kt, vt} = map_type(t) || fail("map literal #{Macro.to_string(e)} at #{t || "an unknown type"}: a map type is needed here")
+    "[" <> Enum.map_join(pairs, ", ", fn {k, v} -> "(#{expr(env, k, kt)}, #{expr(env, v, vt)})" end) <> "]"
+  end
+
   # `Map.f(args)` (and `is_map_key`) as the AssocList function. The map's
   # type comes from the expected type when that is the map (put, delete,
   # filter, reject) and from the map variable otherwise; it types the key,
@@ -2085,6 +2650,219 @@ defmodule ToLean do
       _ -> fail("unsupported map function Map.#{f}/#{length(args)}")
     end
   end
+
+  # ---------- structs, Enum, :queue ----------
+
+  # the fields of struct `t`, as declared by its defstruct and @type t
+  defp field_type(st, f) do
+    case List.keyfind(struct_fields(st), Atom.to_string(f), 0) do
+      {_, t, _} -> t
+      nil -> fail("#{st} has no field #{f}")
+    end
+  end
+
+  defp check_fields(st, kvs) do
+    Enum.each(kvs, fn
+      {k, _} when is_atom(k) -> field_type(st, k)
+      {k, _} -> fail("struct fields must be atoms, got #{Macro.to_string(k)}")
+    end)
+  end
+
+  defp struct_lit(env, st, kvs) do
+    check_fields(st, kvs)
+    if kvs == [],
+      do: "({} : #{st})",
+      else: "({ " <> Enum.map_join(kvs, ", ", fn {f, v} -> "#{f} := #{expr(env, v, field_type(st, f))}" end) <> " } : #{st})"
+  end
+
+  # `v.f` where v is the whole-state variable of a struct state: the part the
+  # clause's pattern bound to field f, with its Lean type (nil when v is not
+  # that variable, and the caller falls back to a Lean projection)
+  defp state_field(env, v, f) do
+    st = env[:__struct_state__]
+    parts = env["__whole__" <> Atom.to_string(v)]
+    fs = st && struct_fields(st)
+    cond do
+      fs == nil or not is_list(parts) or length(parts) < length(fs) -> nil
+      true ->
+        case Enum.find_index(fs, fn {n, _, _} -> n == Atom.to_string(f) end) do
+          nil -> fail("#{st} has no field #{f}")
+          i -> {Enum.at(parts, i), elem(Enum.at(fs, i), 1)}
+        end
+    end
+  end
+
+  # A Lean value of type `t`, used only as the fallback of `hd/1` (which
+  # raises on the BEAM, and an expression here cannot).
+  defp default_expr(t) do
+    cond do
+      t in ["Nat", "Int", "Pid"] -> "0"
+      t == "Bool" -> "false"
+      String.starts_with?(t, "Option ") -> "none"
+      String.starts_with?(t, "List ") -> "[]"
+      struct_fields(t) != nil -> "({} : #{t})"
+      true ->
+        Map.get(Process.get(:to_lean_firsts, %{}), t) ||
+          fail("hd/1 at #{t}: no default value; match on the list instead")
+    end
+  end
+
+  # Enum over lists. The list's element type comes from the type of the list
+  # expression (a pattern variable, a struct field, a let), or from the
+  # expected type for the functions that return a list of the same type.
+  defp enum_call(env, e, f, args, t) do
+    l = List.first(args) || fail("unsupported #{Macro.to_string(e)}")
+    lt = type_of(env, l) || if(f in [:filter, :reject, :reverse, :take, :drop], do: t, else: nil)
+    et = elem_type(lt)
+    ls = paren_or(expr(env, l, lt))
+    p = fn g, neg -> lambda(env, g, et, "Bool", neg) end
+    case {f, args} do
+      {:filter, [_, g]} -> "List.filter #{p.(g, false)} #{ls}"
+      {:reject, [_, g]} -> "List.filter #{p.(g, true)} #{ls}"
+      {:map, [_, g]} -> "List.map #{lambda(env, g, et, elem_type(t), false)} #{ls}"
+      {:any?, [_, g]} -> "List.any #{ls} #{p.(g, false)}"
+      {:all?, [_, g]} -> "List.all #{ls} #{p.(g, false)}"
+      {:count, [_]} -> "List.length #{ls}"
+      {:count, [_, g]} -> "List.length (List.filter #{p.(g, false)} #{ls})"
+      {:member?, [_, x]} -> "(#{expr(env, x, et)} ∈ #{ls})"
+      {:reverse, [_]} -> "List.reverse #{ls}"
+      {:take, [_, n]} -> "List.take #{paren_or(expr(env, n, "Nat"))} #{ls}"
+      {:drop, [_, n]} -> "List.drop #{paren_or(expr(env, n, "Nat"))} #{ls}"
+      {:at, [_, i]} -> "#{ls}[#{expr(env, i, "Nat")}]?"
+      {:empty?, [_]} -> "List.isEmpty #{ls}"
+      _ -> fail("unsupported Enum function Enum.#{f}/#{length(args)}")
+    end
+  end
+
+  # `fn x -> e end` and the capture `&(&1.f == v)` as Lean lambdas. `neg`
+  # negates the body: Enum.reject is List.filter of the negation.
+  defp lambda(env, {:fn, _, [{:->, _, [[p], b]}]}, et, rt, neg) do
+    n =
+      case p do
+        {v, _, nil} when is_atom(v) -> lean_ident(Atom.to_string(v))
+        other -> fail("an anonymous function must take one variable, got #{Macro.to_string(other)}")
+      end
+    Map.has_key?(env, n) && fail("the anonymous function argument #{n} shadows a bound variable")
+    lambda_str(Map.put(env, n, et), n, b, rt, neg)
+  end
+  defp lambda(env, {:&, _, [b]}, et, rt, neg) do
+    Map.has_key?(env, "x1") && fail("x1 is the argument of a capture &(..) and cannot be a source variable")
+    lambda_str(Map.put(env, "x1", et), "x1", capture_body(b), rt, neg)
+  end
+  defp lambda(_env, g, _et, _rt, _neg),
+    do: fail("expected `fn x -> e end` or a capture `&(&1..)`, got #{Macro.to_string(g)}")
+
+  defp lambda_str(env, n, b, rt, neg) do
+    s = expr(env, b, rt)
+    "(fun #{n} => #{if neg, do: "!(#{s})", else: s})"
+  end
+
+  # `&(&1.f == v)` -> the body with `&1` replaced by the binder `x1`
+  defp capture_body({:/, _, _} = b),
+    do: fail("a function capture #{Macro.to_string(b)} is not supported; use &(&1..) or fn x -> .. end")
+  defp capture_body(b) do
+    Macro.prewalk(b, fn
+      {:&, _, [i]} when is_integer(i) and i != 1 -> fail("a capture may only use &1, got &#{i}")
+      {:&, _, [1]} -> {:x1, [], nil}
+      n -> n
+    end)
+  end
+
+  defp lambda_body_type(env, {:fn, _, [{:->, _, [[{v, _, nil}], b]}]}, et) when is_atom(v),
+    do: type_of(Map.put(env, lean_ident(Atom.to_string(v)), et), b)
+  defp lambda_body_type(env, {:&, _, [b]}, et), do: type_of(Map.put(env, "x1", et), capture_body(b))
+  defp lambda_body_type(_env, _, _), do: nil
+
+  # `for x <- l, cond, .., do: e` is List.map of the body over the list
+  # filtered by each condition (the conditions are applied in source order).
+  defp comprehension(env, {:for, _, parts} = e, t) do
+    {p, l, rest} =
+      case parts do
+        [{:<-, _, [p, l]} | rest] -> {p, l, rest}
+        _ -> fail("a comprehension must start with `x <- list`: #{Macro.to_string(e)}")
+      end
+    n =
+      case p do
+        {v, _, nil} when is_atom(v) -> lean_ident(Atom.to_string(v))
+        other -> fail("a comprehension generator must bind a variable, got #{Macro.to_string(other)}")
+      end
+    {filters, out} =
+      case Enum.split(rest, -1) do
+        {fs, [[do: b]]} -> {fs, b}
+        _ -> fail("a comprehension needs a `do:` body: #{Macro.to_string(e)}")
+      end
+    lt = type_of(env, l) || fail("comprehension: the type of #{Macro.to_string(l)} is not known")
+    Map.has_key?(env, n) && fail("the comprehension variable #{n} shadows a bound variable")
+    env2 = Map.put(env, n, elem_type(lt))
+    src =
+      Enum.reduce(filters, paren_or(expr(env, l, lt)), fn c, acc ->
+        "(List.filter (fun #{n} => #{expr(env2, c, "Bool")}) #{acc})"
+      end)
+    case out do
+      {v, _, nil} when is_atom(v) and is_atom(v) ->
+        if lean_ident(Atom.to_string(v)) == n,
+          do: src,
+          else: "List.map (fun #{n} => #{expr(env2, out, elem_type(t))}) #{paren_or(src)}"
+      _ -> "List.map (fun #{n} => #{expr(env2, out, elem_type(t))}) #{paren_or(src)}"
+    end
+  end
+
+  # The Lean type of an expression when it can be read off the environment
+  # (a variable, a struct field or literal, a list or queue operation); nil
+  # when it cannot, which only costs the caller an expected type.
+  defp type_of(env, {v, _, nil}) when is_atom(v), do: Map.get(env, lean_ident(Atom.to_string(v)))
+  defp type_of(env, {{:., _, [{v, _, nil}, f]}, _, []}) when is_atom(v) and is_atom(f) do
+    case state_field(env, v, f) do
+      {_, t} -> t
+      nil ->
+        case struct_fields(Map.get(env, lean_ident(Atom.to_string(v)))) do
+          nil -> nil
+          fs -> case List.keyfind(fs, Atom.to_string(f), 0) do
+                  {_, t, _} -> t
+                  nil -> nil
+                end
+        end
+    end
+  end
+  defp type_of(_env, {:%, _, [{:__aliases__, _, [n]}, {:%{}, _, _}]}),
+    do: if(struct_fields(Atom.to_string(n)) != nil, do: Atom.to_string(n), else: nil)
+  defp type_of(env, {:%{}, _, [{:|, _, [b, _]}]}), do: type_of(env, b)
+  defp type_of(env, {{:., _, [:queue, f]}, _, args}) when is_list(args), do: queue_type(env, f, args)
+  defp type_of(env, {{:., _, [{:__aliases__, _, [:Enum]}, f]}, _, args}) when is_list(args),
+    do: enum_result_type(env, f, args)
+  defp type_of(_env, {:length, _, [_]}), do: "Nat"
+  defp type_of(env, {:tl, _, [l]}), do: type_of(env, l)
+  defp type_of(env, {:hd, _, [l]}), do: elem_type(type_of(env, l))
+  defp type_of(env, {:++, _, [a, b]}), do: type_of(env, a) || type_of(env, b)
+  defp type_of(_env, n) when is_integer(n) and n >= 0, do: "Nat"
+  defp type_of(_env, n) when is_integer(n), do: "Int"
+  defp type_of(_env, b) when is_boolean(b), do: "Bool"
+  defp type_of(_env, {op, _, [_, _]}) when op in [:<=, :>=, :<, :>, :==, :!=, :and, :or], do: "Bool"
+  defp type_of(env, {op, _, [a, b]}) when op in [:+, :-], do: type_of(env, a) || type_of(env, b)
+  defp type_of(_env, _), do: nil
+
+  defp queue_type(env, :in, [_, q]), do: type_of(env, q)
+  defp queue_type(env, f, [q]) when f in [:to_list, :tail, :drop], do: type_of(env, q)
+  defp queue_type(_env, :len, [_]), do: "Nat"
+  defp queue_type(_env, :is_empty, [_]), do: "Bool"
+  defp queue_type(env, :peek, [q]), do: opt_type(elem_type(type_of(env, q)))
+  defp queue_type(_env, _, _), do: nil
+
+  defp enum_result_type(env, f, [l | _]) when f in [:filter, :reject, :reverse, :take, :drop],
+    do: type_of(env, l)
+  defp enum_result_type(_env, f, _) when f in [:count], do: "Nat"
+  defp enum_result_type(_env, f, _) when f in [:any?, :all?, :member?, :empty?], do: "Bool"
+  defp enum_result_type(env, :at, [l, _]), do: opt_type(elem_type(type_of(env, l)))
+  defp enum_result_type(env, :map, [l, g]) do
+    case lambda_body_type(env, g, elem_type(type_of(env, l))) do
+      nil -> nil
+      rt -> "List " <> paren(rt)
+    end
+  end
+  defp enum_result_type(_env, _, _), do: nil
+
+  defp opt_type(nil), do: nil
+  defp opt_type(t), do: "Option " <> paren(t)
 
   defp elem_type("List " <> inner), do: unparen(inner)
   defp elem_type(_), do: nil
