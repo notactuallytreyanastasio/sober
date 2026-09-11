@@ -1262,11 +1262,177 @@ translations, 73 fixtures (53 ok, 20 error), the readiness self-check over
 `elixir/src`, the readiness gate over the five real projects, `lake
 build`, ten drivers and 200 fuzz scripts.
 
-## 13. What to try first
+## 13. Round 8
+
+Four builders on `wf8/*` branches under node 717, and for the first time
+the round was planned off a *tail* rather than a total. Round 7 had halved
+the blocker count over the five real projects, 1,621 to 848, and moved the
+translatable count not at all — because translation is all-or-nothing per
+module, and what decides a module is its last blocker, not how many it
+started with. So three builders (goals 719, 739, 759) each took the
+modules nearest the line, and a fourth (goal 718) made landing one cheap
+enough to be worth doing.
+
+* **Three real modules landed** (nodes 723, 732, 745). `Ensemble.LogStore`
+  is a ring buffer whose only reply is `:queue.to_list(state.entries)`.
+  Untyped mode inferred a reply type only when every reply in the file was
+  a literal, so this one collapsed to the opaque `term()`, which cannot
+  carry a `List Term` — the defect round 7 ended on. The fix is a second
+  compile pass, not a new inductive: render the clauses once with the
+  replies left out, collect the type each reply expression has in its own
+  clause, and if there is exactly one, compile the file again with it as
+  `@type reply`. A `Reply` inductive was the obvious alternative and was
+  rejected on purpose (node 722): a wrapper constructor has to be inserted
+  at every reply site *and* unwrapped at every `reply v` await-resume
+  pattern, and for a file whose replies all have one type it buys nothing.
+  Mixed replies still fall back to `term()` and still error; nothing in
+  the five projects needs them yet.
+
+* **A LiveView socket is the record state we already had** (nodes 724,
+  732, 744). Phoenix imports `assign/2,3`, a functional update of the
+  socket's assigns map, and 123 of the survey's 144 imported-macro
+  blockers were those two functions. A socket is therefore modelled as
+  exactly the record the state machinery already had: `assign(s, :k, e)`
+  is the field update, `s.assigns.k` the field read, and a module whose
+  callbacks bind the socket whole but write named assigns infers a record
+  state over those keys. One wrinkle was real: a LiveView writes its
+  socket in a pipeline, and `socket |> assign(:a, x) |> assign(:b, y)` is
+  a nest of calls whose innermost argument is the socket variable and
+  whose outer ones are not, while a record update needs a variable at its
+  head. The chain is unfolded back to that variable and folded into one
+  update — not an approximation, because the intermediate socket of a
+  chain is anonymous, so no value in the chain can name anything but the
+  original, and Elixir's own `%{s | ..}` reads every field off that same
+  original. The one refusal left is the same key written twice in one
+  chain, because dropping the discarded write would hide whatever is
+  inside it (node 746).
+
+* **The temptation to let `handle_event` sit quietly** (nodes 732, 733).
+  A LiveView also has `handle_event/3`, which is a genuine transition of
+  the real process, driven by the browser channel rather than by the
+  mailbox. It would have filed neatly under the generated file's existing
+  "not translated (public API, not a callback)" line, and that would have
+  been a quiet lie: an API wrapper makes no transition, and this does. It
+  gets its own header line in every generated file instead, and the two
+  LiveView examples repeat it, because the properties checked there are
+  properties of message handling only. This is the round's clearest
+  instance of the rule that a module you honestly cannot fully model is a
+  better outcome than one you model falsely.
+
+* **A generated file that does not elaborate was being counted as
+  translated** (node 752). `track_info != nil` on a payload the untyped
+  path had typed `term()` rendered as `(track_info != none)`, which Lean
+  rejects — and the readiness harness translates dry and never compiles,
+  so it would have scored the module as translated. Two halves, and the
+  refusal is the more important one: comparing anything but an `Option`
+  with `nil` is now an error naming the type, and a payload that some
+  clause body nil-tests is inferred `term() | nil`, because a nil test is
+  written only about a value that may be absent and, in a module with no
+  `@type`, is the only evidence there is. A *declared* payload is
+  untouched.
+
+* **What was refused, and why** (nodes 749, 750, 764, 769, 771). Five
+  modules in the closest tier were probed and left blocked, none of them
+  on a translator gap. `BigBillWeb.SearchLive` cases over
+  `Search.validate_and_search/2`, a SQLite full-text index returning
+  `{:ok, results, counts} | {:error, :too_short}`: the model has no opaque
+  unknown value (`Term` is a concrete `Nat`-backed structure with
+  `DecidableEq`) and `EBehavior` has no nondeterministic branch, so a
+  `case` over an unknown tagged union cannot be expressed at all.
+  `Loom.LSP.ConfigListener` waits on `Loom.LSP.Supervisor.start_from_config/0`,
+  which `DynamicSupervisor.start_child`s one LSP client per config entry —
+  an unknown number of spawns, decided by data outside the model, under a
+  parent that is not the caller; a no-op row would claim the process makes
+  no effect where it starts processes. `LoomWeb.CostDashboardLive` waits
+  on four direct `:ets.lookup`s into another process's table, and ETS
+  contents are outside the model by construction: a constant would claim
+  the dashboard never changes, a fresh value that two reads never agree.
+  `BobsBroadcastWeb.StreamController` reaches `Plug.Conn.chunk/2`, which
+  writes bytes onto an HTTP socket. And the multi-argument receive helpers
+  (`collect_output/3` in two projects, `do_collect/6`) look one
+  generalisation away and were deliberately not generalised. Every one of
+  these is a question for the *model*, not the translator.
+
+* **Two soundness fixes that came in sideways.** A receive loop may now be
+  a `defp` (which is what `BobsBroadcastWeb.StreamController`'s
+  `stream_loop/1` is, and the reason it read as "receive not the whole
+  body of a def"), and with that came a trap worth naming: a receive loop
+  models the *whole life* of a process — its tail says what the process
+  does next and falling out of it is `exit(:normal)` — which is only
+  faithful when every call to the loop is in tail position. A non-tail
+  call is a blocking receive whose value the caller uses, and the model's
+  only blocking form is `GenServer.call`, which splits a clause into an
+  await state; there is nothing here to split. So it is an error now
+  (`error_loop_not_tail.ex`), not a silently false model (nodes 767, 768).
+  Separately, the coverage check used the atom `:all` as its sentinel for
+  "the bare-message clauses cover every state", so a module with a message
+  tag literally named `:all` looked fully covered and got no crash clause
+  for its uncovered tags — found by a fixture that happened to use
+  `handle_call(:all, ..)`, and fixed by making the sentinel `:__every__`
+  (node 734).
+
+* **Landing a module is now one command** (goal 718, nodes 725, 731).
+  `elixir elixir/land_real.exs <path to the module>` translates it at its
+  original path, copies it in and checks the copy is byte-identical,
+  regenerates the Lean from the copy, appends the `check.sh` lines, writes
+  an example skeleton, adds the imports and records the origin and its md5
+  in `elixir/real/MANIFEST.json`. It is idempotent, and it deliberately
+  writes no property (node 726): the skeleton's `beh` is the generated
+  clauses copied, so `beh_eq_gen` holds the moment it is written and
+  carries no information — turning it into a readable hand model, with
+  `beh_eq_gen` keeping that honest, is the human's job and the script says
+  so. The claim that matters is now checked rather than asserted:
+  `elixir/real_provenance.exs` runs before `check.sh` translates anything
+  and fails if any file under `elixir/real/` has drifted from its origin.
+
+**Two holes in the gate, found by the tooling that was added to it.**
+`elixir elixir/test/run_fixtures.exs | grep -v "^PASS "` reports *grep's*
+exit status, and grep exits 0 exactly when there are FAIL lines to print —
+so under `set -e` a failing fixture run printed its failures and
+`check.sh` carried on (nodes 727, 756; both batch A's tooling builder and
+batch B found it independently, from opposite directions). With that
+fixed, a *fresh* worktree failed three fixtures that had always passed:
+`run_fixtures` built only `Leanactors.Sys`, and the `# lean: check`
+fixtures that import `Time`, `SetList` or `Str` had no oleans to find. It
+had never shown because a developer machine always has a warm `.lake`
+(node 728). The modules to build are now read off the expected files' own
+`import` lines.
+
+**What the numbers did, and what they mean.** Translatable modules over
+the five projects 1 → 4 of 55 candidates; blockers 848 → 738. The blocker
+count went *up* by 17 in the last batch, and that is not a regression: the
+walker can now see inside four `defp` receive loops it used to stop at, so
+constructs that were always there became visible. The families number
+moved much further, 106 → 188, and that is a change of definition rather
+than of the translator (nodes 774-777). A blocker found inside a local
+helper used to be filed under `local helper is not a pure expression`,
+which reads as "build local-helper support" when the truth is "model
+`Loom.Telemetry.Metrics`, four `:ets` reads of another process's table". A
+blocker is still one helper with its call sites collapsed, so the count
+stays comparable round to round; but `families_of` now returns a list, so
+*distance* counts features and one blocker may appear under several
+families. `LoomWeb.TeamCostComponent` read distance 2 and is really 8;
+`EnsembleWeb.SentryLive` read 2 and is 13. An intermediate version that
+emitted one blocker per (helper, family) read 1,111 blockers and was
+backed out for exactly that reason: the honest distance metric was worth
+having, and destroying the one number the gate watches to get it was not.
+
+Counts after the round: 15,034 lines of hand-written Lean in 40 files
+under `Leanactors/`, 612 generated lines in thirteen, 813 theorems, no
+`sorry`, no `axiom`; thirteen worked examples, four of them modules copied
+unmodified out of real projects; `check.sh` runs thirteen translations,
+the provenance check, 81 fixtures (57 ok, 24 error), the landing tooling's
+own self-test, the readiness self-check over `elixir/src`, the readiness
+gate over the five real projects, `lake build`, ten drivers and 200 fuzz
+scripts.
+
+## 14. What to try first
 
 1. `./check.sh` from the repo root (with `export PATH="$HOME/.elan/bin:$PATH"`).
-   It regenerates the ten `Gen/` files and diffs them, runs the 73
-   translator fixtures, the readiness self-check over `elixir/src` and the
+   It checks every copy under `elixir/real/` against the origin recorded
+   in `elixir/real/MANIFEST.json`, regenerates the thirteen `Gen/` files
+   and diffs them, runs the 81 translator fixtures and the landing
+   tooling's self-test, the readiness self-check over `elixir/src` and the
    readiness gate over the five real projects,
    runs `lake build` (which runs every `#eval explore` and builds the
    `replay` binary), greps for `sorry`, runs the ten drivers on the BEAM,
@@ -1298,7 +1464,13 @@ build`, ten drivers and 200 fuzz scripts.
    for round 6 add 599 (what the readiness data actually says), 605 (the
    silent subsumption bug a record state found), 610 (the limits the log
    store's shape forced) and 615 (the one translator conflict the merge
-   could not resolve mechanically).
+   could not resolve mechanically); for round 8 add 722 (why a `Reply`
+   inductive was not built), 733 (the LiveView constructs left
+   unsupported), 734 (the `:all` sentinel collision), 750 and 769 (the
+   cross-module calls and receive helpers deliberately not generalised),
+   752 (a generated file that did not elaborate being counted as
+   translated), 772 (the tail is no longer a translator problem) and 777
+   (why the blocker count and the distance metric were split).
 6. Read `Leanactors/Fair.lean`'s header, then `FairDemo` at its end, then
    `SupervisorLive.restart_eventually`: the liveness recipe is two
    `rank_leads_to` stages, and the file is short enough to read whole.

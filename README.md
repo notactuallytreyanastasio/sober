@@ -7,28 +7,35 @@ learned).
 
 ## Status
 
-14,697 lines of hand-written Lean across 37 files under `Leanactors/`
-(plus 509 generated lines in ten `Gen/` files), 809 `theorem`s, zero
-`sorry` and zero `axiom`. Ten worked examples (bank, lock, supervisor,
-task, watchdog, ttl, registry, feed, ringlog, table registry), each
-translated from a real Elixir/BEAM module by the same type-directed
-translator and checked equal to it by `beh_eq_gen`. The tenth is the
-first module that was not written for this repository:
-`elixir/real/table_registry.ex` is a byte-for-byte copy of
-`Loom.Teams.TableRegistry`, translated with no annotations and no edits
-(see **Untyped mode**). Eight have a safety property proved for every
-configuration reachable under unbounded scheduling (the lock also under
-unbounded environment ticks; the `Sys` examples are proved as closed
-systems, see **Liveness** below), each independently validated by a
-bounded model checker before the proof was attempted; the registry and
-the feed have theirs checked but not proved (the feed has the weaker
-`subs_feed_only` proved instead). The supervisor, the lock, the task, the
+15,034 lines of hand-written Lean across 40 files under `Leanactors/`
+(plus 612 generated lines in thirteen `Gen/` files), 813 `theorem`s, zero
+`sorry` and zero `axiom`. Thirteen worked examples (bank, lock,
+supervisor, task, watchdog, ttl, registry, feed, ringlog, table registry,
+log store, logs live, radio live), each translated from a real
+Elixir/BEAM module by the same type-directed translator and checked equal
+to it by `beh_eq_gen`. Four of the thirteen were not written for this
+repository: `elixir/real/table_registry.ex`, `log_store.ex`,
+`logs_live.ex` and `radio_live.ex` are byte-for-byte copies of
+`Loom.Teams.TableRegistry`, `Ensemble.LogStore`, `EnsembleWeb.LogsLive`
+and `BobsBroadcastWeb.RadioLive`, translated with no annotations and no
+edits (see **Untyped mode**) — and that they are *still* byte-for-byte is
+checked on every run of `check.sh` (`elixir/real_provenance.exs` against
+`elixir/real/MANIFEST.json`), not asserted here. Eight have a safety
+property proved for every configuration reachable under unbounded
+scheduling (the lock also under unbounded environment ticks; the `Sys`
+examples are proved as closed systems, see **Liveness** below), each
+independently validated by a bounded model checker before the proof was
+attempted; the registry and the feed have theirs checked but not proved
+(the feed has the weaker `subs_feed_only` proved instead), and the three
+newest — the log store and the two LiveViews — have theirs checked, the
+radio view also with a one-step invariant of the behaviour
+(`agrees_step`) proved. The supervisor, the lock, the task, the
 watchdog and the ttl cache also have a liveness property proved along
 fair runs, each with a witness that its premise is reachable and its
 fairness assumptions are satisfiable. The two interpreters the checkers
 and traces run on are fuzzed against the BEAM (`elixir/fuzz.exs`, 200
-seeded scripts per `check.sh`). The translator itself has a suite of 73
-regression fixtures (53 `expect: ok`, 20 `expect: error`), and
+seeded scripts per `check.sh`). The translator itself has a suite of 81
+regression fixtures (57 `expect: ok`, 24 `expect: error`), and
 `elixir/readiness.exs` measures the subset against real code, with the
 numbers committed as a baseline `check.sh` re-measures (**Readiness**).
 
@@ -44,6 +51,9 @@ numbers committed as a baseline `check.sh` re-measures (**Readiness**).
 | Feed | every subscriber has received a prefix of the published sequence (checked); every subscription is to `"feed"` and never the publisher's (proved) | 53,845, mutation-tested (no-unsubscribe and stale-number mutants) |
 | Ringlog | `count` equals the queue's length and never exceeds `max_entries` | 9,348, mutation-tested, 2 mutants |
 | Table registry | a team maps to at most one ETS table, and distinct teams never share one | 11,737, mutation-tested (no counter bump) |
+| Log store | the entry count never exceeds `max_entries` | 11,737, mutation-tested (counter bumped on both branches) |
+| Logs live | message handling is append-only: what the view shows stays, in order, at the front of what it shows next | 809, mutation-tested (prepend instead of append) |
+| Radio live | the Play/Stop button agrees with the track | 809, mutation-tested (the mutant that forgets the second link of the assign chain); also a one-step invariant proved |
 
 ## Layout
 
@@ -85,14 +95,21 @@ numbers committed as a baseline `check.sh` re-measures (**Readiness**).
 | `Leanactors/Examples/Ringlog.lean` | Ring buffer of log entries translated from `elixir/src/ringlog.ex`: hand `beh`, `beh_eq_gen`, the bounded check of `count = entries.length` and `count ≤ max_entries` (two mutants caught in 7 configurations), and the proof — `ok_step` for one behaviour step, `beh_no_spawn`, `count_invariant` for every reachable configuration |
 | `Leanactors/Examples/TableRegistry.lean` | `Loom.Teams.TableRegistry` with no annotations at all: hand `beh`, `beh_eq_gen`, the bounded uniqueness check, the no-counter-bump mutant and two traces |
 | `Leanactors/Examples/TableRegistryProof.lean` | The proof for the first file copied unmodified out of a real project: the `Bounded`/`Uniq` invariant over every reachable configuration, `Inv.step` over all four `SysStep` cases, and `team_has_one_ref`, `refs_unique`, `refs_distinct` (distinct team ids, distinct ETS references) and `refs_below_counter`, each also through `beh_eq_gen`; the docstring says what the abstraction does not cover — ETS itself is opaque fresh values and `:ets.delete/1` is dropped, so these are properties of the registry's map |
+| `Leanactors/Examples/LogStore.lean` | `Ensemble.LogStore` with no annotations: hand `beh`, `beh_eq_gen`, the bounded check that the entry count never exceeds `max_entries`, the runaway-counter mutant and one trace |
+| `Leanactors/Examples/LogsLive.lean` | `EnsembleWeb.LogsLive`, the LiveView that shows what the store broadcasts: hand `beh`, `beh_eq_gen`, the append-only check and the prepend mutant; the docstring names `handle_event/3` as the transition the model does not carry |
+| `Leanactors/Examples/RadioLive.lean` | `BobsBroadcastWeb.RadioLive` with no annotations: hand `beh`, `beh_eq_gen`, the bounded check that `playing` is true exactly when `now_playing` holds a track, the mutant that keeps the old `playing`, `agrees_step` proved of every state the behaviour produces, and one trace. The property is of the mailbox, not of the running view: `handle_event("play", ..)` sets `playing` on its own, and that transition is not in the model |
 | `Leanactors/Term.lean` | An opaque term: a structure over `Nat` with `DecidableEq` and `Repr`, the type of every field whose Elixir type the translator does not know (untyped mode, `term()`/`any()`/`reference()`, the reference `:ets.new` returns), with `Term.fresh` and the `id` lemmas |
 | `Leanactors/Gen/*.lean` | Generated from `elixir/src/*.ex` and `elixir/real/*.ex` by the translator; do not edit |
 | `elixir/src/*.ex` | The Elixir source of truth (bank, lock, supervisor, task, watchdog, ttl, registry, feed, ringlog): executed on the BEAM and translated to Lean |
 | `elixir/src/pubsub.ex` | A 44-line local stand-in for `Phoenix.PubSub` (`subscribe/2`, `unsubscribe/2`, `broadcast/3`, `subscribers/2`) so the drivers run without the `phoenix_pubsub` dependency; not translated — it is the transport, and PubSub is an effect of `Sys` rather than an actor |
-| `elixir/real/*.ex` | Real modules copied verbatim from other projects and translated as they stand (`table_registry.ex` is byte-identical to `loom/lib/loom/teams/table_registry.ex`) |
+| `elixir/real/*.ex` | Real modules copied verbatim from other projects and translated as they stand; `elixir/real/MANIFEST.json` records each one's origin path and its md5 at landing |
+| `elixir/land_real.exs` | Lands a real module in one command: translates it at its ORIGINAL path (an error there is the answer), copies it in and checks the copy is byte-identical, regenerates the Lean from the copy, appends the `check.sh` translate and diff lines, writes a skeleton `Leanactors/Examples/<Name>.lean` and adds the imports, and records the origin. Idempotent. The skeleton's `beh` is the generated clauses *copied*, so `beh_eq_gen` holds at once and says nothing: rewriting it by hand, and writing `init` and a bounded check of a property that is true of the module, is the part the script prints as TODO and cannot do |
+| `elixir/real_provenance.exs` | Checks every file under `elixir/real/` against `MANIFEST.json`: an edited copy, a file with no entry and a landed file `check.sh` does not translate all fail; an origin that is not on this machine is skipped, an origin that moved on upstream is reported (`--strict-origin` makes it fatal). `check.sh` runs it first |
+| `elixir/real_manifest.exs` | The manifest module the three scripts share (defines a module, runs nothing) |
+| `elixir/test/land_real_test.exs` | Self-test: runs the landing tooling against a scratch repository under `$TMPDIR` and removes it, checking the copy, the generated Lean against the committed `Gen/TableRegistry.lean`, the two `check.sh` lines, the two imports, the skeleton, idempotence file by file, and four failure paths |
 | `elixir/to_lean.exs` | The translator: `@type`-directed (`msg`, `cast`, `info`, `call`, `reply`, `state`), small subset, unverified; `handle_continue` is inlined, not sent; the pure fragment is compiled as a language, so any sub-expression may be an `if`, a `case`, a block or a binding (pipes, `cond` and `unless` are desugared away first), module-local helpers become Lean definitions, and one `@remote` table says what each standard-library call becomes |
 | `elixir/test/run_fixtures.exs` | Translator regression runner: translates every `test/fixtures/*.ex`, diffs against `test/expected/*.lean`, compiles the ok ones with `lake env lean`, checks the error ones fail as declared; `--regen` rewrites the expectations |
-| `elixir/test/fixtures/*.ex` | 73 small sources, one translator feature each (53 `expect: ok`, 20 `expect: error`); directives in the leading comment block |
+| `elixir/test/fixtures/*.ex` | 81 small sources, one translator feature each (57 `expect: ok`, 24 `expect: error`); directives in the leading comment block |
 | `elixir/test/expected/*.lean` | Their expected translations, committed; regenerate with `elixir/test/regen_expected.sh` and review the diff |
 | `elixir/bank.exs` | Driver: casts plus two clients blocking in `GenServer.call`; checks the trace matches Lean |
 | `elixir/lock.exs` | Driver: clients block in `GenServer.call` under chaos ticks; event log checked for overlapping critical sections |
@@ -576,7 +593,7 @@ match and the keys the bodies update or return, tuple patterns of one size
 make it positional, and patterns that only bind the state whole leave it
 the opaque `Term`.
 
-**Translator fixtures.** `elixir/test/fixtures/*.ex` are 73 small
+**Translator fixtures.** `elixir/test/fixtures/*.ex` are 81 small
 sources, one translator feature each: guard fallthrough and deferral,
 nested and pattern-LHS blocking calls, deferred replies, spawn and
 monitor, tuple `init`, DOWN and EXIT typing, timeouts, `send_after`,
@@ -589,13 +606,18 @@ variables, booleans, wildcards, pid narrowing, `case`/`if`, non-linear
 patterns, enum and list splits, the crash clauses, maps (every `Map.*`
 call, map literals and patterns with an alias), structs, `Enum` over
 lists, `:queue`, PubSub (including a root module that subscribes with no
-spawn site), untyped mode, a record-shaped state and ETS resources, and
-twelve sources the translator must reject (no pid mapping, unknown tag, a
+spawn site), untyped mode, a record-shaped state and ETS resources, a
+reply type probed from the clause bodies, LiveView assigns and a chain of
+them folded into one record update, a `defp` receive loop, and sixteen
+sources the translator must reject (no pid mapping, unknown tag, a
 tag in two callback kinds, a tag declared under two kinds, a clause of the
 wrong declared kind, trapping without `{:EXIT, ...}`, a `handle_continue`
 chain deeper than three, a map pattern with a variable key, a struct field
 that does not exist, a capture with more than one argument, a computed
-PubSub topic, a `try/rescue` that is not a resource no-op). Each
+PubSub topic, a `try/rescue` that is not a resource no-op, an assign with
+a computed key, the same key assigned twice in one chain, a `nil`
+comparison at a type that is not an `Option`, a receive loop called
+outside tail position). Each
 fixture's leading comment block carries its
 directives (`translate:` flags, `expect: ok` or `expect: error SUBSTRING`,
 `lean: check`); `elixir/test/run_fixtures.exs` translates each one, diffs
@@ -802,14 +824,19 @@ translator change that narrows the subset is caught. The walker types
 nothing, so a construct the translator rejects for a type reason alone is
 not reported; kinds are meant to be read by frequency, not as a proof.
 Cross-checking it against the fixture corpus is what keeps it honest: no
-`expect: ok` fixture is flagged, and the walker independently catches 11 of
-the 20 `expect: error` fixtures (the other nine are kind and type errors
+`expect: ok` fixture is flagged, and the walker independently catches 14 of
+the 24 `expect: error` fixtures (the other ten are kind and type errors
 the walker does not model).
 
 `docs/readiness.md` is that report over the lib trees of five real
-applications: 373 files, 55 GenServer or receive-loop modules, 848
-blocking constructs in 106 families, grouped both by kind and by the
-translator feature each group would need. Round 6 took that from 2,838 to
+applications: 373 files, 55 GenServer or receive-loop modules, 738
+blocking constructs in 188 families, grouped both by kind and by the
+translator feature each group would need. It also carries a generated
+**Landed** section: every file under `elixir/real/` with the project and
+path it came from, its length, and whether it has a hand model proved
+equal to the translation, a bounded check and a proof. Those three
+columns are read off the Lean files, so that table cannot drift from the
+tree. Round 6 took that from 2,838 to
 1,621 and made `Loom.Teams.TableRegistry` the first real module the
 harness reports as translatable — the same module
 `Leanactors/Examples/TableRegistry.lean` proves its properties of. Round 7
@@ -837,23 +864,74 @@ baseline prints the refresh command and passes, and a machine without
 those checkouts skips the step rather than failing it. The report also
 ranks the untranslatable modules by *distance* — the number of distinct
 blocker families each still hits, which is what a round can plan against.
-The nearest is `Ensemble.LogStore` at distance zero: the walker finds
-nothing unsupported in it at all, and the translator still refuses it, for
-a type reason the walker does not model. Its `handle_call` replies with
-`:queue.to_list(state.entries)`, and untyped mode infers a reply type only
-when every reply in the file is a literal, so the reply is the opaque
-`term()`, which cannot carry a `List Term`. Inferring a reply type from
-the reply *expression* needs the clause environment, which is where the
-other inferences do not live; it is worth one real module on its own, and
-four more are one family away.
+Round 8 emptied the top of that list — `Ensemble.LogStore`,
+`EnsembleWeb.LogsLive` and `BobsBroadcastWeb.RadioLive` are landed — and
+in doing so changed what the list *means*. A blocker found inside a
+module-local helper used to be filed under `local helper is not a pure
+expression`, which reads as though the translator were one feature away;
+it is now filed under the family of what the helper actually calls, and a
+module's distance counts every family inside it. `LoomWeb.TeamCostComponent`
+read distance 2 and is really 8; `EnsembleWeb.SentryLive` read 2 and is
+13. The blocker *count* is deliberately left on the old definition (one
+blocker is one helper, call sites collapsed) so the round-to-round series
+stays comparable, and the three modules now at distance 1 —
+`BigBillWeb.SearchLive`, `Loom.LSP.ConfigListener`,
+`LoomWeb.CostDashboardLive` — are each waiting on a call into another
+application module (a SQLite full-text index, a `DynamicSupervisor` that
+starts a child per config entry, four `:ets` reads of another process's
+table), not on a language feature. That is a model question, not a
+translator one.
+
+### Landed modules
+
+Four of the thirteen worked examples are modules copied verbatim out of
+the projects the readiness report measures, translated as they stand with
+no annotations and no edits. The generated **Landed** table in
+`docs/readiness.md` is the machine-checked version of this list; what each
+one exercises is:
+
+* **`Loom.Teams.TableRegistry`** (loom, `lib/loom/teams/table_registry.ex`,
+  69 lines) — untyped mode end to end, ETS tables as fresh opaque
+  references with a hidden counter, and a `try/rescue` whose body is only
+  `:ets` statements. It is the one with a full reachability proof
+  (`Leanactors/Examples/TableRegistryProof.lean`).
+* **`Ensemble.LogStore`** (ensemble, `lib/ensemble/log_store.ex`, 94
+  lines) — a reply type that no declaration gives you. The only reply is
+  `:queue.to_list(state.entries)`, so the file is compiled twice: once to
+  find out what the replies are, once to use it. Also a struct state
+  flattened into the state constructor, `:queue` as the list, and a
+  PubSub broadcast on every push.
+* **`EnsembleWeb.LogsLive`** (ensemble, `lib/ensemble_web/live/logs_live.ex`,
+  432 lines) — the LiveView socket as the record of the assigns the
+  callbacks touch, and a file whose whole translated part is one
+  `handle_info` clause (the other is the catch-all that ignores everything
+  else, which is already the BEAM's default). The rest is `mount/3`,
+  `render/1`, three `handle_event/3` clauses and twenty-one private
+  helpers, and the generated file names which of those is a real
+  transition it does not carry.
+* **`BobsBroadcastWeb.RadioLive`** (bobs_broadcast,
+  `lib/bobs_broadcast_web/live/radio_live.ex`, 78 lines) — a chain of
+  assigns folded into one record update, and a payload inferred
+  `term() | nil` from the `!= nil` the body writes about it.
+
+`elixir elixir/land_real.exs <path to the module>` does the mechanical
+part of adding one: translate at the original path, copy in and verify
+byte-identical, generate the Lean, append the `check.sh` lines, write an
+example skeleton, add the imports, record the origin and its md5. What it
+will not do is invent a property — the skeleton's `beh` is the generated
+clauses copied, so `beh_eq_gen` holds at once and says nothing. Rewriting
+it into a readable hand model, with `beh_eq_gen` keeping that honest, and
+writing a bounded check of something actually true of the module, is the
+part that matters and the part the script prints as TODO.
 
 ## Build
 
 ```sh
-./check.sh              # regenerate Gen/, verify it is unchanged, run the translator fixtures,
-                        # the readiness self-check over elixir/src, the readiness regression gate
-                        # over the five real projects, lake build (proofs, checkers,
-                        # the replay binary), run the ten drivers,
+./check.sh              # check every elixir/real/ copy against its origin, regenerate Gen/,
+                        # verify it is unchanged, run the translator fixtures and the landing
+                        # tooling's self-test, the readiness self-check over elixir/src, the
+                        # readiness regression gate over the five real projects, lake build
+                        # (proofs, checkers, the replay binary), run the ten drivers,
                         # then the differential fuzz (200 seeded scripts)
 ```
 
@@ -875,7 +953,7 @@ or piecewise:
 elixir elixir/to_lean.exs elixir/src/lock.ex Leanactors.Gen.Lock --pid Lock=server > Leanactors/Gen/Lock.lean
 elixir elixir/to_lean.exs elixir/src/ttl.ex Leanactors.Gen.Ttl > Leanactors/Gen/Ttl.lean   # names derived from the source
 elixir elixir/to_lean.exs elixir/src/registry.ex Leanactors.Gen.Registry > Leanactors/Gen/Registry.lean
-elixir elixir/test/run_fixtures.exs         # 73 translator fixtures; --regen rewrites the expectations
+elixir elixir/test/run_fixtures.exs         # 81 translator fixtures; --regen rewrites the expectations
 elixir elixir/readiness.exs elixir/src      # what the translator would need for a given source tree
 lake build              # checks every proof, runs the bounded checkers, builds .lake/build/bin/replay
 elixir elixir/bank.exs  # exits 1 on mismatch with the Lean trace
@@ -1168,7 +1246,11 @@ statement with an effect inside a block expression, and a `case` over a
 comparison (`case x > 10 do true -> ..`, which renders the scrutinee as a
 `Prop` Lean cannot match against `true`) are all still errors. A
 self-recursive local helper that does not recurse on a list tail is
-approximated beyond `localFuel` (64) applications. Environment steps inside the supervisor,
+approximated beyond `localFuel` (64) applications. A LiveView's
+`handle_event/3` is *not* modelled and *is* a real transition: the browser
+channel is a second source of messages this model does not have, so a
+property checked of a landed LiveView is a property of its mailbox alone,
+which the generated file and the example both say in so many words. Environment steps inside the supervisor,
 watchdog and ttl runs (`SysRunE` exists and the task uses it; the other
 three liveness theorems are still over closed `SysRun`s), safety proofs
 for the registry and the feed's prefix property, strong fairness, and any
