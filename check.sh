@@ -42,6 +42,20 @@ echo "== readiness self-check"
 elixir elixir/readiness.exs --strict --exclude elixir/src/pubsub.ex elixir/src > /tmp/readiness.src.txt
 grep "candidate modules" /tmp/readiness.src.txt | sed 's/^/   /'
 
+echo "== readiness regression gate"
+# Re-measure the five real projects and compare with docs/readiness-baseline.json:
+# fails if any project translates fewer modules than the baseline records or
+# carries more blockers, and names every module whose verdict changed. The
+# paths are in the baseline, so there is no copy of the project list here; if
+# they are not on this machine the step says so and passes (they are not part
+# of the repository). ~15s.
+#
+# A round that lands translator features is expected to BEAT the baseline:
+# refresh it then, together with docs/readiness.md --
+#   elixir elixir/readiness.exs --json --update-baseline docs/readiness-baseline.json PATHS...
+#   elixir elixir/readiness.exs --markdown PATHS... > docs/readiness.md
+elixir elixir/readiness.exs --check-baseline docs/readiness-baseline.json
+
 echo "== prove"
 lake build 2>&1 | grep -E "^(error|warning)" && exit 1 || true
 grep -rl sorry Leanactors && { echo "sorry found"; exit 1; } || true
