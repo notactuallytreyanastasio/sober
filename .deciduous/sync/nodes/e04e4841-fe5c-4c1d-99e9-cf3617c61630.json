@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e04e4841-fe5c-4c1d-99e9-cf3617c61630",
+  "created_at": "2026-09-10T21:38:44.502294-04:00",
+  "description": "No README/NOTES edits were made. Proposed README addition, as a new section after 'Differential testing' (or wherever the tooling sections live):\n\n## Readiness\n\n`elixir elixir/readiness.exs PATH...` answers 'what would it take to translate this file?' for any Elixir source, where PATH is a .ex file or a directory. For every module that uses `GenServer` or contains a `receive` it runs the translator with its output discarded (retrying with `--pid` when the only complaint is an unregistered send target, which is configuration rather than a construct) and, independently, walks the module's AST against `@supported`, an allowlist at the top of the harness that mirrors the header of `elixir/to_lean.exs`. The walk is what makes the report complete: the translator stops at its first error, the walker reports every unsupported construct with its file, line and a stable kind (`Map.pop/2`, `try/rescue`, `defstruct`, `Phoenix.PubSub.broadcast/3`, `no @type state (untyped mode not available)`, `field access s.field`). Findings are blockers or notes -- a note is something the translator ignores silently, or that only needs a flag. `--markdown` renders the report as `docs/readiness.md`, `--strict` exits non-zero if any candidate module is not translatable, and `check.sh` uses that over `elixir/src` so a translator change that narrows the subset is caught.\n\n`docs/readiness.md` is that report over the lib trees of five real applications: 373 files, 55 GenServer or receive-loop modules, none of them translatable today, 2838 blocking constructs grouped both by kind and by the translator feature each group would need. The round is planned from that table rather than from guesses.\n\nLayout table row:\n| elixir/readiness.exs | Readiness harness: runs the translator dry and walks each module's AST against an allowlist, reporting every unsupported construct with file:line and kind; `--markdown` writes docs/readiness.md, `--strict` is check.sh's self-check over elixir/src |\n| docs/readiness.md | Generated readiness report over loom, ensemble, blinks_backend, big_bill and bobs_broadcast |\n\nNote for the Status paragraph: the counts of Lean lines/theorems are unchanged by this piece (no Lean files touched).",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "README paragraph to add for the readiness harness (integrator)",
+  "updated_at": "2026-09-10T21:38:44.502294-04:00"
+}

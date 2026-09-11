@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "2c4c1c8d-eedb-4d7e-bc91-114a0cc529f3",
+  "created_at": "2026-09-10T21:29:25.274733-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Flatten the GenServer's own struct into the state constructor (option 567); a struct used as a value (Entry) is a Lean structure with defaults. Keeps every existing mechanism (whole-state alias, field coverage, crash clauses, hidden gen field) working unchanged and keeps Gen files in the established shape",
+  "updated_at": "2026-09-10T21:29:25.274733-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "50c26ada-21b4-468f-b05b-97a883988403",
+  "created_at": "2026-09-10T21:31:20.967344-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Translator: infer_types, record state fields (record_pats/record_alias/state_expr record update/s.f), Map.pop case, hidden ets counter, :ets/try-rescue stripping, local let bindings in sends, Term import, Macro.underscore module names and last-segment aliases",
+  "updated_at": "2026-09-10T21:31:20.967344-04:00"
+}

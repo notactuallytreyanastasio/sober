@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b9f8fa9a-eda2-4e3a-8d93-03779a56b4f7",
+  "created_at": "2026-09-10T21:31:33.504150-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Explicit subscriber pid (.subscribe q topic / .unsubscribe q topic / .broadcast topic m) with String topics: a subscribe inside init/1 must be attributed to the child, whose pid is 'fresh' at the parent's spawn site, so the effect cannot imply the acting pid; String keeps Sys monomorphic in the topic and DecidableEq free",
+  "updated_at": "2026-09-10T21:31:33.504150-04:00"
+}

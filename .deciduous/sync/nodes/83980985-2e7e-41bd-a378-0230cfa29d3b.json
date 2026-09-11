@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "83980985-2e7e-41bd-a378-0230cfa29d3b",
+  "created_at": "2026-09-10T21:31:35.671923-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Sys.lean: subs : List (String x Pid), Effect.subscribe/unsubscribe/broadcast, subscribers/unsubscribeAll/unsubscribe helpers with membership iffs, terminate drops the dead pid's subscriptions, broadcast = one cfg.deliverAll over subscribers in subscription order",
+  "updated_at": "2026-09-10T21:31:35.671923-04:00"
+}

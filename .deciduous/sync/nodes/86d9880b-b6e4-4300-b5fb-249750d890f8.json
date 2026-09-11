@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "86d9880b-b6e4-4300-b5fb-249750d890f8",
+  "created_at": "2026-09-10T21:35:31.771060-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Feed example: elixir/src/feed.ex (publisher + two subscribers), elixir/src/pubsub.ex (local Phoenix.PubSub twin so the driver needs no deps), Gen/Feed.lean, Examples/Feed.lean (prefix-of-published-sequence bounded check, two mutants, subs_feed_only proved via SysStep.mem_subs_cases), elixir/feed.exs, wiring in check.sh and Leanactors.lean",
+  "updated_at": "2026-09-10T21:35:31.771060-04:00"
+}

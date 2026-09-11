@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T21:22:52.464785-04:00",
+  "edge_id": "0654b85c83be8f168bff",
+  "edge_type": "leads_to",
+  "from_change_id": "9adaf49a-b1d7-49f0-8482-2add40921993",
+  "rationale": "generic lemmas announced for sibling builders",
+  "to_change_id": "95e95116-9cce-4e8e-8441-d4bf05ce9c1a",
+  "weight": 1.0
+}

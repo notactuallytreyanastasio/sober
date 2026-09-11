@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "cce5eda8-7fee-4c35-8f87-31e57530997b",
+  "created_at": "2026-09-10T21:42:02.905210-04:00",
+  "description": "The pattern 'a state predicate closed under beh, lifted to every reachable configuration because the behaviour never spawns' is reusable and lives in Leanactors/Examples/Ringlog.lean as Ok / ok_step / beh_no_spawn / AllOk / allOk_step / allOk_reach. If a second example wants it, hoisting allOk_step into SysProps as a generic 'Sys.AllOk' over an arbitrary predicate would be the place; it was left local this round because one instance does not justify the abstraction.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "No generic Lean lemmas were added to SysProps/Fair/AssocList by this piece: the ringlog proof is built only from existing SysProps lemmas (SysStep.stateOf_spawn_cases, Effect.init?) plus example-local ones (Ok/ok_step/beh_no_spawn/AllOk). Siblings have nothing to reuse or clash with from wf6/structs",
+  "updated_at": "2026-09-10T21:42:02.905210-04:00"
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "7d38f8b4-a264-4b15-b6ce-2e7a7d683b9d",
+  "created_at": "2026-09-10T21:14:48.553794-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85,
+    "prompt": "Model Phoenix.PubSub.subscribe/broadcast as core Sys effects; terminate removes subscriptions; translator maps Phoenix.PubSub.* and a configurable local PubSub module; feed.ex Publisher/Subscriber example; fixtures; check.sh; Leanactors.lean"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "PubSub as a broadcast effect: subs list on Sys, subscribe/unsubscribe/broadcast effects, SysProps frame/monotone lemmas, translator mapping for Phoenix.PubSub (and a local PubSub module), feed.ex example with checker and BEAM driver",
+  "updated_at": "2026-09-10T21:14:48.553794-04:00"
+}

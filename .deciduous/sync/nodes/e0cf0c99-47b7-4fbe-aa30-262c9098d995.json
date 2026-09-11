@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e0cf0c99-47b7-4fbe-aa30-262c9098d995",
+  "created_at": "2026-09-10T21:22:52.495442-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Translator: recognise Phoenix.PubSub / PubSub (--pubsub Mod) subscribe, unsubscribe, broadcast as effects; topics from string literals or @attributes; subscribe/unsubscribe allowed in init/1 and emitted at spawn sites for the child pid; uses_self? sees PubSub calls; fixtures pubsub.ex and error_pubsub_topic.ex",
+  "updated_at": "2026-09-10T21:22:52.495442-04:00"
+}

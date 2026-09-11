@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "64306001-99ae-479c-90ad-4700acf881ba",
+  "created_at": "2026-09-10T21:32:18.464444-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "elixir/readiness.exs: @supported allowlist + AST walker + wrapped translator (--pid retry), text and --markdown reports, --strict self-check",
+  "updated_at": "2026-09-10T21:32:18.464444-04:00"
+}

@@ -1,0 +1,15 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "65b1ec6c-8568-4809-9327-087ee383a6aa",
+  "created_at": "2026-09-10T21:38:28.712823-04:00",
+  "deleted_at": "2026-09-10T21:38:34.308687-04:00",
+  "description": "The three cheapest wins are structural, not semantic, and each unblocks all 55 modules at once: (1) a dotted defmodule name (Loom.LSP.Client) is rejected outright -- the translator matches a single-segment __aliases__; (2) no @type state and (3) no @type msg/cast/info/call. Untyped mode plus dotted names is therefore the whole first step: no real module has typespecs.\n\nAfter that the ranking is: variable binding x = e (404 in 41 modules) -- a let, by far the biggest single feature; field access s.field (380/38) and map update %{m | ..} (89/22) and record-shaped map literals (68/29) -- the record-shaped state map, second; a call to a helper defined in the same module (267/41) -- inlining or translating private defs, third; string literals (162/27) and interpolation (89/18) -- an opaque Term with decidable equality would absorb both; if/case not at body level (99/28) and if/case after statements (21/13) -- expression-level control flow; statement in init/1 (98/28).\n\nLibrary calls are a long tail, and smaller than expected: Logger 40/15, Enum 31/16, Keyword 30/9, :ets 28/6, Phoenix.PubSub 23/12, Access 22/8, Map 17/14, DateTime 16/8, MapSet 11/3, Process 7/6, :queue 4/1. Logger is the only one worth a no-op mapping on volume alone; PubSub is worth it because it is an effect, not a value. defstruct appears in 10 modules, try/rescue in 4 (5 occurrences) -- both are rarer than the round-6 plan assumed.\n\nPer project: loom 22 candidate modules / 1430 blockers, ensemble 25 / 1227, big_bill 3 / 81, bobs_broadcast 3 / 55, blinks_backend 2 / 45. The smallest real targets to try to translate end to end are the 4-blocker and 8-blocker modules in the Modules table (Loom.Session.Architect, a receive loop; Loom.LSP.ConfigListener; Ensemble.Teams.Registry), not the named TableRegistry/LogStore.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 88
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Round 6 planning read of docs/readiness.md: what actually blocks real modules",
+  "updated_at": "2026-09-10T21:38:28.712823-04:00"
+}

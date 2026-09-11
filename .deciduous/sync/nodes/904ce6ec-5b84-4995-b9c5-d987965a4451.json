@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "904ce6ec-5b84-4995-b9c5-d987965a4451",
+  "created_at": "2026-09-10T21:32:18.494723-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Validated on the translator's own corpus: 14/14 modules in elixir/src report translatable; over the 37 fixtures the walker flags exactly 3 of the 8 error fixtures and NO ok fixture (zero 'walker found blockers, translator accepted'), and the wrapper reproduces 7 of the 8 translator errors (error_no_pid is fixed by the --pid retry, by design). Fixed three walker false positives found this way: a one-field map type %{f: T} is an assoc list with a one-atom key (now a note), an atom-keyed map literal %{x: 0} is ambiguous with a record so it is only a blocker when the module declares no atom-keyed map type, and [h | t] in an expression was mislabelled 'local call |/2'",
+  "updated_at": "2026-09-10T21:32:18.494723-04:00"
+}

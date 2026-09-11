@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "de0a28ab-36ee-4c94-aad1-5df67e2aa918",
+  "created_at": "2026-09-10T21:35:33.872520-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Feed checks: prefixOk holds on 53,845 configurations (depth 9, 4 stimuli: tick to the publisher, leave to any subscriber). Mutant 'subscriber forgets to unsubscribe' caught in 50 configurations, mutant 'publisher broadcasts the stale n' caught in 4. script reproduces the BEAM driver exactly: publisher 5, subscriber 3 false, subscriber 5 true, subs [(\"feed\", 2)]. FEED OK on the BEAM through the local pubsub.ex twin",
+  "updated_at": "2026-09-10T21:35:33.872520-04:00"
+}

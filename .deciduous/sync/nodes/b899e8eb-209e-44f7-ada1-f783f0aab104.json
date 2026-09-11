@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b899e8eb-209e-44f7-ada1-f783f0aab104",
+  "created_at": "2026-09-10T21:29:00.094283-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 88,
+    "prompt": "Write elixir/readiness.exs: given any .ex path or directory, for each GenServer/receive-loop module run the translator in a dry mode and walk the AST against an allowlist, reporting every unsupported construct with file:line and kind; run over loom/ensemble/blinks_backend/big_bill/bobs_broadcast lib trees and write docs/readiness.md; add a --strict self-check over elixir/src to check.sh"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Readiness harness: report every unsupported construct for any .ex file, aggregate over five real projects",
+  "updated_at": "2026-09-10T21:29:00.094283-04:00"
+}

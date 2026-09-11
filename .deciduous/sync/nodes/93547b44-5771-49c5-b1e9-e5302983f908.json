@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "93547b44-5771-49c5-b1e9-e5302983f908",
+  "created_at": "2026-09-10T21:41:57.478506-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Fixtures structs/enum_list/queue (all lean:check) + error_struct_field/error_capture_arity; Gen/Ringlog.lean; Examples/Ringlog.lean (beh_eq_gen, bounded checker, two mutants, traces, proof); elixir/ringlog.exs; check.sh and Leanactors.lean wiring",
+  "updated_at": "2026-09-10T21:41:57.478506-04:00"
+}

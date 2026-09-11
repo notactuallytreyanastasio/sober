@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "d575d5dc-c6ac-4cc8-90cf-54ca25371d56",
+  "created_at": "2026-09-10T21:18:41.261419-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Sys gains subs : List (String × Pid); effects subscribe (p) (topic), unsubscribe (p) (topic), broadcast (topic) (m) with subscribe appending, unsubscribe filtering, broadcast = deliverAll over subscribers in list order, terminate dropping p's subscriptions; Grows/Frame untouched, subs facts stated separately in SysProps; translator: Phoenix.PubSub.* and a configurable local PubSub module (default PubSub, --pubsub Mod), topics string literals or module attributes, subscribe allowed in init/1 and emitted at the spawn site for the child pid",
+  "updated_at": "2026-09-10T21:18:41.261419-04:00"
+}

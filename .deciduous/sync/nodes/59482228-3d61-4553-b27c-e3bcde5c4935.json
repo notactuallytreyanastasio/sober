@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "59482228-3d61-4553-b27c-e3bcde5c4935",
+  "created_at": "2026-09-10T21:31:39.770465-04:00",
+  "description": "Reuse these instead of re-proving: SysStep.mem_subs_cases is the induction workhorse (every subscription in a reachable system is an old one or a subscribe effect of the popped message); broadcast_stateOf/broadcast_mcount are the frame facts (a broadcast changes no state and only adds mailbox copies). Sys.Grows and Sys.Frame were deliberately NOT extended: an unsubscribe shrinks subs, so subs monotonicity is stated separately under Effect.keepsSubs / no-unsubscribe hypotheses.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "GENERIC LEMMAS announced for sibling builders (all in the shared files, none example-specific). Leanactors/Sys.lean: Config.subscribers, Config.unsubscribeAll, Config.unsubscribe, mem_subscribers_iff, mem_unsubscribeAll_iff, mem_unsubscribe_iff. Leanactors/SysProps.lean: grows_deliverAll, fresh_deliverAll, Effect.keepsSubs, List.count_map_pair, terminate_subs (simp), terminate_mem_subs_iff, terminate_mem_subs, applyEffect_subs_cases, applyEffect/foldl_applyEffect/applyEffects_subs_of_keepsSubs, applyEffect/foldl_applyEffect/applyEffects_mem_subs, applyEffect/foldl_applyEffect/applyEffects_mem_subs_cases, applyEffect_broadcast (simp), broadcast_stateOf, broadcast_mcount, runE_mem_subs, runE_mem_subs_cases, runE_subs_of_keepsSubs, signalE_subs, signalE_mem_subs, downE_subs, timerE_subs, SysStep.mem_subs, SysStep.mem_subs_cases",
+  "updated_at": "2026-09-10T21:31:39.770465-04:00"
+}

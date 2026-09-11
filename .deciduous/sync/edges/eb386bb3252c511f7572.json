@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T21:17:32.747466-04:00",
+  "edge_id": "eb386bb3252c511f7572",
+  "edge_type": "leads_to",
+  "from_change_id": "afd0f133-9e43-4450-8402-ca2a949969d3",
+  "rationale": "round 6 piece: readiness harness",
+  "to_change_id": "9b361229-ca59-412b-a23a-17991feaae57",
+  "weight": 1.0
+}

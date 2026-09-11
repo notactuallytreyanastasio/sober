@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T22:14:53.521236-04:00",
+  "edge_id": "822bf796649c70dc3833",
+  "edge_type": "leads_to",
+  "from_change_id": "76456bd0-ff5a-44df-8283-aa7e047ce4ca",
+  "rationale": "the record of the merged state",
+  "to_change_id": "567cb5dd-55a9-4584-be59-8c77094e463c",
+  "weight": 1.0
+}

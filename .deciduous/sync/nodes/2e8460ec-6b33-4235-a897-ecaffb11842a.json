@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "2e8460ec-6b33-4235-a897-ecaffb11842a",
+  "created_at": "2026-09-10T21:20:23.381601-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Walker + wrapped translator (option 2): the walker gives a complete list with file:line even when the translator stops at its first error; no translator change; kinds are stable strings (Mod.fun/arity, 'try/rescue', 'variable binding x = e', ...) so they aggregate by frequency; two severities, blocker and note (terminate/2 ignored, target needing --pid)",
+  "updated_at": "2026-09-10T21:20:23.381601-04:00"
+}

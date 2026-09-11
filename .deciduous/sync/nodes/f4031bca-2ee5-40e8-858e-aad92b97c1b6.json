@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "f4031bca-2ee5-40e8-858e-aad92b97c1b6",
+  "created_at": "2026-09-10T21:18:46.953726-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Core: Sys.subs field, subscribers/unsubscribeAll helpers, three new Effect constructors in applyEffect, terminate drops p's subs; fix runE_lift/fresh_ofList anonymous constructors; add the new cases to every Effect case split (SysProps, SupervisorLive)",
+  "updated_at": "2026-09-10T21:18:46.953726-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "1e421250-dc07-4072-a2a1-06d3e7c09644",
+  "created_at": "2026-09-10T22:06:10.905638-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 88
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Extended the readiness allowlist to the merged translator and cross-checked it on the fixtures",
+  "updated_at": "2026-09-10T22:06:10.905638-04:00"
+}

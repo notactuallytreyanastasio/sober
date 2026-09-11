@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "9b361229-ca59-412b-a23a-17991feaae57",
+  "created_at": "2026-09-10T21:15:28.929545-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85,
+    "prompt": "YOUR PIECE (Elixir tooling + docs, no translator changes): a readiness harness ... run it over the real projects ... write docs/readiness.md ... Add elixir elixir/readiness.exs elixir/src to check.sh"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Readiness harness: elixir/readiness.exs walks any .ex module (GenServer or receive loop) against an allowlist of translator-supported forms and reports every unsupported construct with file:line; aggregated over loom, ensemble, blinks_backend, big_bill, bobs_broadcast into docs/readiness.md; self-check on elixir/src in check.sh",
+  "updated_at": "2026-09-10T21:15:28.929545-04:00"
+}

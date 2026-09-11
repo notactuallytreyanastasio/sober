@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "55844adc-edb9-4e96-8d58-408b43d0045b",
+  "created_at": "2026-09-10T21:19:52.997546-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Go with named-field records + Term + hidden ets counter; ets/try-rescue-over-ets are no-ops (external resource effects abstracted: properties are about the registry map, not ETS); wrappers/raise outside callbacks ignored with a generated note; module names take the last alias segment, ctor/pid names via Macro.underscore (table_registry), byte-identical for the single-word sources",
+  "updated_at": "2026-09-10T21:19:52.997546-04:00"
+}

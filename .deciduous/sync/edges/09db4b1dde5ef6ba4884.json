@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T21:31:41.841627-04:00",
+  "edge_id": "09db4b1dde5ef6ba4884",
+  "edge_type": "leads_to",
+  "from_change_id": "83980985-2e7e-41bd-a378-0230cfa29d3b",
+  "rationale": "announce shared lemmas as required by the round-6 protocol",
+  "to_change_id": "59482228-3d61-4553-b27c-e3bcde5c4935",
+  "weight": 1.0
+}

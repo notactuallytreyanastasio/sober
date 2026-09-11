@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "220615b3-53b7-4ed1-9fe2-130ad798ccf9",
+  "created_at": "2026-09-10T21:19:47.157946-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Untyped inference from clause patterns and sends: tag+arity per callback, all fields Term; reply Reply inductive when every reply is a literal atom/tagged tuple, else Term; a tag occurring as both atom and tuple in the reply union gets the arity suffix (ok, ok1)",
+  "updated_at": "2026-09-10T21:19:47.157946-04:00"
+}

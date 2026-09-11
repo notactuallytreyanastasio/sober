@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T21:38:50.261009-04:00",
+  "edge_id": "7248842b539d49d20fdd",
+  "edge_type": "leads_to",
+  "from_change_id": "64306001-99ae-479c-90ad-4700acf881ba",
+  "rationale": "found while wiring the self-check into check.sh",
+  "to_change_id": "0e2fe902-0419-4541-82e5-2f683398136f",
+  "weight": 1.0
+}

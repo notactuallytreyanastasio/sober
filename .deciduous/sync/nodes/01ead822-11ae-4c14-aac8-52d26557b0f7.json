@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "01ead822-11ae-4c14-aac8-52d26557b0f7",
+  "created_at": "2026-09-10T21:35:29.675339-04:00",
+  "description": "Discovered by translating a hand-written root module with PubSub.subscribe in init/1: the output beh had the unsubscribe (me) but no subscription anywhere",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Gap found while resuming and closed: a module whose init/1 subscribes but that nothing in the file spawns produced NO effect at all (silently), because the subscribe effect names the subscriber pid and the only place a child's pid is nameable is the parent's spawn site. The translator now scans the file for GenServer.start_link/start(Mod, _) and warns for each subscribing module that is never spawned; pubsub_root.ex is the fixture (first use of the runner's # warn: directive)",
+  "updated_at": "2026-09-10T21:35:29.675339-04:00"
+}

@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T21:59:24.689602-04:00",
+  "edge_id": "b6ee4e8267727a622d76",
+  "edge_type": "leads_to",
+  "from_change_id": "7f936983-58c9-4634-983b-f3990135b592",
+  "rationale": "the conflict that mattered",
+  "to_change_id": "daa498b9-2925-42d3-9b25-0bcaf44e80d5",
+  "weight": 1.0
+}

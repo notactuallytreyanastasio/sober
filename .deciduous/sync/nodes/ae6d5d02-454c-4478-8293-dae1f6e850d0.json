@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "ae6d5d02-454c-4478-8293-dae1f6e850d0",
+  "created_at": "2026-09-10T21:18:35.695066-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Keep Grows/Frame unchanged; state subscriptions separately in SysProps: exact terminate/signalE/downE/timerE subs equations, applyEffect subs cases (unchanged / append on subscribe / filter on unsubscribe), a monotone corollary when no unsubscribe is emitted, broadcast as deliverAll over subscribers (stateOf unchanged, mcount via mcount_deliverAll)",
+  "updated_at": "2026-09-10T21:18:35.695066-04:00"
+}

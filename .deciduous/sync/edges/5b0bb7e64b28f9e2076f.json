@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T21:18:46.803887-04:00",
+  "edge_id": "5b0bb7e64b28f9e2076f",
+  "edge_type": "leads_to",
+  "from_change_id": "ae6d5d02-454c-4478-8293-dae1f6e850d0",
+  "rationale": "chosen: separate subs lemmas keep every existing Grows/Frame proof",
+  "to_change_id": "d575d5dc-c6ac-4cc8-90cf-54ca25371d56",
+  "weight": 1.0
+}

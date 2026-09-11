@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "95e95116-9cce-4e8e-8441-d4bf05ce9c1a",
+  "created_at": "2026-09-10T21:22:46.673162-04:00",
+  "description": "Sys.subs is NOT part of Grows/Frame. Effect.isolated and Effect.init? treat the three new effects as isolated / non-spawning. runE_lift and fresh_ofList updated to 8 fields.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "GENERIC LEMMAS added to shared files (reuse, do not re-prove): SysProps.lean: Sys.grows_deliverAll, Sys.fresh_deliverAll, List.count_map_pair (count of (q,m') in l.map (·, m)), Effect.keepsSubs, Sys.terminate_subs/terminate_mem_subs_iff/terminate_mem_subs, applyEffect_subs_cases, applyEffects_subs_of_keepsSubs, applyEffects_mem_subs, applyEffects_mem_subs_cases, applyEffect_broadcast (simp), broadcast_stateOf, broadcast_mcount, runE_mem_subs, runE_mem_subs_cases, runE_subs_of_keepsSubs, signalE_subs, signalE_mem_subs, downE_subs, timerE_subs, SysStep.mem_subs, SysStep.mem_subs_cases. Sys.lean: subscribers, unsubscribeAll, unsubscribe with mem_subscribers_iff, mem_unsubscribeAll_iff, mem_unsubscribe_iff. Sys anonymous constructors now take 8 fields (subs last, default []).",
+  "updated_at": "2026-09-10T21:22:46.673162-04:00"
+}

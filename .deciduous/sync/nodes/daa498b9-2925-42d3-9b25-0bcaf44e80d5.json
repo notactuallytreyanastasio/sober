@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "daa498b9-2925-42d3-9b25-0bcaf44e80d5",
+  "created_at": "2026-09-10T21:59:22.996818-04:00",
+  "description": "wf6/structs renders a pure binding as a Lean let around the clause result (let_bind/wrap_lets); wf6/untyped substitutes the rendered expression at every use (bind_local). Both clauses matched the same AST, so one had to win, and each branch's committed Gen file depended on its own. Resolution kept both under one rule: a name that is free is let-bound, a name already in scope -- a state field the clause pattern bound, as 'refs = Map.put(refs, k, v)' does in the ETS fixture -- is substituted, because the let would shadow the part the rest of the clause still reads (and let_bind refuses a rebind). Both branches' outputs stay byte-identical. Three smaller ones: state_expr/5 (record) now falls through to state_expr/4 (struct/positional) when the state is not record-shaped; the s.f expression clause tries the record field, then the flattened struct part, then the struct projection; hide_unused_parts no longer renames a wildcard part _ to __.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 88
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Translator merge: the one real clash was the local binding v = e",
+  "updated_at": "2026-09-10T21:59:22.996818-04:00"
+}

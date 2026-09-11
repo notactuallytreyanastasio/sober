@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5d692bc7-772b-4482-b9a3-c3aaa924d83b",
+  "created_at": "2026-09-10T21:31:52.243843-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Translator: PubSub calls -> effects (subscribe/unsubscribe/broadcast, broadcast! too), topics resolved to string literals from a literal or a string-valued module attribute, PubSub modules by name (Phoenix.PubSub and PubSub always, --pubsub Mod for more), init/1 subscriptions emitted at the spawn site for the child's fresh pid; fixtures pubsub.ex and error_pubsub_topic.ex",
+  "updated_at": "2026-09-10T21:31:52.243843-04:00"
+}

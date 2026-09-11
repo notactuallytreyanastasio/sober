@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "7f936983-58c9-4634-983b-f3990135b592",
+  "created_at": "2026-09-10T21:47:52.686430-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 88
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Merged harness, pubsub, structs into main; 5 translator conflicts resolved by hand",
+  "updated_at": "2026-09-10T21:47:52.686430-04:00"
+}

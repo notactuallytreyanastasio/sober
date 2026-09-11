@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "1c933f12-2bac-43ae-9676-f155fea2d211",
+  "created_at": "2026-09-10T21:29:03.800032-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85,
+    "prompt": "Translator piece: untyped mode (infer msg ctors from handle_* clauses, opaque Term), record-shaped state maps with named fields, Map.pop, :ets.new/delete and try/rescue as no-ops, API wrappers ignored; translate /Users/bg/code/loom/lib/loom/teams/table_registry.ex end to end with a hand model, bounded checker, uniqueness proof and BEAM driver"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "wf6/untyped: untyped mode, record-shaped state, external resources (loom TableRegistry)",
+  "updated_at": "2026-09-10T21:29:03.800032-04:00"
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "83ea41db-2312-454b-95b8-0fc567d39360",
+  "created_at": "2026-09-10T21:39:38.925169-04:00",
+  "description": "(1) general?/bare? treated a map state pattern as a bare variable (right for AssocList maps, which render as a variable plus inlined guards; WRONG for a record state, whose map pattern renders as real Lean sub-patterns). The symptom: the later general clause of handle_cast(:halt, state) was dropped as unreachable and replaced by a crash clause, silently turning an ignore into an exit. Fix: spat_bare?/spat_general? consult Process.get(:to_lean_records) and compare field pattern by field pattern.  (2) infer_type/1 had a 'when not is_atom(a)' guard on the 2-tuple clause, so an init state {nil, false} inferred as term() instead of a pair; 2-tuples are always literal in quoted Elixir (AST nodes are 3-tuples), so the guard was wrong.  (3) A cons expression [x | xs] is still unsupported in expressions, which is why the untyped fixture keeps a single last line instead of a list.  (4) A pid cannot be inferred: a state field that a body sends to needs a @type with pid(), since untyped mode makes it a Term. Not an error today (the Lean type mismatch shows up at compile time), worth a check in the readiness harness.  (5) case Map.pop's {nil, _} arm also matches a stored nil on the BEAM; the model has no nil values, documented in the header.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 88
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Translator bugs and surprises found by the real file",
+  "updated_at": "2026-09-10T21:39:38.925169-04:00"
+}

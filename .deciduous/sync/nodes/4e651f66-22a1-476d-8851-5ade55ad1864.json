@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "4e651f66-22a1-476d-8851-5ade55ad1864",
+  "created_at": "2026-09-10T21:38:23.569910-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 92
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "docs/readiness.md generated over loom/ensemble/blinks_backend/big_bill/bobs_broadcast: 373 files, 55 candidate modules (22 loom, 25 ensemble, 2 blinks, 3 big_bill, 3 bobs), 0 translatable today, 2838 blocking constructs. Top families: variable binding x = e (404 occurrences / 41 modules), field access s.field (380/38), call to a helper in the same module (267/41), string literal (162/27), imported/macro call (156/20: assign, put_flash, push_navigate), if/case not at body level (99/28), statement in init/1 (98/28), map update %{m | ..} (89/22), string interpolation (89/18), record-shaped map literal (68/29), keyword list literal (67/12); then three that hit all 55 modules at once: dotted module name, no @type state, no @type msg/cast/info/call. Also: 23 Phoenix.PubSub calls in 12 modules, 28 :ets in 6, 10 defstruct, 5 try/rescue, 4 :queue",
+  "updated_at": "2026-09-10T21:38:23.569910-04:00"
+}

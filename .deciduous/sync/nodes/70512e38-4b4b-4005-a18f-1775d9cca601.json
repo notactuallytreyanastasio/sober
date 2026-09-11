@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "70512e38-4b4b-4005-a18f-1775d9cca601",
+  "created_at": "2026-09-10T21:23:41.902929-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Write elixir/src/ringlog.ex (Entry struct module, Ringlog GenServer with struct state, Reader with blocking calls) and extend to_lean.exs: structs, Enum, :queue, let-bindings, module attributes",
+  "updated_at": "2026-09-10T21:23:41.902929-04:00"
+}

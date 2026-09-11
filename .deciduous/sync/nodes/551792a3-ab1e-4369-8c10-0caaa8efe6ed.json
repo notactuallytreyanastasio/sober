@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "551792a3-ab1e-4369-8c10-0caaa8efe6ed",
+  "created_at": "2026-09-10T21:18:35.661006-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 30
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Add a subs clause to Grows/Frame (every effect monotone): breaks on unsubscribe (subs shrink) and would re-thread every 9-field anonymous Grows/Frame constructor in the example files",
+  "updated_at": "2026-09-10T21:18:35.661006-04:00"
+}

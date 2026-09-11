@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "f15deadd-4684-49c1-b677-a3208648be12",
+  "created_at": "2026-09-10T21:33:48.336018-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Gen/TableRegistry.lean generated from the verbatim real file with zero annotations: three call tags inferred from the handle_call patterns, Reply = ok1 (Term) | error | ok (a tag at two arities gets the arity suffix), St = table_registry (tables : List (Term x Term)) (ets : Nat), pid table_registry = 0 derived from name: __MODULE__. Examples/TableRegistry.lean builds: beh_eq_gen by cases+rfl; checkUniq holds on 11,737 configurations (depth 8, 4 stimuli); the no-counter-bump mutant caught in 11; refs_unique and team_has_one_ref proved for every SysReach configuration via AssocList.Uniq and a Bounded counter",
+  "updated_at": "2026-09-10T21:33:48.336018-04:00"
+}

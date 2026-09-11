@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T21:18:46.907849-04:00",
+  "edge_id": "a534021ca4266feb13fe",
+  "edge_type": "leads_to",
+  "from_change_id": "3ffd15f3-b956-4eb7-869c-d7645e78c6fa",
+  "rationale": "rejected: cannot attribute an init subscription to the child",
+  "to_change_id": "d575d5dc-c6ac-4cc8-90cf-54ca25371d56",
+  "weight": 1.0
+}

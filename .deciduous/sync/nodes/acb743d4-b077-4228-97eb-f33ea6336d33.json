@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "acb743d4-b077-4228-97eb-f33ea6336d33",
+  "created_at": "2026-09-10T21:31:15.554845-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 40
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Infer only the message unions; keep requiring @type state",
+  "updated_at": "2026-09-10T21:31:15.554845-04:00"
+}

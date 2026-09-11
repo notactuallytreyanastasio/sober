@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "a78ad402-cad4-4b9e-ba40-48d313888008",
+  "created_at": "2026-09-10T21:33:29.699202-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Translator: defstruct -> Lean structure with defaults; struct state flattened into the St constructor (x.f = pattern part, %{s | f: v} rebuild, %Mod{} defaults); struct patterns as anonymous constructors; Enum over lists (filter/map/reject/count/any?/all?/member?/reverse/take/drop/at/empty?, length, hd/tl, comprehension) with fn and &(&1.f) lambdas; :queue as List (new/in/out/to_list/len/is_empty/peek); local v = e as a Lean let; literal module attributes substituted. New source elixir/src/ringlog.ex",
+  "updated_at": "2026-09-10T21:33:29.699202-04:00"
+}

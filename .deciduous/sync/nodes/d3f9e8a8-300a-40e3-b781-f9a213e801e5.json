@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "d3f9e8a8-300a-40e3-b781-f9a213e801e5",
+  "created_at": "2026-09-10T21:38:39.404707-04:00",
+  "description": "The three cheapest wins are structural, not semantic, and each unblocks all 55 modules at once: (1) a dotted defmodule name (Loom.LSP.Client) is rejected outright -- the translator matches a single-segment __aliases__; (2) no @type state; (3) no @type msg/cast/info/call. No real module has typespecs, so untyped mode plus dotted names is the whole first step.\n\nAfter that the ranking is: variable binding x = e (404 occurrences in 41 modules) -- a let, by far the biggest single feature; then the record-shaped state map, as field access s.field (380/38), map update %{m | ..} (89/22) and record-shaped map literals (68/29); then a call to a helper defined in the same module (267/41), i.e. inlining or translating private defs; then string literals (162/27) and interpolation (89/18), which an opaque Term with decidable equality would absorb; then expression-level control flow, if/case not at body level (99/28) and if/case after statements (21/13); then statement in init/1 (98/28).\n\nLibrary calls are a long tail and smaller than expected: Logger 40/15, Enum 31/16, Keyword 30/9, :ets 28/6, Phoenix.PubSub 23/12, Access 22/8, Map 17/14, DateTime 16/8, MapSet 11/3, Process 7/6, :queue 4/1. Logger is the only one worth a no-op mapping on volume alone; PubSub is worth it because it is an effect, not a value. defstruct appears in 10 modules and try/rescue in 4 (5 occurrences) -- both rarer than the round-6 plan assumed. 156 imported/macro calls in 20 modules are almost all Phoenix LiveView (assign/2, assign/3, put_flash, push_navigate).\n\nPer project: loom 22 candidate modules / 1430 blockers, ensemble 25 / 1227, big_bill 3 / 81, bobs_broadcast 3 / 55, blinks_backend 2 / 45.\n\nCaveat on picking a target from the Modules table: the modules with the fewest blockers are mostly LiveViews and controllers that happen to define handle_info (BobsBroadcastWeb.StreamController 4, LoomWeb.CostDashboardLive 4, EnsembleWeb.LogsLive 5), not actors worth modelling. The genuinely small actors are Loom.Session.Architect (4 blockers, a receive loop), Loom.Tools.Shell (4), Ensemble.AI.TextGenerator (6), Ensemble.Alerts (8), Loom.LSP.ConfigListener (8) and Loom.Teams.Debate (8).",
+  "metadata": {
+    "branch": "main",
+    "confidence": 88
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Round 6 planning read of docs/readiness.md: what actually blocks real modules",
+  "updated_at": "2026-09-10T21:38:39.404707-04:00"
+}

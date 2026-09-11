@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T21:31:33.415796-04:00",
+  "edge_id": "4b7ce808cef20bcf906b",
+  "edge_type": "leads_to",
+  "from_change_id": "7f29eafe-8949-4f15-96ee-cba16d885acc",
+  "rationale": "design choice for the PubSub effect",
+  "to_change_id": "d1447986-9ce2-491f-804f-8d0797d44331",
+  "weight": 1.0
+}
