@@ -297,6 +297,77 @@
 #   that handle_info clauses come after the handle_cast/handle_call clauses
 #   and the crash clauses, so an info catch-all does not shadow a crash.
 #
+# Standard-library calls: ONE table. `@remote` at the top of this file maps
+#   {module segments, function, arity} to what the call becomes -- a
+#   rendering, `:noop` (a statement with no effect in the model, dropped
+#   before anything is translated, arguments included) or `{:error, why}` (a
+#   clear refusal naming what the model lacks). Extending the translator to
+#   another standard-library function is adding a row, not a clause. The
+#   rendering kinds are `{:assoc, op}` (an association-list operation, the
+#   same `map_call/4` a `Map` call uses), `{:set, f}` (Leanactors/SetList),
+#   `{:const, e, t}` (a constant, its arguments ignored) and
+#   `{:fun, f, ats, t}` (a Lean function applied to the arguments at the
+#   given types).
+#
+# Binaries are Lean `String`s (Leanactors/Str.lean). `String.t()`,
+#   `binary()`, `bitstring()`, `iodata()` in a @type are `String`; a string
+#   literal is the Lean literal; `a <> b` is `a ++ b`; a string literal in a
+#   pattern is a Lean literal pattern (which never *covers* a clause, so a
+#   module that matches one still needs a catch-all or a crash clause).
+#   Interpolation `"a#{e}b"` is `"a" ++ Str.toStr e ++ "b"`, where `Str.toStr`
+#   is the `ToStr` class of Leanactors/Str.lean: the instances for String,
+#   Nat, Int and Bool are the BEAM's own rendering, and everything else --
+#   an enum, a tagged union, a `Term`, an `Instant` -- goes through its
+#   derived `Repr`, an opaque but deterministic rendering that no property
+#   should depend on the bytes of. `#{e}` where e is already a binary emits
+#   e itself; `inspect(e)` and `to_string(e)`, inside an interpolation or
+#   out of it, are `Str.toStr e`.
+#
+# Keyword lists are association lists. `[k: v, ..]` is `List (Atom × V)`
+#   over an `Atom` inductive the file generates from the keys the rendering
+#   actually used, so `keyword()`, `keyword(T)`, `Keyword.t()` and
+#   `Keyword.t(T)` are map types and `Keyword.get/2,3`, `fetch/2`, `put/3`,
+#   `delete/2`, `has_key?/2`, `keys/1`, `values/1`, `Access.get/2,3` and the
+#   `opts[:k]` that parses to it are the AssocList functions a `Map` call
+#   already uses. `Keyword.fetch!/2` raises on the BEAM, which an expression
+#   here cannot, so it is the lookup at the value type's default, like
+#   `hd/1`. `[ok: 1]` and `[{:ok, 1}]` are the same AST: at a known type the
+#   type decides, and at an unknown one a key that is an alternative of one
+#   of the file's tagged unions keeps the tagged-tuple reading.
+#
+# MapSet is a duplicate-free list in insertion order
+#   (Leanactors/SetList.lean): `MapSet.t(T)` is `List T`, `MapSet.new()` is
+#   `[]`, and new/1, put, delete, member?, size, to_list, union, difference
+#   and intersection are the SetList functions. `to_list` is the identity on
+#   that list, so it is in insertion order and not the BEAM's term order: a
+#   property may count a set and test membership, but not depend on the
+#   order `to_list` gives.
+#
+# Time is not modelled. `DateTime.utc_now/0,1`, `NaiveDateTime.utc_now`,
+#   `Date.utc_today`, `System.monotonic_time`, `System.system_time` and
+#   `System.os_time` are all the single opaque `Instant.now` of
+#   Leanactors/Time.lean, which has `DecidableEq` and `Repr` and nothing
+#   else. A module may store an instant, pass it on and reply with one;
+#   `DateTime.diff/add/compare/to_iso8601` are `{:error, ..}` rows and `<`,
+#   `>`, `+`, `-` on an operand of type `Instant` are refused with a message
+#   saying the model has no clock. Two instants are therefore equal, which
+#   is a fact about the model and not about time: no property should rest on
+#   it. Timeouts, which *are* modelled, are a different thing (`sendAfter`
+#   and the `after` generation counter above).
+#
+# A module name as a value (`Fallback`, `Loom.MCP.Client` in an expression,
+#   `module()` in a @type) is a constant of a `Module` inductive the file
+#   generates from the names used, dotted names joined with `_`. It can be
+#   stored, sent and compared; nothing can be called on it.
+#
+# Logging is not an effect. `Logger.debug/info/notice/warn/warning/error/
+#   critical/alert/emergency` at both arities, `Logger.log/2,3`,
+#   `Logger.metadata/1` and `Logger.configure/1` are `:noop` rows: the
+#   statement is removed from the body before translation, arguments
+#   included, wherever `:ets.*` statements are removed -- inside `init/1`
+#   too. A pattern variable whose only use was such a statement is renamed
+#   `_v`, as an unused one always is.
+#
 # The @type declarations are the type oracle: they decide when a pattern
 # variable at an `Option` position needs `some`, when `nil` is `none`, and
 # what the Lean inductives look like. This is the point where Elixir's
@@ -326,6 +397,11 @@ defmodule ToLean do
   #   {:const, e, t}   a constant Lean expression `e` of Lean type `t` (the
   #                    argument expressions are ignored: they are the units
   #                    and calendars the model does not have).
+  #   {:fun, f, ats, t}
+  #                    the Lean function `f` applied to the arguments, each
+  #                    rendered at its Lean type in `ats`, with result type
+  #                    `t` (any of them may be nil for "unknown"). This is
+  #                    the row kind for an ordinary total function.
   #
   # A module/function/arity with no row falls through to the usual
   # "unsupported" error, which names the call.
@@ -406,7 +482,13 @@ defmodule ToLean do
     {[:DateTime], :before?, 2, {:error, "the model has no clock: two Instants are always equal, so a comparison would be meaningless"}},
     {[:DateTime], :after?, 2, {:error, "the model has no clock: two Instants are always equal, so a comparison would be meaningless"}},
     {[:DateTime], :to_iso8601, 1, {:error, "an Instant has no printable form in the model"}},
-    {[:DateTime], :to_unix, 1, {:error, "the model has no clock: an Instant has equality and nothing else"}}
+    {[:DateTime], :to_unix, 1, {:error, "the model has no clock: an Instant has equality and nothing else"}},
+
+    # Binaries, where Lean's own String has the function.
+    {[:String], :length, 1, {:fun, "String.length", ["String"], "Nat"}},
+    {[:String], :upcase, 1, {:fun, "String.toUpper", ["String"], "String"}},
+    {[:String], :downcase, 1, {:fun, "String.toLower", ["String"], "String"}},
+    {[:String], :to_string, 1, {:fun, "Str.toStr", [nil], "String"}}
   ]
 
   defmodule Ctx do
@@ -3144,6 +3226,7 @@ defmodule ToLean do
   defp expr_type(env, e) when is_tuple(e) and tuple_size(e) == 3 do
     case remote_action(e) do
       {:const, _, ct} -> ct
+      {:fun, _, _, rt} -> rt
       _ -> var_type(env, e)
     end
   end
@@ -3618,6 +3701,10 @@ defmodule ToLean do
     (t == nil or ct == nil or t == ct) || fail("#{Macro.to_string(e)} is a #{ct}, used at type #{t}")
     lean
   end
+  defp remote_expr(env, e, {:fun, lean, ats, rt}, args, t) do
+    (t == nil or rt == nil or t == rt) || fail("#{Macro.to_string(e)} is a #{rt}, used at type #{t}")
+    lean <> Enum.map_join(Enum.zip(args, ats), "", fn {a, at} -> " " <> paren_or(expr(env, a, at)) end)
+  end
   defp remote_expr(env, e, {:assoc, op}, args, t), do: kw_call(env, e, op, args, t)
   defp remote_expr(env, _e, {:set, fun}, [m | rest], t) do
     mt = (map_set_type(t) || type_of(env, m)) |> map_set_type()
@@ -3872,6 +3959,7 @@ defmodule ToLean do
   defp type_of(env, e) when is_tuple(e) and tuple_size(e) == 3 do
     case {remote_action(e), e} do
       {{:const, _, ct}, _} -> ct
+      {{:fun, _, _, rt}, _} -> rt
       {{:assoc, op}, {_, _, [m | _] = args}} -> assoc_type(env, op, m, length(args))
       _ -> nil
     end

@@ -13,6 +13,7 @@ inductive Msg
   | clear
   | render (caller : Pid)
   | shout (caller : Pid)
+  | info (caller : Pid)
   | reply (a0 : String)
   deriving Repr, DecidableEq
 
@@ -35,6 +36,7 @@ def beh : EBehavior St Msg
   | _, _, .greeter name _ greeted, .clear => (.greeter name "" greeted, [])
   | _, _, .greeter name suffix greeted, .render from_ => (.greeter name suffix greeted, [.send from_ (.reply ("hello, " ++ name ++ "!" ++ suffix))])
   | _, _, .greeter name suffix greeted, .shout from_ => (.greeter name suffix greeted, [.send from_ (.reply (name ++ " (" ++ Str.toStr greeted ++ " times)"))])
+  | _, _, .greeter name suffix greeted, .info from_ => (.greeter name suffix greeted, [.send from_ (.reply ("len=" ++ (Str.toStr (String.length name) ++ (" up=" ++ (String.toUpper name ++ (" n=" ++ Str.toStr greeted))))))])
   -- Unmatched message: GenServer would crash (cast) or ignore (info). Modelled as ignore.
   | _, _, s, _ => (s, [])
 

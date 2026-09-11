@@ -102,7 +102,8 @@ defmodule Readiness do
     # literals, `[]`, tuples, `self()`, `%{}` and `%{k => v, ..}` literals,
     # these calls and operators, and `if`/`case` at body level only
     map_calls: [get: 2, get: 3, fetch: 2, put: 3, delete: 2, has_key?: 2, keys: 1, values: 1, filter: 2, reject: 2],
-    kernel_calls: [self: 0, not: 1, is_map_key: 2, map_size: 1, length: 1, hd: 1, tl: 1],
+    kernel_calls: [self: 0, not: 1, is_map_key: 2, map_size: 1, length: 1, hd: 1, tl: 1,
+                   inspect: 1, inspect: 2, to_string: 1],
     operators: [:+, :-, :++, :<=, :>=, :<, :>, :==, :!=, :and, :or],
     # Enum over lists (the List API), with `fn x -> e end` or a capture
     # `&(&1..)` as the predicate
@@ -149,7 +150,8 @@ defmodule Readiness do
       {[:NaiveDateTime], :utc_now, 0}, {[:NaiveDateTime], :utc_now, 1}, {[:Date], :utc_today, 0},
       {[:System], :monotonic_time, 0}, {[:System], :monotonic_time, 1},
       {[:System], :system_time, 0}, {[:System], :system_time, 1},
-      {[:System], :os_time, 0}, {[:System], :os_time, 1}
+      {[:System], :os_time, 0}, {[:System], :os_time, 1},
+      {[:String], :length, 1}, {[:String], :upcase, 1}, {[:String], :downcase, 1}, {[:String], :to_string, 1}
     ],
     # PubSub effects; which module is PubSub is by name (or --pubsub Mod)
     pubsub_modules: [[:Phoenix, :PubSub], [:PubSub]],

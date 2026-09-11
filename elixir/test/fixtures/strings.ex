@@ -11,7 +11,7 @@ defmodule Greeter do
   use GenServer
 
   @type msg :: {:greet, String.t()} | {:suffix, binary()} | :clear
-  @type call :: :render | :shout
+  @type call :: :render | :shout | :info
   @type reply :: String.t()
   @type state :: %{name: String.t(), suffix: String.t(), greeted: non_neg_integer()}
 
@@ -25,4 +25,10 @@ defmodule Greeter do
 
   def handle_call(:render, _from, s), do: {:reply, "hello, #{s.name}!#{s.suffix}", s}
   def handle_call(:shout, _from, s), do: {:reply, "#{s.name} (#{s.greeted} times)", s}
+
+  # `inspect/1` and `to_string/1` are the same `Str.toStr` an interpolation
+  # uses; String.length/1 is a @remote row of Lean's own String.length
+  def handle_call(:info, _from, s) do
+    {:reply, "len=" <> to_string(String.length(s.name)) <> " up=" <> String.upcase(s.name) <> " n=" <> inspect(s.greeted), s}
+  end
 end
