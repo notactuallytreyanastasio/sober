@@ -36,7 +36,7 @@ elixir elixir/to_lean.exs elixir/real/table_registry.ex Leanactors.Gen.TableRegi
 # untyped mode again: a ring buffer whose reply is a list (the reply type is
 # probed from the clause bodies, not declared) and the LiveView that shows
 # what it broadcasts (a socket modelled as the record of its assigns)
-elixir elixir/to_lean.exs elixir/real/log_store.ex Leanactors.Gen.LogStore > $OUT/Gen.LogStore.lean 2>/dev/null
+elixir elixir/to_lean.exs elixir/real/log_store.ex Leanactors.Gen.LogStore > $OUT/Gen.LogStore.lean
 elixir elixir/to_lean.exs elixir/real/logs_live.ex Leanactors.Gen.LogsLive > $OUT/Gen.LogsLive.lean
 # untyped mode, a LiveView again: a chain of assigns folded into one record
 # update, and a payload inferred `term() | nil` from the `!= nil` the body

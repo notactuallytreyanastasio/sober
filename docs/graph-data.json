@@ -8601,6 +8601,17 @@
       "created_at": "2026-09-11T00:53:51.428999-04:00",
       "updated_at": "2026-09-11T00:53:51.428999-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":90}"
+    },
+    {
+      "id": 790,
+      "change_id": "b8285b21-8df5-4ce7-8754-e38d4ec35d7d",
+      "node_type": "observation",
+      "title": "Round 8 verifier found two of four bounded checks nearly vacuous, proven empirically with its own mutants: LogStore's check constrained the counter only, so a behaviour that never appended to the buffer passed; LogsLive's check only asked that the seed stay a prefix, so a behaviour dropping every message passed, as did one appending twice. Fixed: LogStore now checks count = buffer length AND length <= cap (both mutants caught, 7 and 3 configurations); LogsLive's missing property is a STEP property the state-predicate explorer cannot express, so it is proven instead (stepConserves, not_dropping, not_duplicating). README claims corrected to match",
+      "description": "General lesson for the method: a bounded check over a state predicate cannot express conservation (what is held plus what is in flight is determined by what arrived). When a property is about a step rather than a state, prove it; do not weaken it into a state predicate and then describe it as if it were the strong version. Also fixed: check.sh was suppressing translator stderr for log_store.ex, hiding a real registered-name warning.",
+      "status": "pending",
+      "created_at": "2026-09-11T01:08:45.506734-04:00",
+      "updated_at": "2026-09-11T01:08:45.506734-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":90}"
     }
   ],
   "edges": [
@@ -18734,6 +18745,83 @@
       "weight": 1.0,
       "rationale": "step 4 result",
       "created_at": "2026-09-11T00:53:52.795558-04:00"
+    },
+    {
+      "id": 951,
+      "from_node_id": 717,
+      "to_node_id": 739,
+      "from_change_id": "773bbc25-bbeb-42a6-90cc-15a51aec3269",
+      "to_change_id": "50aaa679-1527-444f-a3dc-f9d7b0710186",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "wf8/batch-b subtree (was orphaned)",
+      "created_at": "2026-09-11T01:04:09.570466-04:00"
+    },
+    {
+      "id": 952,
+      "from_node_id": 717,
+      "to_node_id": 759,
+      "from_change_id": "773bbc25-bbeb-42a6-90cc-15a51aec3269",
+      "to_change_id": "15c1c00d-d478-4875-a454-7b219d3518bc",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "wf8/batch-c subtree (was orphaned)",
+      "created_at": "2026-09-11T01:04:09.590866-04:00"
+    },
+    {
+      "id": 953,
+      "from_node_id": 718,
+      "to_node_id": 779,
+      "from_change_id": "2e829c1e-53df-4b48-bdee-998463dc3da0",
+      "to_change_id": "62338d70-bf20-4390-90fb-23d89f808564",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "branch merged by the integrator",
+      "created_at": "2026-09-11T01:04:09.606421-04:00"
+    },
+    {
+      "id": 954,
+      "from_node_id": 719,
+      "to_node_id": 779,
+      "from_change_id": "d675d3f7-6b45-404c-921f-153e366d3f84",
+      "to_change_id": "62338d70-bf20-4390-90fb-23d89f808564",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "branch merged by the integrator",
+      "created_at": "2026-09-11T01:04:09.621901-04:00"
+    },
+    {
+      "id": 955,
+      "from_node_id": 739,
+      "to_node_id": 779,
+      "from_change_id": "50aaa679-1527-444f-a3dc-f9d7b0710186",
+      "to_change_id": "62338d70-bf20-4390-90fb-23d89f808564",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "branch merged by the integrator",
+      "created_at": "2026-09-11T01:04:09.637032-04:00"
+    },
+    {
+      "id": 956,
+      "from_node_id": 759,
+      "to_node_id": 779,
+      "from_change_id": "15c1c00d-d478-4875-a454-7b219d3518bc",
+      "to_change_id": "62338d70-bf20-4390-90fb-23d89f808564",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "branch merged by the integrator",
+      "created_at": "2026-09-11T01:04:09.652877-04:00"
+    },
+    {
+      "id": 957,
+      "from_node_id": 789,
+      "to_node_id": 790,
+      "from_change_id": "26b698d2-25bb-4a0e-864a-77df0da42631",
+      "to_change_id": "b8285b21-8df5-4ce7-8754-e38d4ec35d7d",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "round 8 audit findings, fixed",
+      "created_at": "2026-09-11T01:08:45.526132-04:00"
     }
   ]
 }

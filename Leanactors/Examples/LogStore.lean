@@ -72,10 +72,16 @@ def init : Sys St Msg :=
 
 /-! ## The property, as a bounded check -/
 
-/-- `count ≤ max_entries` for the store. -/
+/-- The ring-buffer invariant, in full: the count is the buffer's real
+length, and the buffer never exceeds the cap.
+
+The round-8 verifier found the earlier version of this check (`n ≤ cap`
+alone) to be nearly vacuous: a behaviour that maintained the counter but
+never appended to the buffer passed it. Tying `n` to `es.length` is what
+makes the check discriminate. -/
 def checkBounded (s : Sys St Msg) : Bool :=
   match s.cfg.stateOf 0 with
-  | some (.log_store _ n cap) => n ≤ cap
+  | some (.log_store es n cap) => n == es.length && es.length ≤ cap
   | _ => false
 
 def e1 : Term := Term.mk 1
@@ -104,6 +110,17 @@ def behRunaway : EBehavior St Msg
   | me, fresh, s, msg => beh me fresh s msg
 
 #eval explore behRunaway sig checkBounded init 9 4
+
+/-- **Mutant**: the counter is maintained correctly but the buffer is
+never appended to. This is the mutant the round-8 verifier used to show
+the old `n ≤ cap` check was vacuous; the strengthened check catches it. -/
+def behNoAppend : EBehavior St Msg
+  | _, _, .log_store es n cap, .push e =>
+      (if n ≥ cap then .log_store es n cap else .log_store es (n + 1) cap,
+       [.broadcast "logs" (.new_log_entry e)])
+  | me, fresh, s, msg => beh me fresh s msg
+
+#eval explore behNoAppend sig checkBounded init 9 4
 
 /-! ## A concrete trace: the ring drops the oldest -/
 

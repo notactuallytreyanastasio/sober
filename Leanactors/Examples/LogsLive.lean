@@ -91,6 +91,30 @@ def behPrepend : EBehavior St Msg
 
 #eval explore behPrepend sig checkAppendOnly init 8 4
 
+/-! ## What the bounded check cannot say
+
+The round-8 verifier showed that `checkAppendOnly` alone is weak: a
+behaviour that DROPS every entry passes it (the seed stays a prefix of
+itself), and so does one that appends each entry TWICE. The property that
+excludes those is about a *step*, not about a state, so the bounded
+explorer cannot express it and it is proven here instead.
+
+`stepConserves`: handling one message moves exactly one entry out of the
+mailbox and onto the end of the view. Nothing is dropped, nothing is
+duplicated, nothing is reordered. -/
+theorem stepConserves (es : List Term) (e : Term) (me fresh : Pid) :
+    beh me fresh (.logs_live es) (.new_log_entry e) = (.logs_live (es ++ [e]), []) := rfl
+
+/-- The two mutants the verifier used, refuted by that equation: neither
+drops nor duplicates is the translated behaviour. -/
+theorem not_dropping (es : List Term) (e : Term) :
+    beh 0 0 (.logs_live es) (.new_log_entry e) ≠ (.logs_live es, []) := by
+  simp [stepConserves]
+
+theorem not_duplicating (es : List Term) (e : Term) :
+    beh 0 0 (.logs_live es) (.new_log_entry e) ≠ (.logs_live (es ++ [e, e]), []) := by
+  simp [stepConserves]
+
 /-! ## A concrete trace -/
 
 /-- Two broadcasts arrive: the view appends both, in arrival order. -/
