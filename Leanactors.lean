@@ -29,5 +29,6 @@ import Leanactors.Examples.SysPropsDemo
 import Leanactors.Gen.Ttl
 import Leanactors.Examples.Ttl
 import Leanactors.Examples.TtlProof
+import Leanactors.Examples.TtlLive
 import Leanactors.Gen.Registry
 import Leanactors.Examples.Registry
