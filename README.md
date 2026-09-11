@@ -92,7 +92,7 @@ numbers committed as a baseline `check.sh` re-measures (**Readiness**).
 | `elixir/real/*.ex` | Real modules copied verbatim from other projects and translated as they stand (`table_registry.ex` is byte-identical to `loom/lib/loom/teams/table_registry.ex`) |
 | `elixir/to_lean.exs` | The translator: `@type`-directed (`msg`, `cast`, `info`, `call`, `reply`, `state`), small subset, unverified; `handle_continue` is inlined, not sent; the pure fragment is compiled as a language, so any sub-expression may be an `if`, a `case`, a block or a binding (pipes, `cond` and `unless` are desugared away first), module-local helpers become Lean definitions, and one `@remote` table says what each standard-library call becomes |
 | `elixir/test/run_fixtures.exs` | Translator regression runner: translates every `test/fixtures/*.ex`, diffs against `test/expected/*.lean`, compiles the ok ones with `lake env lean`, checks the error ones fail as declared; `--regen` rewrites the expectations |
-| `elixir/test/fixtures/*.ex` | 49 small sources, one translator feature each (37 `expect: ok`, 12 `expect: error`); directives in the leading comment block |
+| `elixir/test/fixtures/*.ex` | 73 small sources, one translator feature each (53 `expect: ok`, 20 `expect: error`); directives in the leading comment block |
 | `elixir/test/expected/*.lean` | Their expected translations, committed; regenerate with `elixir/test/regen_expected.sh` and review the diff |
 | `elixir/bank.exs` | Driver: casts plus two clients blocking in `GenServer.call`; checks the trace matches Lean |
 | `elixir/lock.exs` | Driver: clients block in `GenServer.call` under chaos ticks; event log checked for overlapping critical sections |
@@ -802,8 +802,9 @@ translator change that narrows the subset is caught. The walker types
 nothing, so a construct the translator rejects for a type reason alone is
 not reported; kinds are meant to be read by frequency, not as a proof.
 Cross-checking it against the fixture corpus is what keeps it honest: no
-`expect: ok` fixture is flagged, and the walker independently catches 7 of
-the 12 `expect: error` fixtures (the other five are kind and type errors).
+`expect: ok` fixture is flagged, and the walker independently catches 11 of
+the 20 `expect: error` fixtures (the other nine are kind and type errors
+the walker does not model).
 
 `docs/readiness.md` is that report over the lib trees of five real
 applications: 373 files, 55 GenServer or receive-loop modules, 848

@@ -7765,6 +7765,17 @@
       "created_at": "2026-09-10T23:11:31.850756-04:00",
       "updated_at": "2026-09-10T23:11:31.850756-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":95}"
+    },
+    {
+      "id": 712,
+      "change_id": "45ced2f1-632d-4367-a175-05c7633f006a",
+      "node_type": "observation",
+      "title": "Round 7 outcome: blockers 1621 -> 848 across the five real projects (loom 767->326, ensemble 749->454), but translatable is still 1/55 because each remaining module is blocked by its OWN single distinct translator error, not a shared family. Distinct failure reasons are nearly all unique: reply-type inference too weak (Ensemble.LogStore: distance 0, zero blocker families, fails only on 'reply entries has type List Term but reply inferred as opaque term()'), message tag at two arities, init not ending in {:ok, state}, tuple message patterns, field access on a struct chain",
+      "description": "The readiness metric taught something: aggregate blocker counts fell by half while the translated count did not move, because translation is all-or-nothing per module. The right round-8 target is the per-module tail, driven by the 'closest to translatable' list (LogStore distance 0, then four modules at distance 1), not by the frequency table. LogStore is one fix away: unify reply types across {:reply, r, _} shapes instead of falling back to opaque term().",
+      "status": "pending",
+      "created_at": "2026-09-10T23:14:22.058566-04:00",
+      "updated_at": "2026-09-10T23:14:22.058566-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":90}"
     }
   ],
   "edges": [
@@ -16886,6 +16897,17 @@
       "weight": 1.0,
       "rationale": "builder branch merged",
       "created_at": "2026-09-10T23:11:33.696121-04:00"
+    },
+    {
+      "id": 856,
+      "from_node_id": 711,
+      "to_node_id": 712,
+      "from_change_id": "82f74b27-8a63-4925-b17a-01dd965c8b87",
+      "to_change_id": "45ced2f1-632d-4367-a175-05c7633f006a",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "what the round 7 numbers mean",
+      "created_at": "2026-09-10T23:14:22.076991-04:00"
     }
   ]
 }
