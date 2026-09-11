@@ -30,9 +30,12 @@ leaves generation `g` in one of exactly three ways:
 
 Nothing else can happen: no other step changes the cache's state (nobody
 links, monitors or signals in this program, so `signals` stays empty and
-`down` steps only pop). `gen_advances` is the plain corollary that the
-cache does not stay at generation `g`, and `value_eventually_expires` the
-one asked for: if no message is processed at generation `g` (the cache
+`down` steps only pop). `gen_changes_or_clears` restates it as "the
+generation changes, or the value is cleared, or the cache is dead";
+`gen_advances` is the plain corollary that the cache does not stay at
+generation `g`; `gen_advances_or_clears_timers` takes `∀ i, WeakFair
+(.timer i)` instead (the watchdog's premise; `timer 0` is its instance);
+and `value_eventually_expires` is the one asked for: if no message is processed at generation `g` (the cache
 never reaches `.cache (some _) (g + 1)` and never dies), the value clears.
 The corollary "if the generation never changes then the value clears" is
 *not* the honest one: the after body itself moves to `g + 1`, so a fair
