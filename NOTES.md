@@ -7,11 +7,12 @@ the narrative. Node ids in parentheses refer to the decision graph exported
 in `docs/graph-data.json` (127 nodes when these notes were written; the
 workflow that merged the pieces described below added its own subtree
 under node 138, the second round (section 7) its own under node 219,
-the third (section 8) under node 300 and the fourth (section 9) under
-node 369; types goal/option/decision/action/outcome/observation), which
-was kept in real time as the work was done. Line counts and spans in
-sections 2-4 were re-measured after round 2 and the file totals after
-round 4; sections 7 to 9 list what each round changed.
+the third (section 8) under node 300, the fourth (section 9) under
+node 369 and the fifth (section 10) under node 436; types
+goal/option/decision/action/outcome/observation), which was kept in real
+time as the work was done. Line counts and spans in sections 2-4 were
+re-measured after round 2 and the file totals after round 5; sections 7
+to 10 list what each round changed.
 
 ## 1. The question and the thesis
 
@@ -131,7 +132,7 @@ links, signals, monitors, downs or timers, running the lifted message-only
 behaviour is exactly the old `step`. The bank and lock results never had to
 be touched when `Sys` arrived (node 88).
 
-### SysProps (`Leanactors/SysProps.lean`, about 1,373 lines)
+### SysProps (`Leanactors/SysProps.lean`, about 1,437 lines)
 
 The example proofs each re-derived the same `Sys`-level facts by hand:
 steps that only add preserve everything, a termination touches only the
@@ -164,9 +165,11 @@ them, `Frame` has a `timers` clause, and the watchdog checker grew from
 10,365 to 10,411 configurations (nodes 206-208). One toolchain note from
 that file: `omega` does not see through `abbrev Pid := Nat` on Lean
 v4.33.1, so pid arithmetic there uses `Nat.lt_of_lt_of_le` and
-`Nat.le_trans` explicitly (node 160).
+`Nat.le_trans` explicitly (node 160). Round 5 added the `timers` append
+group (`runE_timers_append`, `signalE_timers`, `downE_timers`), hoisted
+from the two timer-driven liveness files that had each written it.
 
-### Fair (`Leanactors/Fair.lean`, about 1,145 lines)
+### Fair (`Leanactors/Fair.lean`, about 1,600 lines)
 
 Everything above is about `Reach`: what never happens. Round 4 added
 what must happen. A run is `st : Nat → _` with the choice taken at each
@@ -181,10 +184,14 @@ vocabulary; `stable_until` and `rank_leads_to`, proved once over any
 need only hold on configurations reachable from `ρ.st 0`, so the safety
 invariants plug in unchanged. `LeadsTo.rank_induction` is well-founded
 leads-to over a `Nat` measure. Section 9 says why the idle step is there.
+Round 5 added the open `Sys` layer, `SysRunE beh sig env` (a system
+choice or one `env` step at each time, `Sys.Deliver` for the examples),
+with `SysReachE`, `EnvFair`, the same four workhorses and `SysRun.toE`;
+section 10 says why the task needed it.
 
 ## 3. The translator
 
-`elixir/to_lean.exs` (about 1,680 lines, one module `ToLean`) reads a file
+`elixir/to_lean.exs` (about 1,990 lines, one module `ToLean`) reads a file
 of `GenServer` modules and emits one Lean file per source into
 `Leanactors/Gen/`. The invocation is fixed by `check.sh`, for example
 
@@ -196,8 +203,8 @@ where `--pid Lock=server` says that the registered name `Lock` is the
 constant pid `server` (0 in the generated file). Without any `--pid` flag
 the names are derived from the source (`name: __MODULE__`,
 `Process.register/2`; section 7), which is how `ttl.ex` is translated. The
-generated files are committed, and `check.sh` regenerates all six and
-fails if any differs; it then runs the 35 translator fixtures under
+generated files are committed, and `check.sh` regenerates all seven and
+fails if any differs; it then runs the 37 translator fixtures under
 `elixir/test/` (section 7).
 
 ### Conventions
@@ -242,6 +249,12 @@ fails if any differs; it then runs the 35 translator fixtures under
   section 9). `{:reply, r, e, t}` arms the `:timeout` self-timer after
   the reply, `{:stop, reason, r, e}` replies and exits, `:hibernate` is
   no timeout.
+* `%{K => V}` is the association list `List (K × V)` of `AssocList.lean`
+  and the `Map.*` calls are its functions; a map pattern with literal
+  keys is a variable plus guards, with a fresh value variable bound by a
+  `match get?` around the body; a named union of atoms and tagged tuples
+  (`@type reply :: :ok | {:error, err()} | ...`) is a generated inductive
+  (round 5, section 10).
 
 ### The type-directed decisions
 
@@ -316,8 +329,9 @@ Lean `#eval` trace; the others check the proven property on a real run.
 | `elixir/src/task.ex` | `--pid Caller=caller` | `GenServer.start` as `spawn`, `Process.monitor`, `DOWN` typing and the `downMsg` codec, a send before `{:stop, :normal, _}`, non-identity `init` |
 | `elixir/src/watchdog.ex` | `--pid Watchdog=watchdog` | `{:noreply, s, t}` as a self-timer, `Process.exit(w, :kill)` as `signal`, send to a registered name, booleans, named wildcards, pid-narrowed `Option` patterns |
 | `elixir/src/ttl.ex` | derived (`Process.register`) | `receive ... after` as the generation-counted self-timer `after_run g` (hidden `gen` state field, re-armed at every re-entry with `gen + 1`, stale generations consumed and ignored), `raise` in tail position as `.exit .error`, a raw process with an `Option Nat` state |
+| `elixir/src/registry.ex` | derived (`name: __MODULE__`) | a `%{name() => pid()}` state as an association list, `Map.has_key?`/`put`/`fetch`/`delete`/`reject`, a tagged-union `@type reply`, `Process.monitor` of the caller of a `handle_call`, `@type cast`/`info` kinds, a client whose blocking call is followed by an `if` |
 
-The generated files are 42 to 56 lines each; the sources are 55 to 85.
+The generated files are 42 to 68 lines each; the sources are 55 to 85.
 
 ## 4. The proof recipe
 
@@ -449,10 +463,18 @@ model timers are untimed, so a `:timeout` may fire even after a `:pong`
 arrived and the watchdog may kill a healthy worker. The property (a dead
 worker always has its restart in flight) does not care why the worker died,
 so the over-approximation costs nothing. Liveness of the watchdog (a hung
-worker is eventually replaced) would need the timer to actually fire, that
-is, a fairness assumption on timers plus a quiet mailbox. `Fair.lean`
-(round 4) can state that assumption (`WeakFair (.timer i)`); the proof
-has not been attempted.
+worker is eventually replaced) needs the timer to actually fire, that
+is, a fairness assumption on timers. `Fair.lean` (round 4) can state
+that assumption (`WeakFair (.timer i)`) and round 5 proved it
+(`WatchdogLive.worker_replaced`, section 10): the assumption is
+`TimerFair 0 .timeout` (a pending `(0, timeout)` timer eventually fires),
+derived from weak fairness of every timer index by a non-increasing
+`findIdx` rank on the first matching timer, and no quiet mailbox is
+needed, since the rank on the position of the first `timeout` in the
+watchdog's mailbox absorbs any number of pongs ahead of it. The
+over-approximation reappears as the theorem's strength: along a fair run
+every worker the watchdog waits on is eventually killed and replaced,
+hung or not.
 
 **The crash-on-unhandled-cast gap.** Node 127 lists the remaining fidelity
 gaps as "semantic, not syntactic": crash-on-unhandled-cast, real time,
@@ -495,7 +517,10 @@ modelled behaviours); liveness is where they hurt.
   are about the system's own steps from `init`, and the environment
   stimulus the checkers explore (`:crash`, `hang`, `put 0`) enters the
   proofs only through the start system (`SysReachEnv`, round 4). The
-  lock's `ReachEnv`/`CRun` interleave environment ticks throughout.
+  lock's `ReachEnv`/`CRun` interleave environment ticks throughout, and
+  since round 5 so does the task's live-worker liveness theorem
+  (`SysRunE` with `Sys.Deliver`); the other `Sys` liveness theorems are
+  still over closed runs.
 * Untimed timers (decision at node 119). Any pending timer may fire at any
   step, in any order, regardless of messages that arrived since it was
   armed. The BEAM under-fires when the mailbox is busy.
@@ -548,8 +573,12 @@ model says nothing about the omitted paths.
   in such a module and a blocking call inside the loop is rejected.
 * Registered names are constant pids, fixed by `--pid` or derived from
   `name: __MODULE__` / `Process.register/2` (no registry, no registration
-  races); monitor refs are dropped (no `demonitor`, `DOWN` matched on pid);
-  timers cannot be cancelled; single node.
+  races; the round 5 registry example is an ordinary GenServer holding a
+  map, itself at a constant pid); monitor refs are dropped (no
+  `demonitor`, `DOWN` matched on pid); timers cannot be cancelled; single
+  node. Maps have one `K => V` pair per type and literal keys in
+  patterns; `Map.merge`, `Map.update` and `Enum` over a map are outside
+  the subset.
 
 The equivalence theorems do not close any of these: `beh_eq_gen` shows the
 hand model equals the generated model, not that either equals the BEAM. The
@@ -822,13 +851,164 @@ under `Leanactors/` (`Fair.lean` 1,145, `SupervisorLive.lean` 631,
 runs six translations, 35 fixtures (28 ok, 7 error), `lake build` and
 six drivers.
 
-## 10. What to try first
+## 10. Round 5
+
+Five builders on `wf5/*` branches, writing into the graph under node
+436: the three remaining liveness proofs (task, goal 440; watchdog, goal
+438; ttl, goal 441), differential fuzzing of the interpreters against
+the BEAM (goal 442) and Elixir maps in the translator with a registry
+example (goal 437). The integrator (goal 501) merged maps, diff-fuzz,
+task-live, watchdog-live and ttl-live in that order with `--no-ff`.
+Two textual conflicts (`check.sh`: the registry driver line against the
+fuzz stage; `Leanactors.lean`: the registry imports against the
+`TtlLive` import), both trivial. The real overlap was invisible to git:
+`WatchdogLive.lean` and `TtlLive.lean` had each written the same generic
+lemmas under the same names in namespace `Leanactors`
+(`List.mem_eraseIdx_of_ne`, `List.findIdx_eraseIdx_le`, the `Sys.timers`
+append group up to `runE_timers_append`, `signalE_timers`,
+`downE_timers`), and Lean refuses to import two modules that declare one
+constant. The fix (decision 504) hoists one copy: the timers group into
+`SysProps.lean`, the erase/`findIdx` list facts into `Fair.lean` (the
+ttl builder's orientation of the `≠`, so the watchdog's one call takes
+`Ne.symm`); the watchdog's `findIdx_eraseIdx_le` was a different
+statement (by index, not by element) and is renamed
+`findIdx_eraseIdx_le_of_ne`. No theorem statement changed. The seven
+regenerated `Gen/` files and the regenerated fixture expectations were
+byte-identical to the merge result and `check.sh` was green on the
+first run after the hoist. What the round added:
+
+* **Task liveness** (goal 440, decision 457). The honest theorem is
+  conditional by nature: a live worker acts only on `compute` or
+  `crash`, which only the environment sends, and a closed `SysRun` from
+  a live worker may idle forever. The builder therefore added the open
+  `Sys` layer to `Fair.lean` first (`SysRunE`, `SysReachE`, `Sys.Deliver`,
+  `EnvFair`, the four workhorses, `SysRun.toE`; purely additive, 398
+  lines) and stated `job_eventually_settles` over it with `WeakFair (.run
+  w)` and `EnvFair (Alive w) (Kick w)`: if the caller keeps waiting on a
+  live monitored `w`, the environment eventually delivers `compute` or
+  `crash` to `w`, and nothing else is assumed of it. The dead-worker
+  half (`job_eventually_settles_dead`) needs only `WeakFair .down` and
+  `.run 0` and is stated on a closed run through `SysRun.toE`. Four
+  `LeadsTo` stages, ranks = queue positions (`findIdx`) in `w`'s mailbox,
+  `downs`, the caller's mailbox. `Good` = `Inv` + `Fresh` + `Shape`.
+  Witnesses `deadRun_witness` (settles at time 2) and `liveRun_witness`
+  (all hypotheses including `EnvFair`, settles at time 5). The draft was
+  cut off mid-way by a usage limit and resumed with its 16 elaboration
+  errors fixed and no statement changed (node 472 lists them: dot-notation
+  on an ascribed anonymous constructor infers the unfolded `Exists`; an
+  `armed_deliver` with an implicit target unifies wrongly under `rfl`;
+  witness lemmas must be stated on `ρ.st (t+k)`, not on the underlying
+  sequence, for `rw` to find them).
+* **Watchdog liveness** (goal 438, decision 455). `restart_eventually`
+  as for the supervisor (new invariants `Armed` and `ChildLt`, and
+  `dog_run_cases` because a non-restart `run 0` may ping, re-arm or
+  queue the kill), and the timer-driven `worker_replaced`. The design
+  point was the fairness form: `WeakFair (.timer i)` for a fixed `i` is
+  the wrong assumption because indices shift when an earlier timer
+  fires (option 454), so `SysRun.TimerFair to m` is a derived notion
+  (option 453): the `findIdx` of the first `(to, m)` timer never
+  increases, so it stabilises, and weak fairness of that index fires it
+  (`timerFair_of_weakFair_timers`). `hung_worker_replaced` states the
+  requested hypotheses (worker alive and hung, fair `run w`) and uses
+  neither, because the kill is untrappable (node 497); that is the
+  untimed-timer over-approximation stated as a theorem. The fair witness
+  run is built by the new generic `SysRun.exists_of_inv` from a
+  five-phase invariant `Cyc` rather than written state by state. Generic
+  pieces still living in the file: `TimerFair`, `stable_until_timer`,
+  `exists_of_inv`, `exists_stable_of_nonincreasing`.
+* **Ttl liveness** (goal 441, decision 477). The safety file said the
+  cache never holds 0; the liveness file says a held value does not
+  stay: the timer of the current generation is always in flight
+  (`Armed`, half of `Good`; the safety invariant `Inv` is not needed at
+  all), it fires under fairness of the oldest timer (rank = its position
+  in `timers`), then `run 0` pops it (rank = its position in the mailbox,
+  stale timers ahead are consumed with the state unchanged), and
+  `exists_last` plus `cache_run_cases` classify the step that leaves the
+  generation: cleared, re-armed by a message, or dead. The honesty point
+  (node 478): the corollary "if the generation never changes then the
+  value clears" is not stated, because the after body itself moves to
+  `g + 1`, so its premise is unsatisfiable along any fair run;
+  `value_eventually_expires` assumes "no message processed at `g` and
+  the cache does not die" instead, witnessed by `wit_quiet`. Fairness
+  form A (`WeakFair (.timer 0)`, the oldest pending timer) was kept over
+  the watchdog's `TimerFair` (options 475/476), with the `∀ i` corollary
+  `gen_advances_or_clears_timers` so the two pieces unify by one
+  instantiation.
+* **Differential fuzzing** (goal 442, decision 449): a `replay`
+  executable over `run`/`runSys` (`Leanactors/Replay.lean`, a lakefile
+  `lean_exe` and default target) and `elixir/fuzz.exs`. The BEAM cannot
+  be told which process to run next, so a script is only comparable if
+  every phase has one outcome under any scheduling (option 448 over
+  driving the BEAM scheduler with `:sys.suspend`/`resume`, option 447);
+  the fuzzer's header documents each phase shape and why, and the lock
+  needed a protocol simulation in the generator to expand a tick into
+  the Lean cascade plus the exact server receives (decision 468). Three
+  things surfaced while building it (nodes 483, 484): the ttl comparison
+  must treat stale timers as Lean-only (the model over-approximates the
+  BEAM's cancelled timeouts, section 6) and a stalled driver as a
+  possible spurious expiry (retried, counted, zero so far); a lock client
+  blocked in a call cannot answer a system message, so its phase is read
+  off the server's queue; and killing a client linked to the driver
+  killed the driver, so the twin unlinks first. Sensitivity was checked
+  with BEAM mutants that are not committed (withdraw `n < b`, a `get`
+  ignored for one value, LIFO grant), each caught in the first runs
+  (node 459). `check.sh` runs 200 scripts in about 14 s.
+* **Maps and the registry** (goal 437, decision 464). The choice was
+  association lists `List (K × V)` with plain definitions and lemmas
+  (option 462) over `Std.HashMap` or functions `K → Option V` (option
+  463): a structural list keeps `beh_eq_gen` an `rfl`/`simp` matter and
+  the checkers executable, and the lemmas hold for any list, so
+  uniqueness never has to be carried. The translator renders `%{K => V}`
+  types, `%{}` and pair literals, every `Map.*` call the registry needs,
+  map patterns with literal keys (a variable plus guards, fresh value
+  variables bound by `match get?` with guard-style fallthrough, an
+  optional `= m` alias), and named tagged unions as generated
+  inductives. Four translator limits found by the example (node 493):
+  the reply is one type per file, so lookup answers `{:found, pid} |
+  :not_found` rather than `pid | nil`; message tags are global across
+  the modules of a file, so the client's message is `{:claim, name()}`;
+  a map pattern's whole map is unreachable without the alias; `from` is
+  a Lean keyword. Two more fixes fell out: `bare?`/`general?` must treat
+  a map pattern as a variable or Lean rejects the fallback clause as
+  redundant, and an `if`/`case` may follow a blocking call.
+  `Examples/Registry.lean` has the hand model, `beh_eq_gen`, `checkInv`
+  on 19,677 configurations, the no-monitor mutant and two run-case
+  lemmas; the invariant proof is deferred.
+
+Lean notes from the round (nodes 471, 472, 487, 499): an exported
+constructor alias (`Msg.after_run` through `export Gen.Ttl (Msg)`,
+`Msg.compute` through the task's) does not resolve, write the qualified
+name; `nomatch h, x, y` parses `x y` as extra discriminants, so
+parenthesise inside anonymous constructors; inside `theorem Good.init`
+the bare name `init` is `Good.init`; an `rcases rfl` after `subst`
+re-introduces older hypotheses, so name intermediate equations
+distinctly; `if ph = 4 then k+1 else k` stays unreduced in `refine`
+goals and is discharged with explicit `show` forms; `by_contra` without
+Mathlib is `Classical.byContradiction`; a `cache_run_cases`-style lemma
+with implicit `v g` needs `(v := v) (g := g)` before a `by` block. And
+one for the integrator: two builders who never see each other's files
+will write the same generic lemma, and Lean only notices at the
+top-level import; grep the generic namespaces of every liveness file
+before merging.
+
+Counts after the round: 13,130 lines of hand-written Lean in 29 files
+under `Leanactors/` (`Fair.lean` 1,599, `SysProps.lean` 1,437,
+`TaskLive.lean` 1,064, `WatchdogLive.lean` 1,516, `TtlLive.lean` 949,
+`AssocList.lean` 200, `Registry.lean` 160, `Replay.lean` 312 of
+executable code), 356 generated lines in seven, 724 theorems, no
+`sorry`, no `axiom`; the translator is about 1,990 lines; `check.sh`
+runs seven translations, 37 fixtures (29 ok, 8 error), `lake build`
+(proofs, checkers and the `replay` binary), seven drivers and 200 fuzz
+scripts.
+
+## 11. What to try first
 
 1. `./check.sh` from the repo root (with `export PATH="$HOME/.elan/bin:$PATH"`).
-   It regenerates the six `Gen/` files and diffs them, runs the 35
+   It regenerates the seven `Gen/` files and diffs them, runs the 37
    translator fixtures, runs `lake build` (which runs every `#eval
-   explore`), greps for `sorry`, and runs the six drivers on the BEAM.
-   First build takes a few minutes.
+   explore` and builds the `replay` binary), greps for `sorry`, runs the
+   seven drivers on the BEAM, and fuzzes the interpreters against the
+   BEAM with 200 seeded scripts. First build takes a few minutes.
 2. Read `elixir/src/lock.ex` next to `Leanactors/Gen/Lock.lean` and then
    `Leanactors/Examples/Lock.lean`. The three files are short enough to hold
    in your head at once, and the invariant `Inv` with `Inv.mutex` (an
@@ -847,11 +1027,15 @@ six drivers.
 5. Read `docs/graph-data.json` top to bottom, or `deciduous serve` if you
    have it. The observation nodes (16, 26, 29, 36, 47, 50, 57, 65, 66, 72,
    81, 96, 97, 104, 115, 124, 127, and 417 and 424 for round 4) are the
-   honest record, including the predictions that turned out wrong.
+   honest record, including the predictions that turned out wrong; for
+   round 5 add 478 (why the ttl corollary is not stated), 484 (what the
+   fuzzer may not compare and why), 493 (translator limits the registry
+   found) and 497 (why the watchdog theorem needs nothing of the worker).
 6. Read `Leanactors/Fair.lean`'s header, then `FairDemo` at its end, then
    `SupervisorLive.restart_eventually`: the liveness recipe is two
    `rank_leads_to` stages, and the file is short enough to read whole.
-7. To extend it: a seventh `elixir/src/*.ex` within the subset listed in
+   `TtlLive.lean` is the next shortest liveness file and adds a timer.
+7. To extend it: an eighth `elixir/src/*.ex` within the subset listed in
    the header of `elixir/to_lean.exs`, two lines in `check.sh`, a hand
    model with `beh_eq_gen`, `checkInv` and `explore`, and only then the
    proof. A translator change starts with a fixture under
