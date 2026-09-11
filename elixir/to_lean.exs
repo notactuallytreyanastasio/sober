@@ -131,9 +131,13 @@
 #   spawn site `{:ok, pid} = GenServer.start[_link](Mod, arg)` then emits
 #   `.subscribe fresh topic` after the spawn, attributing the subscription
 #   to the child, and `:ok = Phoenix.PubSub.subscribe(...)` is accepted
-#   wherever the bare call is. The effects live on `Sys.subs`
-#   (Leanactors/Sys.lean): a broadcast is one delivery to every subscriber
-#   in subscription order and a death drops its subscriptions.
+#   wherever the bare call is. A module whose init/1 subscribes but that no
+#   module in the file spawns has no spawn site to hang the effect on, so
+#   the model would show no subscription: that is a warning, and the
+#   hand-written example placing such an actor adds the effect itself.
+#   The effects live on `Sys.subs` (Leanactors/Sys.lean): a broadcast is one
+#   delivery to every subscriber in subscription order and a death drops its
+#   subscriptions.
 #
 # Registered names: `send(Mod, m)`, `GenServer.cast(Mod, m)` and
 #   `GenServer.call(Mod, m)` need a constant pid for Mod. With `--pid`
@@ -243,6 +247,19 @@ defmodule ToLean do
           do: name
     ctx = %{ctx | traps: traps, inits: inits, init_subs: init_subs, mods: Enum.map(mods, &elem(&1, 0)),
                   loops: loops, defers: defers, afters: afters}
+    # a module whose init/1 subscribes but that nothing in this file spawns:
+    # the effect has no spawn site to hang on, so the model would show no
+    # subscription at all. Warn; the hand-written example that places such an
+    # actor must put the `subscribe` in its own initial effects.
+    ctx = Enum.reduce(Map.keys(init_subs), ctx, fn m, c ->
+      if m in spawned_modules(ast) do
+        c
+      else
+        %{c | warnings: c.warnings ++
+          ["#{m}.init/1 subscribes to PubSub but no module in this file spawns #{m}: " <>
+           "the subscription is not in the model (place it where the actor is placed)"]}
+      end
+    end)
     # a raw process has no handle_cast/handle_call: its messages are all info
     for {name, _} <- loops, kt <- [:cast, :call], Map.has_key?(ctx.types, {name, kt}),
         do: fail("#{name} is a raw process (receive loop) and cannot declare @type #{kt}")
@@ -255,6 +272,17 @@ defmodule ToLean do
   end
 
   def main(_), do: IO.puts(:stderr, "usage: to_lean.exs SRC.ex NAMESPACE [--pid Mod=const] [--pubsub Mod]")
+
+  # every module spawned by `GenServer.start_link/start(Mod, _)` in the file
+  defp spawned_modules(ast) do
+    {_, mods} =
+      Macro.prewalk(ast, [], fn
+        {{:., _, [{:__aliases__, _, [:GenServer]}, f]}, _, [{:__aliases__, _, [child]} | _]} = n, acc
+        when f in [:start_link, :start] -> {n, [child | acc]}
+        n, acc -> {n, acc}
+      end)
+    mods
+  end
 
   # BEAM dispatch keys on the callback, not the tag: handle_cast, handle_call
   # and handle_info are separate functions. The Lean match is one function,
