@@ -297,12 +297,200 @@
 #   that handle_info clauses come after the handle_cast/handle_call clauses
 #   and the crash clauses, so an info catch-all does not shadow a crash.
 #
+# Standard-library calls: ONE table. `@remote` at the top of this file maps
+#   {module segments, function, arity} to what the call becomes -- a
+#   rendering, `:noop` (a statement with no effect in the model, dropped
+#   before anything is translated, arguments included) or `{:error, why}` (a
+#   clear refusal naming what the model lacks). Extending the translator to
+#   another standard-library function is adding a row, not a clause. The
+#   rendering kinds are `{:assoc, op}` (an association-list operation, the
+#   same `map_call/4` a `Map` call uses), `{:set, f}` (Leanactors/SetList),
+#   `{:const, e, t}` (a constant, its arguments ignored) and
+#   `{:fun, f, ats, t}` (a Lean function applied to the arguments at the
+#   given types).
+#
+# Binaries are Lean `String`s (Leanactors/Str.lean). `String.t()`,
+#   `binary()`, `bitstring()`, `iodata()` in a @type are `String`; a string
+#   literal is the Lean literal; `a <> b` is `a ++ b`; a string literal in a
+#   pattern is a Lean literal pattern (which never *covers* a clause, so a
+#   module that matches one still needs a catch-all or a crash clause).
+#   Interpolation `"a#{e}b"` is `"a" ++ Str.toStr e ++ "b"`, where `Str.toStr`
+#   is the `ToStr` class of Leanactors/Str.lean: the instances for String,
+#   Nat, Int and Bool are the BEAM's own rendering, and everything else --
+#   an enum, a tagged union, a `Term`, an `Instant` -- goes through its
+#   derived `Repr`, an opaque but deterministic rendering that no property
+#   should depend on the bytes of. `#{e}` where e is already a binary emits
+#   e itself; `inspect(e)` and `to_string(e)`, inside an interpolation or
+#   out of it, are `Str.toStr e`.
+#
+# Keyword lists are association lists. `[k: v, ..]` is `List (Atom × V)`
+#   over an `Atom` inductive the file generates from the keys the rendering
+#   actually used, so `keyword()`, `keyword(T)`, `Keyword.t()` and
+#   `Keyword.t(T)` are map types and `Keyword.get/2,3`, `fetch/2`, `put/3`,
+#   `delete/2`, `has_key?/2`, `keys/1`, `values/1`, `Access.get/2,3` and the
+#   `opts[:k]` that parses to it are the AssocList functions a `Map` call
+#   already uses. `Keyword.fetch!/2` raises on the BEAM, which an expression
+#   here cannot, so it is the lookup at the value type's default, like
+#   `hd/1`. `[ok: 1]` and `[{:ok, 1}]` are the same AST: at a known type the
+#   type decides, and at an unknown one a key that is an alternative of one
+#   of the file's tagged unions keeps the tagged-tuple reading.
+#
+# MapSet is a duplicate-free list in insertion order
+#   (Leanactors/SetList.lean): `MapSet.t(T)` is `List T`, `MapSet.new()` is
+#   `[]`, and new/1, put, delete, member?, size, to_list, union, difference
+#   and intersection are the SetList functions. `to_list` is the identity on
+#   that list, so it is in insertion order and not the BEAM's term order: a
+#   property may count a set and test membership, but not depend on the
+#   order `to_list` gives.
+#
+# Time is not modelled. `DateTime.utc_now/0,1`, `NaiveDateTime.utc_now`,
+#   `Date.utc_today`, `System.monotonic_time`, `System.system_time` and
+#   `System.os_time` are all the single opaque `Instant.now` of
+#   Leanactors/Time.lean, which has `DecidableEq` and `Repr` and nothing
+#   else. A module may store an instant, pass it on and reply with one;
+#   `DateTime.diff/add/compare/to_iso8601` are `{:error, ..}` rows and `<`,
+#   `>`, `+`, `-` on an operand of type `Instant` are refused with a message
+#   saying the model has no clock. Two instants are therefore equal, which
+#   is a fact about the model and not about time: no property should rest on
+#   it. Timeouts, which *are* modelled, are a different thing (`sendAfter`
+#   and the `after` generation counter above).
+#
+# A module name as a value (`Fallback`, `Loom.MCP.Client` in an expression,
+#   `module()` in a @type) is a constant of a `Module` inductive the file
+#   generates from the names used, dotted names joined with `_`. It can be
+#   stored, sent and compared; nothing can be called on it.
+#
+# Logging is not an effect. `Logger.debug/info/notice/warn/warning/error/
+#   critical/alert/emergency` at both arities, `Logger.log/2,3`,
+#   `Logger.metadata/1` and `Logger.configure/1` are `:noop` rows: the
+#   statement is removed from the body before translation, arguments
+#   included, wherever `:ets.*` statements are removed -- inside `init/1`
+#   too. A pattern variable whose only use was such a statement is renamed
+#   `_v`, as an unused one always is.
+#
 # The @type declarations are the type oracle: they decide when a pattern
 # variable at an `Option` position needs `some`, when `nil` is `none`, and
 # what the Lean inductives look like. This is the point where Elixir's
 # gradual types and Lean's dependent types meet.
 
 defmodule ToLean do
+  # ---------- the remote-call table ----------
+  #
+  # ONE table says what every supported standard-library call becomes. A row
+  # is `{module segments, function, arity, action}` and the next round
+  # extends the translator to a new function by adding a row, not by adding
+  # a clause to `expr/3`. Actions:
+  #
+  #   :noop            a statement with no effect in the model. It is dropped
+  #                    from the body before anything is translated (like the
+  #                    `:ets.*` calls), so its arguments are never rendered
+  #                    and it can never become an effect. Not an expression.
+  #   {:error, why}    a clear translation error: `why` says what the model
+  #                    lacks. Use this for a function whose meaning the model
+  #                    cannot represent, so it is refused instead of faked.
+  #   {:assoc, op}     an association-list operation over a keyword list, the
+  #                    same `Leanactors/AssocList.lean` a map uses. `op` is
+  #                    the `map_call/4` name (`:get`, `:put`, ..), so
+  #                    `Keyword.get/3` and `Map.get/3` render identically.
+  #   {:set, fun}      `Leanactors/SetList.lean` `fun` applied to the
+  #                    rendered arguments in order.
+  #   {:const, e, t}   a constant Lean expression `e` of Lean type `t` (the
+  #                    argument expressions are ignored: they are the units
+  #                    and calendars the model does not have).
+  #   {:fun, f, ats, t}
+  #                    the Lean function `f` applied to the arguments, each
+  #                    rendered at its Lean type in `ats`, with result type
+  #                    `t` (any of them may be nil for "unknown"). This is
+  #                    the row kind for an ordinary total function.
+  #
+  # A module/function/arity with no row falls through to the usual
+  # "unsupported" error, which names the call.
+  @remote [
+    # Logging is not an effect of the actor model: the BEAM's Logger is a
+    # separate process this model does not run, and a log line cannot change
+    # any actor's state, so every level and both arities are dropped. A
+    # `Logger.info("..#{e}..")` therefore needs no string support at all.
+    {[:Logger], :debug, 1, :noop},
+    {[:Logger], :debug, 2, :noop},
+    {[:Logger], :info, 1, :noop},
+    {[:Logger], :info, 2, :noop},
+    {[:Logger], :notice, 1, :noop},
+    {[:Logger], :notice, 2, :noop},
+    {[:Logger], :warn, 1, :noop},
+    {[:Logger], :warn, 2, :noop},
+    {[:Logger], :warning, 1, :noop},
+    {[:Logger], :warning, 2, :noop},
+    {[:Logger], :error, 1, :noop},
+    {[:Logger], :error, 2, :noop},
+    {[:Logger], :critical, 1, :noop},
+    {[:Logger], :critical, 2, :noop},
+    {[:Logger], :alert, 1, :noop},
+    {[:Logger], :alert, 2, :noop},
+    {[:Logger], :emergency, 1, :noop},
+    {[:Logger], :emergency, 2, :noop},
+    {[:Logger], :log, 2, :noop},
+    {[:Logger], :log, 3, :noop},
+    {[:Logger], :metadata, 1, :noop},
+    {[:Logger], :configure, 1, :noop},
+
+    # A keyword list is `List (Atom × V)`, so `Keyword` is `AssocList`.
+    {[:Keyword], :get, 2, {:assoc, :get}},
+    {[:Keyword], :get, 3, {:assoc, :get}},
+    {[:Keyword], :fetch, 2, {:assoc, :fetch}},
+    {[:Keyword], :fetch!, 2, {:assoc, :fetch!}},
+    {[:Keyword], :put, 3, {:assoc, :put}},
+    {[:Keyword], :delete, 2, {:assoc, :delete}},
+    {[:Keyword], :has_key?, 2, {:assoc, :has_key?}},
+    {[:Keyword], :keys, 1, {:assoc, :keys}},
+    {[:Keyword], :values, 1, {:assoc, :values}},
+    # `opts[:k]`, which is `Access.get(opts, :k)` after parsing, is the same
+    # lookup over the same list (and, like `Map.get/2`, an Option).
+    {[:Access], :get, 2, {:assoc, :get}},
+    {[:Access], :get, 3, {:assoc, :get}},
+
+    # A MapSet is a duplicate-free list in insertion order.
+    {[:MapSet], :new, 0, {:const, "[]", nil}},
+    {[:MapSet], :new, 1, {:set, "SetList.ofList"}},
+    {[:MapSet], :put, 2, {:set, "SetList.insert"}},
+    {[:MapSet], :delete, 2, {:set, "SetList.erase"}},
+    {[:MapSet], :member?, 2, {:set, "SetList.contains"}},
+    {[:MapSet], :size, 1, {:set, "SetList.size"}},
+    {[:MapSet], :to_list, 1, {:set, "SetList.toList"}},
+    {[:MapSet], :union, 2, {:set, "SetList.union"}},
+    {[:MapSet], :difference, 2, {:set, "SetList.difference"}},
+    {[:MapSet], :intersection, 2, {:set, "SetList.intersection"}},
+
+    # The clock the model does not have: every read is the one opaque
+    # `Instant` of Leanactors/Time.lean, and anything that would order or
+    # subtract two instants is refused rather than faked.
+    {[:DateTime], :utc_now, 0, {:const, "Instant.now", "Instant"}},
+    {[:DateTime], :utc_now, 1, {:const, "Instant.now", "Instant"}},
+    {[:NaiveDateTime], :utc_now, 0, {:const, "Instant.now", "Instant"}},
+    {[:NaiveDateTime], :utc_now, 1, {:const, "Instant.now", "Instant"}},
+    {[:Date], :utc_today, 0, {:const, "Instant.now", "Instant"}},
+    {[:System], :monotonic_time, 0, {:const, "Instant.now", "Instant"}},
+    {[:System], :monotonic_time, 1, {:const, "Instant.now", "Instant"}},
+    {[:System], :system_time, 0, {:const, "Instant.now", "Instant"}},
+    {[:System], :system_time, 1, {:const, "Instant.now", "Instant"}},
+    {[:System], :os_time, 0, {:const, "Instant.now", "Instant"}},
+    {[:System], :os_time, 1, {:const, "Instant.now", "Instant"}},
+    {[:DateTime], :diff, 2, {:error, "the model has no clock: an Instant has equality and nothing else"}},
+    {[:DateTime], :diff, 3, {:error, "the model has no clock: an Instant has equality and nothing else"}},
+    {[:DateTime], :add, 2, {:error, "the model has no clock: an Instant has equality and nothing else"}},
+    {[:DateTime], :add, 3, {:error, "the model has no clock: an Instant has equality and nothing else"}},
+    {[:DateTime], :compare, 2, {:error, "the model has no clock: two Instants are always equal, so a comparison would be meaningless"}},
+    {[:DateTime], :before?, 2, {:error, "the model has no clock: two Instants are always equal, so a comparison would be meaningless"}},
+    {[:DateTime], :after?, 2, {:error, "the model has no clock: two Instants are always equal, so a comparison would be meaningless"}},
+    {[:DateTime], :to_iso8601, 1, {:error, "an Instant has no printable form in the model"}},
+    {[:DateTime], :to_unix, 1, {:error, "the model has no clock: an Instant has equality and nothing else"}},
+
+    # Binaries, where Lean's own String has the function.
+    {[:String], :length, 1, {:fun, "String.length", ["String"], "Nat"}},
+    {[:String], :upcase, 1, {:fun, "String.toUpper", ["String"], "String"}},
+    {[:String], :downcase, 1, {:fun, "String.toLower", ["String"], "String"}},
+    {[:String], :to_string, 1, {:fun, "Str.toStr", [nil], "String"}}
+  ]
+
   defmodule Ctx do
     defstruct types: %{}, msg_ctors: [], st_ctors: [], pids: %{}, enums: %{}, ns: "Gen", warnings: [],
               extra: [], awaits: %{}, reply_type: nil, traps: %{}, pid_vars: [],
@@ -632,6 +820,9 @@ defmodule ToLean do
     {:%{}, [], for({k, v} <- pairs, do: {k, infer_type(v)})}
   end
   defp infer_type(n) when is_integer(n), do: {:integer, [], []}
+  defp infer_type(s) when is_binary(s), do: {:binary, [], []}
+  defp infer_type({:<<>>, _, _}), do: {:binary, [], []}
+  defp infer_type({:<>, _, [_, _]}), do: {:binary, [], []}
   defp infer_type(b) when is_boolean(b), do: {:boolean, [], []}
   defp infer_type(nil), do: {:|, [], [{:term, [], []}, nil]}
   defp infer_type(l) when is_list(l), do: [{:term, [], []}]
@@ -660,6 +851,10 @@ defmodule ToLean do
       fail("#{mod}: try/rescue is only supported around external resource calls (:ets.*), which are no-ops in the model; got #{Macro.to_string(t)}")
     true
   end
+  # a @remote row of `:noop` (every Logger call): logging is not an effect
+  # of the actor model, so the statement and its arguments disappear before
+  # anything is translated
+  defp resource_noop?(_mod, e) when is_tuple(e) and tuple_size(e) == 3, do: remote_noop?(e)
   defp resource_noop?(_mod, _), do: false
 
   defp ets_new?(body) do
@@ -1002,6 +1197,24 @@ defmodule ToLean do
   # in the type, if any, are checked by collect_structs for `@type t`)
   defp lean_type(ctx, mod, {:%, _, [{:__MODULE__, _, _}, {:%{}, _, _}]}), do: struct_type(ctx, mod)
   defp lean_type(ctx, _mod, {:%, _, [{:__aliases__, _, [m]}, {:%{}, _, _}]}), do: struct_type(ctx, m)
+  # ---- the value types of the @remote families (Leanactors/Str.lean,
+  # Leanactors/Time.lean, Leanactors/SetList.lean, and the per-file `Atom`
+  # and `Module` inductives). These names win over a module of the same
+  # name declared in the file.
+  defp lean_type(_ctx, _mod, {t, _, []}) when t in [:binary, :bitstring, :iodata, :iolist], do: "String"
+  defp lean_type(_ctx, _mod, {{:., _, [{:__aliases__, _, [:String]}, :t]}, _, []}), do: "String"
+  defp lean_type(_ctx, _mod, {{:., _, [{:__aliases__, _, [m]}, :t]}, _, []})
+       when m in [:DateTime, :NaiveDateTime, :Date, :Time], do: "Instant"
+  defp lean_type(_ctx, _mod, {:atom, _, []}), do: "Atom"
+  defp lean_type(_ctx, _mod, {:module, _, []}), do: "Module"
+  defp lean_type(_ctx, _mod, {:keyword, _, []}), do: "List (Atom × Term)"
+  defp lean_type(ctx, mod, {:keyword, _, [t]}), do: "List (Atom × #{lean_type(ctx, mod, t)})"
+  defp lean_type(_ctx, _mod, {{:., _, [{:__aliases__, _, [:Keyword]}, :t]}, _, []}), do: "List (Atom × Term)"
+  defp lean_type(ctx, mod, {{:., _, [{:__aliases__, _, [:Keyword]}, :t]}, _, [t]}),
+    do: "List (Atom × #{lean_type(ctx, mod, t)})"
+  defp lean_type(_ctx, _mod, {{:., _, [{:__aliases__, _, [:MapSet]}, :t]}, _, []}), do: "List Term"
+  defp lean_type(ctx, mod, {{:., _, [{:__aliases__, _, [:MapSet]}, :t]}, _, [t]}),
+    do: "List " <> paren(lean_type(ctx, mod, t))
   # a remote type `Mod.name()`
   defp lean_type(ctx, _mod, {{:., _, [{:__aliases__, _, [m]}, name]}, _, []}) when is_atom(name) do
     case Map.fetch(ctx.types, {m, name}) do
@@ -1625,10 +1838,23 @@ defmodule ToLean do
         do: "",
         else: "-- Not translated (public API, not a callback): " <> Enum.join(ctx.ignored, ", ") <> "\n"
 
+    # The per-file `Atom` and `Module` inductives are built from what the
+    # rendering used, so they can only be emitted now, and the helper files
+    # the rendering reached for are found the same way (a String, a SetList
+    # or an Instant can appear in a clause without appearing in any type).
+    enums = value_decls(all_types) ++ enums
+    rendered = Enum.join(enums, "\n") <> msg <> st <> beh
+    imp = fn text, line -> if String.contains?(rendered, text), do: line, else: "" end
+    str_import = imp.("Str.toStr", "import Leanactors.Str\n")
+    set_import = imp.("SetList.", "import Leanactors.SetList\n")
+    time_import = if rendered =~ ~r/\bInstant\b/, do: "import Leanactors.Time\n", else: ""
+    maps_import = if maps_import == "", do: imp.("AssocList.", "import Leanactors.AssocList\n"), else: maps_import
+    term_import = if term_import == "" and rendered =~ ~r/\bTerm\b/, do: "import Leanactors.Term\n", else: term_import
+
     """
     -- GENERATED by elixir/to_lean.exs. Do not edit.
     #{ignored_note}import Leanactors.Sys
-    #{maps_import}#{term_import}
+    #{maps_import}#{term_import}#{str_import}#{set_import}#{time_import}
     namespace #{ctx.ns}
 
     open Leanactors
@@ -1661,6 +1887,10 @@ defmodule ToLean do
   defp default_of(_ctx, t) when t in ["Nat", "Int"], do: "0"
   defp default_of(_ctx, "Bool"), do: "false"
   defp default_of(_ctx, "Term"), do: "(Term.mk 0)"
+  defp default_of(_ctx, "String"), do: "\"\""
+  defp default_of(_ctx, "Instant"), do: "Instant.now"
+  defp default_of(_ctx, "Atom"), do: "." <> (List.first(Process.get(:to_lean_atoms, [])) || fail("no Atom value for the exitMsg placeholder"))
+  defp default_of(_ctx, "Module"), do: "." <> (List.first(Process.get(:to_lean_mods, [])) || fail("no Module value for the exitMsg placeholder"))
   defp default_of(_ctx, "List " <> _), do: "[]"
   defp default_of(_ctx, "Option " <> _), do: "none"
   defp default_of(ctx, t) do
@@ -1681,10 +1911,16 @@ defmodule ToLean do
   # variable linter, so it is renamed `_part` in the state pattern.
   defp hide_unused_parts(env, sp, rhs) do
     parts =
-      for {k, v} <- env, is_binary(k), String.starts_with?(k, "__whole__"), is_list(v), p <- v,
-          plain?(p), not String.starts_with?(p, "_"), do: p
+      (for {k, v} <- env, is_binary(k), String.starts_with?(k, "__whole__"), is_list(v), p <- v,
+           plain?(p), do: p) ++
+        # and any other pattern variable of the state the right-hand side
+        # does not mention: a clause whose only use of it was a statement the
+        # model drops (a Logger call) would trip the linter just as much
+        (for {k, _} <- env, is_binary(k), not String.starts_with?(k, "__whole__"), plain?(k), do: k)
     Enum.reduce(Enum.uniq(parts), sp, fn p, acc ->
-      if Regex.match?(~r/\b#{p}\b/, rhs), do: acc, else: Regex.replace(~r/\b#{p}\b/, acc, "_" <> p)
+      if String.starts_with?(p, "_") or Regex.match?(~r/\b#{p}\b/, rhs),
+        do: acc,
+        else: Regex.replace(~r/\b#{p}\b/, acc, "_" <> p)
     end)
   end
 
@@ -2438,8 +2674,16 @@ defmodule ToLean do
     {"(#{hs} :: #{ts})", env, gs}
   end
   defp pat(_ctx, b, "Bool", env, gs) when is_boolean(b), do: {"#{b}", env, gs}
+  defp pat(_ctx, s, t, env, gs) when is_binary(s) do
+    t in [nil, "String"] || fail("string pattern #{inspect(s)} at non-string position #{t}")
+    {str_lit(s), env, gs}
+  end
   defp pat(_ctx, a, t, env, gs) when is_atom(a) and a not in [nil, true, false] do
-    if enum_type?(t), do: {".#{a}", env, gs}, else: fail("atom #{a} at non-enum position #{t}")
+    cond do
+      t == "Atom" -> {atom_ctor(a), env, gs}
+      enum_type?(t) -> {".#{a}", env, gs}
+      true -> fail("atom #{a} at non-enum position #{t}")
+    end
   end
   defp pat(_ctx, n, t, env, gs) when is_integer(n) and t in ["Int", "Nat"], do: {"#{n}", env, gs}
   defp pat(ctx, {v, _, nil}, t, env, gs) when is_atom(v) do
@@ -2562,7 +2806,7 @@ defmodule ToLean do
   end
   defp unparen("(" <> rest), do: String.trim_trailing(rest, ")")
   defp unparen(t), do: t
-  defp enum_type?(t), do: t =~ ~r/^[A-Z][a-z]*$/ and t not in ["Pid", "Int", "Nat", "Bool", "Reason", "Term"]
+  defp enum_type?(t), do: t =~ ~r/^[A-Z][a-z]*$/ and t not in ["Pid", "Int", "Nat", "Bool", "Reason", "Term", "String"]
 
   defp guard_to_lean(_env, {:eq, a, b}), do: "#{a} = #{b}"
   defp guard_to_lean(_env, {:map_has, m, k}), do: "AssocList.hasKey #{m} #{paren_or(k)}"
@@ -2976,6 +3220,16 @@ defmodule ToLean do
   defp expr_type(_env, {{:., _, [:ets, :new]}, _, _}), do: "Term"
   defp expr_type(_env, n) when is_integer(n), do: "Int"
   defp expr_type(_env, b) when is_boolean(b), do: "Bool"
+  defp expr_type(_env, s) when is_binary(s), do: "String"
+  defp expr_type(_env, {:<<>>, _, _}), do: "String"
+  defp expr_type(_env, {:<>, _, [_, _]}), do: "String"
+  defp expr_type(env, e) when is_tuple(e) and tuple_size(e) == 3 do
+    case remote_action(e) do
+      {:const, _, ct} -> ct
+      {:fun, _, _, rt} -> rt
+      _ -> var_type(env, e)
+    end
+  end
   defp expr_type(env, e), do: var_type(env, e)
 
   # the record keys of a state constructor, or nil for a positional state
@@ -3192,16 +3446,61 @@ defmodule ToLean do
   defp expr(env, {{:., _, [:queue, :peek]}, _, [q]}, _t), do: "List.head? #{paren_or(expr(env, q, type_of(env, q)))}"
   defp expr(_env, {{:., _, [:queue, f]}, _, args} = e, _t) when is_list(args),
     do: fail("unsupported :queue function :queue.#{f}/#{length(args)} in #{Macro.to_string(e)}")
+  # ---- binaries: Lean Strings (Leanactors/Str.lean) ----
+  defp expr(_env, s, "Term") when is_binary(s),
+    do: fail("the string #{inspect(s)} is used at an opaque Term position; declare the type (@type) so the field becomes a String")
+  defp expr(_env, s, t) when is_binary(s) do
+    t in [nil, "String"] || fail("the string #{inspect(s)} is used at type #{t}")
+    str_lit(s)
+  end
+  defp expr(env, {:<<>>, _, parts}, t) do
+    t in [nil, "String"] || fail("an interpolated binary is used at type #{t}")
+    interp(env, parts)
+  end
+  defp expr(env, {:<>, _, [a, b]}, t) do
+    t in [nil, "String"] || fail("`<>` builds a binary, used at type #{t}")
+    "(#{expr(env, a, "String")} ++ #{expr(env, b, "String")})"
+  end
+  defp expr(env, {f, _, [_ | _]} = e, t) when f in [:inspect, :to_string] do
+    t in [nil, "String"] || fail("#{Macro.to_string(e)} is a binary, used at type #{t}")
+    "Str.toStr " <> paren_or(expr(env, strip_to_string(e), nil))
+  end
+  # ---- a module name as a value, and the @remote table ----
+  defp expr(_env, {:__aliases__, _, segs}, t) do
+    t in [nil, "Module"] || fail("the module name #{Enum.join(segs, ".")} is used at type #{t}")
+    module_ctor(segs)
+  end
+  defp expr(env, {{:., _, [{:__aliases__, _, _}, _]}, _, args} = e, t) when is_list(args) do
+    case remote_action(e) do
+      nil -> fail("unsupported expression #{Macro.to_string(e)}")
+      action -> remote_expr(env, e, action, args, t)
+    end
+  end
+  defp expr(env, {{:., _, [Access, _]}, _, args} = e, t) when is_list(args) do
+    case remote_action(e) do
+      nil -> fail("unsupported expression #{Macro.to_string(e)}")
+      action -> remote_expr(env, e, action, args, t)
+    end
+  end
   defp expr(env, {:not, _, [a]}, _t), do: "(¬ #{expr(env, a, nil)})"
   defp expr(_env, b, _t) when is_boolean(b), do: "#{b}"
   defp expr(_env, a, "Term") when is_atom(a) and a not in [nil, true, false],
     do: fail("the atom #{inspect(a)} is used at an opaque Term position; declare the type (@type) so it becomes an enum")
+  defp expr(_env, a, "Atom") when is_atom(a) and a not in [nil, true, false], do: atom_ctor(a)
   defp expr(_env, a, _t) when is_atom(a) and a not in [nil, true, false], do: ".#{a}"
   defp expr(_env, n, _t) when is_integer(n), do: "#{n}"
   defp expr(_env, [], _t), do: "[]"
-  defp expr(env, xs, t) when is_list(xs), do: "[" <> Enum.map_join(xs, ", ", &expr(env, &1, elem_type(t))) <> "]"
+  defp expr(env, xs, t) when is_list(xs) do
+    if kw_list?(xs, t),
+      do: kw_lit(env, xs, t),
+      else: "[" <> Enum.map_join(xs, ", ", &expr(env, &1, elem_type(t))) <> "]"
+  end
   defp expr(env, {v, _, nil}, _t) when is_atom(v), do: Map.get(env, {:alias, Atom.to_string(v)}, lean_ident(Atom.to_string(v)))
-  defp expr(env, {op, _, [a, b]}, t) when op in [:+, :-, :++, :<=, :>=, :<, :>, :==, :!=, :and, :or] do
+  defp expr(env, {op, _, [a, b]} = e, t) when op in [:+, :-, :++, :<=, :>=, :<, :>, :==, :!=, :and, :or] do
+    # an Instant has equality and nothing else: refuse an order or an
+    # arithmetic on one here rather than let Lean fail on a missing instance
+    if op in [:+, :-, :<=, :>=, :<, :>] and "Instant" in [type_of(env, a), type_of(env, b)],
+      do: fail("`#{op}` in #{Macro.to_string(e)}: the model has no clock, so an Instant has equality and nothing else")
     lop = %{+: "+", -: "-", ++: "++", <=: "≤", >=: "≥", <: "<", >: ">", ==: "=", !=: "≠", and: "∧", or: "∨"}[op]
     at = if op in [:++], do: t, else: nil
     "(#{expr(env, a, at)} #{lop} #{expr(env, b, at)})"
@@ -3268,6 +3567,197 @@ defmodule ToLean do
     end
   end
 
+  # ---------- values: binaries, keyword lists, sets, instants, module names ----------
+  #
+  # The value families the @remote table at the top of this file leans on.
+  # Two of them need a per-file inductive -- `Atom` for the keys of keyword
+  # lists, `Module` for module names used as values -- and both are built
+  # from what the rendering actually used: every key and every module name
+  # that reaches `expr/3` or `pat/5` registers itself here, and `render/2`
+  # emits the declarations once the clauses are rendered.
+
+  # An Elixir binary is a Lean String (Leanactors/Str.lean).
+  defp str_lit(s) do
+    esc =
+      s
+      |> String.replace("\\", "\\\\")
+      |> String.replace("\"", "\\\"")
+      |> String.replace("\n", "\\n")
+      |> String.replace("\t", "\\t")
+      |> String.replace("\r", "\\r")
+    "\"" <> esc <> "\""
+  end
+
+  # `"a#{e}b"` is `"a" ++ Str.toStr e ++ "b"`. An interpolated `inspect(e)`
+  # or `to_string(e)` is the same rendering: `Str.toStr` is what the model
+  # has for "render this value as a binary", and for a value with no
+  # printable model it is the derived `Repr` (see Leanactors/Str.lean).
+  defp interp(env, parts) do
+    pieces =
+      for part <- parts, s = interp_part(env, part), s != "\"\"", do: s
+    case pieces do
+      [] -> "\"\""
+      [one] -> one
+      many -> "(" <> Enum.join(many, " ++ ") <> ")"
+    end
+  end
+
+  defp interp_part(_env, s) when is_binary(s), do: str_lit(s)
+  # `#{e}` where e is already a binary needs no rendering; anything else,
+  # and an explicit `inspect(e)`/`to_string(e)`, goes through `Str.toStr`
+  defp interp_part(env, {:"::", _, [{{:., _, [Kernel, :to_string]}, _, [inner]}, {:binary, _, nil}]}) do
+    e = strip_to_string(inner)
+    if e == inner and type_of(env, e) == "String",
+      do: paren_or(expr(env, e, "String")),
+      else: "Str.toStr " <> paren_or(expr(env, e, nil))
+  end
+  defp interp_part(env, {:"::", _, [inner, {:binary, _, nil}]}),
+    do: "Str.toStr " <> paren_or(expr(env, strip_to_string(inner), nil))
+  defp interp_part(_env, other), do: fail("unsupported part of a binary: #{Macro.to_string(other)}")
+
+  defp strip_to_string({{:., _, [Kernel, :to_string]}, _, [e]}), do: strip_to_string(e)
+  defp strip_to_string({:to_string, _, [e]}), do: strip_to_string(e)
+  defp strip_to_string({:inspect, _, [e]}), do: strip_to_string(e)
+  defp strip_to_string({:inspect, _, [e, _]}), do: strip_to_string(e)
+  defp strip_to_string(e), do: e
+
+  # A keyword list `[k: v, ..]` is the association list `List (Atom × V)`,
+  # so `Keyword` and `Access` are the `AssocList` a map already uses. The
+  # catch is that `[ok: 1]` and `[{:ok, 1}]` are the same AST: at a known
+  # type the type decides, and at an unknown one a key that is an
+  # alternative of one of the file's tagged unions keeps the old reading
+  # (a list of that union's values).
+  defp kw_list?([], _t), do: false
+  defp kw_list?(xs, t) do
+    Enum.all?(xs, &match?({k, _} when is_atom(k) and k not in [nil, true, false], &1)) and
+      case map_type(t) do
+        {"Atom", _} -> true
+        nil -> t == nil and not Enum.any?(xs, fn {k, _} -> union_alt?(k) end)
+        _ -> false
+      end
+  end
+
+  # is `tag` an alternative of arity 1 of some tagged union of this file?
+  defp union_alt?(tag) do
+    Process.get(:to_lean_unions, %{})
+    |> Map.values()
+    |> Enum.any?(fn ctors -> Enum.any?(ctors, fn {t, ts} -> t == tag and length(ts) == 1 end) end)
+  end
+
+  defp kw_lit(env, xs, t) do
+    vt = with({_, v} <- map_type(t), do: v)
+    "[" <> Enum.map_join(xs, ", ", fn {k, v} -> "(#{atom_ctor(k)}, #{expr(env, v, vt)})" end) <> "]"
+  end
+
+  # register an atom key and return its constructor
+  defp atom_ctor(k) do
+    name = lean_atom_name(k)
+    Process.put(:to_lean_atoms, Enum.uniq(Process.get(:to_lean_atoms, []) ++ [name]))
+    "." <> name
+  end
+
+  defp lean_atom_name(k) do
+    s = Atom.to_string(k)
+    Regex.match?(~r/^[a-zA-Z_][a-zA-Z0-9_'?!]*$/, s) ||
+      fail("the atom #{inspect(k)} has no Lean constructor name; it cannot be a keyword-list key here")
+    lean_ident(s)
+  end
+
+  # A module name used as a value is a constant of the file's `Module`
+  # inductive: it can be stored, sent and compared, which is all the
+  # modules this translates ever do with one (a child module in a spec, an
+  # implementation module in a registry). Nothing can be called on it.
+  defp module_ctor(segs) do
+    name = Enum.map_join(segs, "_", &Atom.to_string/1)
+    Process.put(:to_lean_mods, Enum.uniq(Process.get(:to_lean_mods, []) ++ [name]))
+    "." <> name
+  end
+
+  # ---------- the @remote table, applied ----------
+
+  # `Mod.f(args)` -> its row's action, or nil when there is no row
+  defp remote_action({{:., _, [{:__aliases__, _, segs}, f]}, _, args}) when is_list(args),
+    do: remote_row(segs, f, length(args))
+  defp remote_action({{:., _, [Access, f]}, _, args}) when is_list(args),
+    do: remote_row([:Access], f, length(args))
+  defp remote_action(_), do: nil
+
+  defp remote_row(segs, f, arity) do
+    case Enum.find(@remote, fn {m, ff, a, _} -> m == segs and ff == f and a == arity end) do
+      {_, _, _, action} -> action
+      nil -> nil
+    end
+  end
+
+  # a statement with no effect in the model, dropped before translation
+  defp remote_noop?(e), do: remote_action(e) == :noop
+
+  # `Mod.f(args)` as an expression, per its row
+  defp remote_expr(_env, e, :noop, _args, _t),
+    do: fail("#{Macro.to_string(e)} has no value in the model: it is dropped as a statement, so it cannot be used as an expression")
+  defp remote_expr(_env, e, {:error, why}, _args, _t),
+    do: fail("#{Macro.to_string(e)} is not supported: #{why}")
+  defp remote_expr(_env, e, {:const, lean, ct}, _args, t) do
+    (t == nil or ct == nil or t == ct) || fail("#{Macro.to_string(e)} is a #{ct}, used at type #{t}")
+    lean
+  end
+  defp remote_expr(env, e, {:fun, lean, ats, rt}, args, t) do
+    (t == nil or rt == nil or t == rt) || fail("#{Macro.to_string(e)} is a #{rt}, used at type #{t}")
+    lean <> Enum.map_join(Enum.zip(args, ats), "", fn {a, at} -> " " <> paren_or(expr(env, a, at)) end)
+  end
+  defp remote_expr(env, e, {:assoc, op}, args, t), do: kw_call(env, e, op, args, t)
+  defp remote_expr(env, _e, {:set, fun}, [m | rest], t) do
+    mt = (map_set_type(t) || type_of(env, m)) |> map_set_type()
+    at = if fun in ~w(SetList.union SetList.difference SetList.intersection), do: mt, else: elem_type(mt)
+    fun <> " " <> paren_or(expr(env, m, mt)) <> Enum.map_join(rest, "", &(" " <> paren_or(expr(env, &1, at))))
+  end
+
+  # a set type is a list type; anything else is unknown
+  defp map_set_type("List " <> _ = t), do: t
+  defp map_set_type(_), do: nil
+
+  # `Keyword.f(..)`, `Access.get(..)` and `opts[:k]` over the association
+  # list. Everything but `fetch!/2` is exactly the `Map` rendering, so one
+  # keyword list behaves like one map; `fetch!/2` raises on the BEAM, which
+  # an expression here cannot, so it is the lookup at the value type's
+  # default, like `hd/1`.
+  defp kw_call(env, e, op, args, t) do
+    # the key is an Atom whichever way the list is typed, so register it
+    case args do
+      [_, k | _] when is_atom(k) and k not in [nil, true, false] -> atom_ctor(k)
+      _ -> nil
+    end
+    case {op, args} do
+      {:fetch!, [m, k]} ->
+        mt = map_type(var_type(env, m))
+        {kt, vt} = mt || {"Atom", t}
+        vt || fail("#{Macro.to_string(e)}: the value type of #{Macro.to_string(m)} is not known; declare it (@type)")
+        ms = paren_or(expr(env, m, mt && "List (#{kt} × #{vt})"))
+        "(AssocList.get? #{ms} #{paren_or(expr(env, k, kt))}).getD #{paren_or(default_expr(vt))}"
+      _ ->
+        map_call(env, op, args, t)
+    end
+  end
+
+  # ---------- the per-file Atom and Module declarations ----------
+
+  defp value_decls(all_types) do
+    atoms = Process.get(:to_lean_atoms, [])
+    mods = Process.get(:to_lean_mods, [])
+    mentions = fn n -> Enum.any?(all_types, &Regex.match?(~r/\b#{n}\b/, &1)) end
+    if atoms == [] and mentions.("Atom"),
+      do: fail("a type of this file is a keyword list, but no atom key is used anywhere: the Atom type would be empty")
+    if mods == [] and mentions.("Module"),
+      do: fail("a type of this file is module(), but no module name is used as a value: the Module type would be empty")
+    decl = fn name, ctors, doc ->
+      if ctors == [],
+        do: [],
+        else: ["-- #{doc}\ninductive #{name}\n" <> Enum.map_join(ctors, "\n", &"  | #{&1}") <> "\n  deriving Repr, DecidableEq\n"]
+    end
+    decl.("Atom", atoms, "The atoms this file uses as keyword-list keys.") ++
+      decl.("Module", mods, "The module names this file uses as values.")
+  end
+
   # ---------- structs, Enum, :queue ----------
 
   # the fields of struct `t`, as declared by its defstruct and @type t
@@ -3315,6 +3805,9 @@ defmodule ToLean do
     cond do
       t in ["Nat", "Int", "Pid"] -> "0"
       t == "Bool" -> "false"
+      t == "String" -> "\"\""
+      t == "Instant" -> "Instant.now"
+      t == "Term" -> "(Term.mk 0)"
       String.starts_with?(t, "Option ") -> "none"
       String.starts_with?(t, "List ") -> "[]"
       struct_fields(t) != nil -> "({} : #{t})"
@@ -3428,12 +3921,12 @@ defmodule ToLean do
   # (a variable, a struct field or literal, a list or queue operation); nil
   # when it cannot, which only costs the caller an expected type.
   defp type_of(env, {v, _, nil}) when is_atom(v), do: Map.get(env, lean_ident(Atom.to_string(v)))
-  defp type_of(env, {{:., _, [{v, _, nil}, f]}, _, []}) when is_atom(v) and is_atom(f) do
+  defp type_of(env, {{:., _, [{v, _, nil}, f]}, _, []} = e) when is_atom(v) and is_atom(f) do
     case state_field(env, v, f) do
       {_, t} -> t
       nil ->
         case struct_fields(Map.get(env, lean_ident(Atom.to_string(v)))) do
-          nil -> nil
+          nil -> var_type(env, e)
           fs -> case List.keyfind(fs, Atom.to_string(f), 0) do
                   {_, t, _} -> t
                   nil -> nil
@@ -3456,7 +3949,36 @@ defmodule ToLean do
   defp type_of(_env, b) when is_boolean(b), do: "Bool"
   defp type_of(_env, {op, _, [_, _]}) when op in [:<=, :>=, :<, :>, :==, :!=, :and, :or], do: "Bool"
   defp type_of(env, {op, _, [a, b]}) when op in [:+, :-], do: type_of(env, a) || type_of(env, b)
+  defp type_of(_env, s) when is_binary(s), do: "String"
+  defp type_of(_env, {:<<>>, _, _}), do: "String"
+  defp type_of(_env, {:<>, _, [_, _]}), do: "String"
+  defp type_of(_env, {f, _, [_ | _]}) when f in [:inspect, :to_string], do: "String"
+  # a @remote row: a constant names its Lean type (a clock read), and a
+  # keyword lookup has the type its list gives it (so `opts[:k]` may be a
+  # `case` scrutinee, exactly as `Map.get/2` is)
+  defp type_of(env, e) when is_tuple(e) and tuple_size(e) == 3 do
+    case {remote_action(e), e} do
+      {{:const, _, ct}, _} -> ct
+      {{:fun, _, _, rt}, _} -> rt
+      {{:assoc, op}, {_, _, [m | _] = args}} -> assoc_type(env, op, m, length(args))
+      _ -> nil
+    end
+  end
   defp type_of(_env, _), do: nil
+
+  defp assoc_type(env, op, m, arity) do
+    mt = map_type(var_type(env, m))
+    case {op, arity, mt} do
+      {op, 2, {_, vt}} when op in [:get, :fetch] -> opt_type(vt)
+      {:get, 3, {_, vt}} -> vt
+      {:fetch!, 2, {_, vt}} -> vt
+      {op, _, _} when op in [:put, :delete] -> var_type(env, m)
+      {:has_key?, 2, _} -> "Bool"
+      {:keys, 1, {kt, _}} -> "List " <> paren(kt)
+      {:values, 1, {_, vt}} -> "List " <> paren(vt)
+      _ -> nil
+    end
+  end
 
   defp queue_type(env, :in, [_, q]), do: type_of(env, q)
   defp queue_type(env, f, [q]) when f in [:to_list, :tail, :drop], do: type_of(env, q)
