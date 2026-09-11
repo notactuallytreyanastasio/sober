@@ -1,6 +1,51 @@
 {
   "modules": [
     {
+      "bytes": 2746,
+      "example": "Leanactors/Examples/LogStore.lean",
+      "file": "elixir/real/log_store.ex",
+      "flags": [],
+      "gen": "Leanactors/Gen/LogStore.lean",
+      "lines": 94,
+      "md5": "ae2fa48bf91bfddff9f8381c2e81ea60",
+      "module": "Ensemble.LogStore",
+      "name": "LogStore",
+      "namespace": "Leanactors.Gen.LogStore",
+      "origin": "/Users/bg/code/ensemble/lib/ensemble/log_store.ex",
+      "origin_rel": "lib/ensemble/log_store.ex",
+      "project": "ensemble"
+    },
+    {
+      "bytes": 14279,
+      "example": "Leanactors/Examples/LogsLive.lean",
+      "file": "elixir/real/logs_live.ex",
+      "flags": [],
+      "gen": "Leanactors/Gen/LogsLive.lean",
+      "lines": 432,
+      "md5": "d8edb8181bd431308a49f8e9bd813b52",
+      "module": "EnsembleWeb.LogsLive",
+      "name": "LogsLive",
+      "namespace": "Leanactors.Gen.LogsLive",
+      "origin": "/Users/bg/code/ensemble/lib/ensemble_web/live/logs_live.ex",
+      "origin_rel": "lib/ensemble_web/live/logs_live.ex",
+      "project": "ensemble"
+    },
+    {
+      "bytes": 2181,
+      "example": "Leanactors/Examples/RadioLive.lean",
+      "file": "elixir/real/radio_live.ex",
+      "flags": [],
+      "gen": "Leanactors/Gen/RadioLive.lean",
+      "lines": 78,
+      "md5": "e294f075b6c91a149e5e6fade23f03d3",
+      "module": "BobsBroadcastWeb.RadioLive",
+      "name": "RadioLive",
+      "namespace": "Leanactors.Gen.RadioLive",
+      "origin": "/Users/bg/code/bobs_broadcast/lib/bobs_broadcast_web/live/radio_live.ex",
+      "origin_rel": "lib/bobs_broadcast_web/live/radio_live.ex",
+      "project": "bobs_broadcast"
+    },
+    {
       "bytes": 1809,
       "example": "Leanactors/Examples/TableRegistry.lean",
       "file": "elixir/real/table_registry.ex",

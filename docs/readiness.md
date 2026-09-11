@@ -45,6 +45,9 @@ generated from that manifest and from the Lean files themselves, so every column
 
 | Module | Origin | Lines | Generated | Hand model | Bounded check | Proof |
 |---|---|---:|---|---|---|---|
+| `Ensemble.LogStore` | ensemble `lib/ensemble/log_store.ex` | 94 | `Leanactors/Gen/LogStore.lean` | yes | yes | -- |
+| `EnsembleWeb.LogsLive` | ensemble `lib/ensemble_web/live/logs_live.ex` | 432 | `Leanactors/Gen/LogsLive.lean` | yes | yes | -- |
+| `BobsBroadcastWeb.RadioLive` | bobs_broadcast `lib/bobs_broadcast_web/live/radio_live.ex` | 78 | `Leanactors/Gen/RadioLive.lean` | yes | yes | -- |
 | `Loom.Teams.TableRegistry` | loom `lib/loom/teams/table_registry.ex` | 69 | `Leanactors/Gen/TableRegistry.lean` | yes | yes | `Leanactors/Examples/TableRegistryProof.lean` |
 
 *Hand model*: `Leanactors/Examples/<Name>.lean` defines a hand-written `beh` and proves
