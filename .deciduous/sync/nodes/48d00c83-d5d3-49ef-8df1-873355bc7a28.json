@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "48d00c83-d5d3-49ef-8df1-873355bc7a28",
+  "created_at": "2026-09-10T20:17:26.920772-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "elixir/fuzz.exs: seeded phase generator (bank: cast/tick/audit/tick2; ttl: put/ask/expire/stale/put0), Lean via Port to .lake/build/bin/replay, BEAM twin drives real Bank/Client/Cache/Reader, byte compare, exit 1 with script; wired into check.sh and verify.exs",
+  "updated_at": "2026-09-10T20:17:26.920772-04:00"
+}

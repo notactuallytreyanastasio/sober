@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "c791df81-79fd-4bed-b8b8-a21299bf93dc",
+  "created_at": "2026-09-10T20:33:42.249987-04:00",
+  "description": "README Status: watchdog gains a liveness property. NOTES section 5 'the proof has not been attempted' paragraph on watchdog liveness is now closed: replace 'the proof has not been attempted' with 'round 5 proved it (WatchdogLive.worker_replaced): the fairness assumption is TimerFair 0 .timeout (a pending (0, timeout) timer eventually fires), derived from weak fairness of every timer index by a non-increasing findIdx rank on the first matching timer, and no quiet mailbox is needed: the rank on the position of the first timeout in the watchdog mailbox absorbs any number of pongs ahead of it.' Generic pieces that could move to Fair.lean later: SysRun.TimerFair, timerFair_of_weakFair_timers, stable_until_timer, exists_of_inv, Sys.runE_timers_append/signalE_timers/downE_timers, List.mem_eraseIdx_of_ne, List.findIdx_eraseIdx_le, exists_stable_of_nonincreasing.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Integrator notes for wf5/watchdog-live: only two files touched (new Leanactors/Examples/WatchdogLive.lean, one import line in Leanactors.lean after WatchdogProof). README Layout row to add after WatchdogProof: | Leanactors/Examples/WatchdogLive.lean | Liveness: restart_eventually (dead worker eventually replaced, as the supervisor) and worker_replaced / hung_worker_replaced (a worker the watchdog waits on is eventually replaced by a live pid, under fairness of the (0, timeout) timer, signal and run 0); SysRun.TimerFair derived from forall i WeakFair (timer i); SysRun.stable_until_timer and SysRun.exists_of_inv are generic; witnesses hung_worker_reachable and hung_fair_run |",
+  "updated_at": "2026-09-10T20:33:42.249987-04:00"
+}

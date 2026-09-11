@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b39d99be-c7a6-4773-a575-cda8c7a8217e",
+  "created_at": "2026-09-10T21:00:58.069194-04:00",
+  "description": "Sync output: 551 nodes / 654 edges on disk, 38 nodes and 45 edges imported; export 550 nodes / 630 edges",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "deciduous sync imported 38 nodes (514-551) that were on disk in .deciduous/sync but not in the database: the first, usage-limit-cut-off attempts at the five round-5 pieces (goals 514 watchdog, 516 diff-fuzz, 526 maps, 532 task, 547 ttl, each under #436 with their options/decisions/actions). The resumed attempts created fresh goals (438, 442, 437, 440, 441) because the database did not show these. Both subtrees are kept; each first-attempt goal is linked to its resumed goal",
+  "updated_at": "2026-09-10T21:00:58.069194-04:00"
+}

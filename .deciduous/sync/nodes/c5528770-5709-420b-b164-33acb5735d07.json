@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "c5528770-5709-420b-b164-33acb5735d07",
+  "created_at": "2026-09-10T20:47:01.732071-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Hoist duplicates once (option 503): Sys.timers_applyEffect_append/foldl/applyEffects, runE_timers_append, signalE_timers, downE_timers (TtlLive's versions, a superset) into SysProps.lean; List.mem_eraseIdx_of_ne (TtlLive orientation), List.findIdx_eraseIdx_le and _zero (TtlLive) into Fair.lean; WatchdogLive's differently-stated findIdx_eraseIdx_le renamed findIdx_eraseIdx_le_of_ne and kept there; the non-duplicated generic pieces (TimerFair, exists_of_inv, exists_last, downs lemmas, SysRunE.rank_leads_to_of_step) stay where the builders put them",
+  "updated_at": "2026-09-10T20:47:01.732071-04:00"
+}

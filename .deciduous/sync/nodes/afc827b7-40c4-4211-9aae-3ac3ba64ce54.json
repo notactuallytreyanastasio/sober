@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "afc827b7-40c4-4211-9aae-3ac3ba64ce54",
+  "created_at": "2026-09-10T20:58:12.341391-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "README.md and NOTES.md updated on main: status 13,130 lines / 29 files / 724 theorems (counted as lines starting with 'theorem ', the round-4 convention that reproduces 487), seven examples, 37 fixtures; table rows for Task/Watchdog/Ttl liveness and Registry; Layout rows for AssocList, Replay, TaskLive, WatchdogLive, TtlLive, Registry, registry.exs, fuzz.exs; Maps and Differential testing paragraphs; Fair-runs paragraph extended with SysRunE and TimerFair; Liveness section rewritten with the three new results, their assumptions in plain words and their witnesses; Not-modelled updated. NOTES: section 10 Round 5 (merge story, five bullets, Lean notes, counts), section 5 watchdog paragraph closed, section 6 bullets, translator conventions and source table, What-to-try renumbered to 11",
+  "updated_at": "2026-09-10T20:58:12.341391-04:00"
+}

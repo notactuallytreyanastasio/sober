@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "9ccd0c93-5e6c-4c72-8553-1842a2cf4d15",
+  "created_at": "2026-09-10T20:23:36.211421-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "check.sh green in wf5-ttl-live (generated files up to date; 35/35 fixtures; all proofs check, no sorry, no warnings; six BEAM drivers OK incl. TTL OK). Branch wf5/ttl-live: df97099 TtlLive + wiring, then a header-only commit. TtlLive.lean ~1070 lines; README/NOTES untouched (replacement text in node 478).",
+  "updated_at": "2026-09-10T20:23:36.211421-04:00"
+}

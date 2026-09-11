@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "19571043-744e-479b-8a7e-fa020feafed6",
+  "created_at": "2026-09-10T20:21:03.848722-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Wire TtlLive into Leanactors.lean; add gen_changes_or_clears (requested shape, with the dead-cache disjunct) + wit_clears witness; add gen_advances_or_clears_timers under ∀ i WeakFair (.timer i) to match the watchdog piece's convention; commit; run check.sh",
+  "updated_at": "2026-09-10T20:21:03.848722-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e38915ad-cf8f-43c6-acff-9d906cecbcae",
+  "created_at": "2026-09-10T20:16:53.110406-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Compile-fix loop on the TtlLive.lean draft: unqualified Msg.after_run in Armed, anonymous-constructor arity in cache_run_cases, Good.step/Good.init/Good.deliver proof plumbing, then the remaining downstream errors",
+  "updated_at": "2026-09-10T20:16:53.110406-04:00"
+}

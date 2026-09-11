@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T19:32:12.588269-04:00",
+  "edge_id": "e4b6da4edf79f3cd43f2",
+  "edge_type": "leads_to",
+  "from_change_id": "07284414-29c7-48b1-8de0-94945a118f4b",
+  "rationale": "result",
+  "to_change_id": "b3500e3d-a928-4ad9-b239-fa7c0264927b",
+  "weight": 1.0
+}

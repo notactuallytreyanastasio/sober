@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "759948ab-faf3-490a-b223-4b57062a4637",
+  "created_at": "2026-09-10T19:35:50.764541-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Chain CurT -(TimerFair)-> TimeoutPending -(run 0 rank)-> KillPending -(signal rank)-> Dead, then reuse restart_eventually; Good = Inv+NoKillTo+ChildNe+Armed+ChildLt; explicit periodic fair-run witness",
+  "updated_at": "2026-09-10T19:35:50.764541-04:00"
+}

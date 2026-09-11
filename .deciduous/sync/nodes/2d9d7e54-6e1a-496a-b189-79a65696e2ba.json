@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "2d9d7e54-6e1a-496a-b189-79a65696e2ba",
+  "created_at": "2026-09-10T20:29:34.339684-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Hand model Leanactors/Examples/Registry.lean (beh, beh_eq_gen, init with two clients, entryOk/checkInv bounded check on every map entry via exploreWith, no-monitor mutant, taken/freed traces), BEAM driver elixir/registry.exs, wiring in Leanactors.lean and check.sh",
+  "updated_at": "2026-09-10T20:29:34.339684-04:00"
+}

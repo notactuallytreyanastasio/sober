@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "f0fee4da-fa27-4e33-85e6-2fbe3c8f187a",
+  "created_at": "2026-09-10T20:17:26.842510-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Phase-restricted generator (option 2): each phase has exactly one outcome whatever the BEAM does, the twin waits for it to complete; observable subset = final states + pending counts + traced reader values; TTL real time handled by constraining the generator (expire = sleep 300ms, stale timers Lean-only) plus a bounded retry on measured stalls",
+  "updated_at": "2026-09-10T20:17:26.842510-04:00"
+}

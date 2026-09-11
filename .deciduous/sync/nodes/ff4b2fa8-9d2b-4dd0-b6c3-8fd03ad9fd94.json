@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "ff4b2fa8-9d2b-4dd0-b6c3-8fd03ad9fd94",
+  "created_at": "2026-09-10T20:17:30.846883-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Use TimerFair (derived from ∀ i WeakFair timer i): headline theorem takes the ∀ i form, TimerFair is the working hypothesis; no assumption on w's run needed since kill is untrappable",
+  "updated_at": "2026-09-10T20:17:30.846883-04:00"
+}

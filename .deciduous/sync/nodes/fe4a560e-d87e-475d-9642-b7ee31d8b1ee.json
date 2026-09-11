@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "fe4a560e-d87e-475d-9642-b7ee31d8b1ee",
+  "created_at": "2026-09-10T20:24:59.992570-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Bug found on the way: killing a lock client that is linked to the fuzz driver (start_link) killed the driver ('EXIT ... killed'); a queued client is blocked in its GenServer.call and cannot be stopped, so the twin unlinks then kills. Also: elixir/src/lock.ex and bank.ex both define Client, so fuzz.exs evals lock.ex with Client renamed to LockClient (the module text is otherwise unchanged; the protocol under test is the real one).",
+  "updated_at": "2026-09-10T20:24:59.992570-04:00"
+}

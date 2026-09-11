@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "882ff002-0e56-4214-996c-7a23800bb27a",
+  "created_at": "2026-09-10T20:20:10.476379-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "AssocList model: List (K × V) with get?/insert/erase/hasKey/keys/values/size/filter/reject, first-match semantics, lemmas without Mathlib; translator gets tagged unions (needed for a call-reply type like :ok | {:error, err()}) and Map.* calls type-directed from the map variable or the expected type",
+  "updated_at": "2026-09-10T20:20:10.476379-04:00"
+}

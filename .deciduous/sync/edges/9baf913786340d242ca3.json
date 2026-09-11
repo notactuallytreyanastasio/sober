@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T19:34:49.803552-04:00",
+  "edge_id": "9baf913786340d242ca3",
+  "edge_type": "leads_to",
+  "from_change_id": "cfdbe027-9ba5-4d4e-9e3c-056064a6ae46",
+  "rationale": "constraint found while designing the ttl twin",
+  "to_change_id": "13f829f6-9f4c-479f-9abc-7f417c6c5408",
+  "weight": 1.0
+}

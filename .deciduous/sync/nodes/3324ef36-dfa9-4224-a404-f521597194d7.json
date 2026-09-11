@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "3324ef36-dfa9-4224-a404-f521597194d7",
+  "created_at": "2026-09-10T20:47:41.457205-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Hoist the duplicated generic lemmas: Sys timers lemmas to SysProps.lean, list erase lemmas to Fair.lean, rename WatchdogLive's findIdx_eraseIdx_le to findIdx_eraseIdx_le_of_ne, fix call sites",
+  "updated_at": "2026-09-10T20:47:41.457205-04:00"
+}

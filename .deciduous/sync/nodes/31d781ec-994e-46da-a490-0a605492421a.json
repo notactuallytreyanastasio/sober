@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "31d781ec-994e-46da-a490-0a605492421a",
+  "created_at": "2026-09-10T19:24:28.188889-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Option 442: SysRunE with generic env (Sys.Deliver as the canonical one), four LeadsTo stages (env kick, run w, down queue rank, mailbox rank), Good := Inv ∧ Fresh; closed theorem by embedding",
+  "updated_at": "2026-09-10T19:24:28.188889-04:00"
+}

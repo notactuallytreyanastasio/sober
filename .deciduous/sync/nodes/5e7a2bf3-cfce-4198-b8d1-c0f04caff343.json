@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5e7a2bf3-cfce-4198-b8d1-c0f04caff343",
+  "created_at": "2026-09-10T19:27:13.483089-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Fair.lean: add open Sys run (SysChoiceE, SysStepLE, Sys.Deliver, SysReachE, SysRunE with WeakFair/EnvFair, stable_until_sys/env, rank_leads_to_sys/env, SysRun.toE embedding)",
+  "updated_at": "2026-09-10T19:27:13.483089-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "a44b1957-228f-4dd8-9ad2-61a2de1873a2",
+  "created_at": "2026-09-10T20:20:05.555610-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 30
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Maps as Lean Std HashMap / functions K -> Option V (no DecidableEq-only structure, harder for beh_eq_gen rfl and checkers)",
+  "updated_at": "2026-09-10T20:20:05.555610-04:00"
+}

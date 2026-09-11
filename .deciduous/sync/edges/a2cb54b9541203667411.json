@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T20:27:32.980486-04:00",
+  "edge_id": "a2cb54b9541203667411",
+  "edge_type": "leads_to",
+  "from_change_id": "1f7f9b31-d25c-4194-b3bb-ea09de133078",
+  "rationale": "next: the second theorem",
+  "to_change_id": "cd63ffcb-93ac-41f0-8f5c-e1b8ba3f5552",
+  "weight": 1.0
+}

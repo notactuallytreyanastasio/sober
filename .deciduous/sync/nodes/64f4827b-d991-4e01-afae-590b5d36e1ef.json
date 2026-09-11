@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "64f4827b-d991-4e01-afae-590b5d36e1ef",
+  "created_at": "2026-09-10T19:28:31.444419-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Phase-structured scripts with fixed per-kind run schedules; comparison sound because each phase is confluent (one stimulus, one enabled actor at a time or FIFO to one process)",
+  "updated_at": "2026-09-10T19:28:31.444419-04:00"
+}

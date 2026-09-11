@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "1a080b2f-688d-4ea5-989d-6247a1b1a15b",
+  "created_at": "2026-09-10T19:27:08.587730-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85,
+    "prompt": "Prove TTL liveness in Leanactors/Examples/TtlLive.lean: from any Good start, under WeakFair of the after-timer and WeakFair (.run cachePid), a cache holding v at generation g eventually leaves g (message processed, timer fired and value cleared, or put 0 killed it); corollary about the value clearing; non-vacuity witnesses; wire into Leanactors.lean"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Round 5: TTL liveness — gen_advances_or_clears along fair SysRuns (TtlLive.lean)",
+  "updated_at": "2026-09-10T19:27:08.587730-04:00"
+}

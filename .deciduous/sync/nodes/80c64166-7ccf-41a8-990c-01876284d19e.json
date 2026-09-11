@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "80c64166-7ccf-41a8-990c-01876284d19e",
+  "created_at": "2026-09-10T20:30:32.058117-04:00",
+  "description": "All four are documented in the translator header or the source comments; none needed a core change.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Translator limits found by the registry: (1) @type reply is one Lean type per file, so lookup answers {:found, pid} | :not_found instead of pid | nil (a tagged union Reply); (2) Msg tags are global across modules, so the client's message could not be {:register, name()} while Reg's call is (renamed :claim); (3) a map pattern's whole map is unreachable from the source without the new %{..} = m alias; (4) 'from' is a Lean keyword: a hand model must not name a binder from (the translator renders from_)",
+  "updated_at": "2026-09-10T20:30:32.058117-04:00"
+}

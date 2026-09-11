@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "ec7c3113-c8a8-49d4-ba8a-54f071fe1314",
+  "created_at": "2026-09-10T20:30:18.680498-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Examples/Registry.lean builds: beh_eq_gen by cases+rfl/simp; checkInv holds on 19,677 configurations (depth 7, 3 stimuli, clients claim a/b and crash, env unregisters a); no-monitor mutant caught by checkInv in 10 and by the weaker nameNotLost in 2,052 (claim, register, unregister pending, crash: a maps to a dead pid with no DOWN); elixir/registry.exs passes on the BEAM (taken refused, DOWN frees a, unregister and re-claim)",
+  "updated_at": "2026-09-10T20:30:18.680498-04:00"
+}

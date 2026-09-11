@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T19:28:37.184801-04:00",
+  "edge_id": "02eb63bc71b3b11b1599",
+  "edge_type": "leads_to",
+  "from_change_id": "0acc9d34-20c0-43be-a4e1-bb010a181e5b",
+  "rationale": "rejected: a drain macro hides schedule errors and non-confluent scripts would compare a Lean interleaving the BEAM never took",
+  "to_change_id": "64f4827b-d991-4e01-afae-590b5d36e1ef",
+  "weight": 1.0
+}

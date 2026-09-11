@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5d2deba0-5bd5-4c5b-b726-210de1c75dd1",
+  "created_at": "2026-09-10T20:20:34.181338-04:00",
+  "description": "Exact wording is the integrator's call; numbers measured at the branch tip.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "README/NOTES replacement text for wf5/task-live (do not edit those files on the branch). README table, Task row: 'a pending job is never lost across a crash; liveness: a pending job eventually settles (unconditionally once the worker is dead; for a live worker, under environment fairness)'. README Layout: add row 'Leanactors/Examples/TaskLive.lean | task liveness: job_eventually_settles_dead (closed SysRun, WeakFair down + run 0) and job_eventually_settles (open SysRunE with Sys.Deliver, plus WeakFair (run w) and EnvFair (Alive w) (Kick w)); Good = Inv + Fresh + Shape; witnesses deadRun/liveRun'. README Liveness paragraph: Fair.lean now also has SysRunE, the open Sys-layer run with an environment relation (Sys.Deliver for the examples), SysReachE, EnvFair, and the four workhorses stable_until_sys/env, rank_leads_to_sys/env; SysRun.toE embeds a closed run. Status counts: Fair.lean 1541 lines / 105 theorems (was 1145 / 79); TaskLive.lean 1064 lines / 59 theorems; add TaskLive to the file count. NOTES section 10 (round 5): the task's liveness is conditional by nature: a live worker only acts on compute/crash, which only the environment sends, so the honest theorem assumes the environment eventually kicks the pending worker while the caller keeps waiting on it alive and monitored (EnvFair (Alive w) (Kick w)) plus weak fairness of run w; the dead-worker half needs only WeakFair down and run 0 and is stated on a closed SysRun via SysRun.toE. Four LeadsTo stages (alive -> armed -> DOWN queued -> settling message in mailbox -> settled), ranks = queue positions (findIdx) in w's mailbox, downs, the caller's mailbox. Non-vacuity: dead_worker_reachable, live_worker_reachable, deadRun_witness (all hypotheses + premise + settles at time 2), liveRun_witness (all hypotheses incl. EnvFair + settles at time 5 with the reply counted).",
+  "updated_at": "2026-09-10T20:20:34.181338-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "60124aa5-75ef-4dda-992c-9820304a7518",
+  "created_at": "2026-09-10T19:35:50.728200-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 40
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Assume WeakFair (timer i) only for the specific index, tracking its shifting position",
+  "updated_at": "2026-09-10T19:35:50.728200-04:00"
+}

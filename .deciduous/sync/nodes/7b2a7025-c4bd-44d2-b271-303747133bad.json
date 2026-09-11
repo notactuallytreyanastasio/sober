@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "7b2a7025-c4bd-44d2-b271-303747133bad",
+  "created_at": "2026-09-10T20:45:33.818840-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85,
+    "prompt": "Integrator step for workflow round 5 (root #436)"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "wf5 integration: merge maps, diff-fuzz, task-live, watchdog-live, ttl-live into main; reconcile Fair.lean/generic lemma overlaps; README/NOTES round 5; sync graph; push",
+  "updated_at": "2026-09-10T20:45:33.818840-04:00"
+}

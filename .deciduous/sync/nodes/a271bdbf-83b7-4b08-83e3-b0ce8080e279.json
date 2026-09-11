@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "a271bdbf-83b7-4b08-83e3-b0ce8080e279",
+  "created_at": "2026-09-10T19:24:10.924991-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85,
+    "prompt": "Prove job_eventually_settles for the task system along fair SysRuns: unconditional when the pending worker is already dead (DOWN queue and mailbox ranks), conditional on an environment kick when it is alive (add an open SysRunE to Fair.lean). Non-vacuity witnesses required. Wire into Leanactors.lean."
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Task liveness: a pending job eventually settles (TaskLive.lean)",
+  "updated_at": "2026-09-10T19:24:10.924991-04:00"
+}

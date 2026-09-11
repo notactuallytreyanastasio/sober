@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "167ade36-1d21-414c-a52f-10594140d31f",
+  "created_at": "2026-09-10T19:29:44.729227-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Implement maps as association lists plus named tagged unions so the registry reply type is faithful to the spec",
+  "updated_at": "2026-09-10T19:29:44.729227-04:00"
+}

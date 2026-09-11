@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "88d173f5-14d0-44e7-b0ce-5016e52896f0",
+  "created_at": "2026-09-10T20:16:18.757011-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Resumed: worktree wf5-watchdog-live existed with uncommitted WatchdogLive.lean (955 lines): list lemmas, TimerFair + timerFair_of_weakFair_timers, Armed/ChildLt/Good invariants, dog_run_cases, restart_eventually and dead_worker_reachable; the timer-driven theorem and the hung-worker witnesses were still to be written",
+  "updated_at": "2026-09-10T20:16:18.757011-04:00"
+}

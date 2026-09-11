@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "c689b97e-0989-4435-88ed-4b4359054137",
+  "created_at": "2026-09-10T20:21:34.408777-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Keep form A (already proved, weaker than ∀ i and enough: FIFO-ish head fairness) and expose the ∀ i form as gen_advances_or_clears_timers so the integrator can unify with the watchdog's TimerFair by one instantiation; state the honest three-way conclusion (cleared / message processed / dead) and the requested 'generation changes or value cleared or dead' shape as a corollary",
+  "updated_at": "2026-09-10T20:21:34.408777-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "fadc0ba4-e4a6-4c50-8415-d42ca0cf31e9",
+  "created_at": "2026-09-10T19:33:51.257433-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 75
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "TaskLive.lean: Good = Inv ∧ Fresh ∧ Shape (non-caller pids are workers, pending worker ≠ 0); step lemmas caller_run_pending/idle, worker_run; four LeadsTo stages Alive→Armed (EnvFair kick), Armed→DownPending (rank in w's mailbox), DownPending→MsgPending (rank in downs), MsgPending→Settled (rank in mailbox 0)",
+  "updated_at": "2026-09-10T19:33:51.257433-04:00"
+}

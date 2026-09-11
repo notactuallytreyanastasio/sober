@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "6f3da543-9c91-44a6-9210-8b9cb2d1d01f",
+  "created_at": "2026-09-10T20:52:14.644602-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 92
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Hoist compiles; ./check.sh green on the merged main: seven Gen files up to date, 37/37 fixtures, lake build zero errors/warnings/sorry, seven BEAM drivers OK, fuzz 200/200 (67 bank/67 ttl/66 lock, 1045 phases, 13.8s). Regenerated fixture expectations byte-identical. Note: zsh does not word-split unquoted variables, so a shell loop passing '--pid Lock=server' as one word made the translator derive the name (server -> lock); not a translator drift, check.sh's literal commands are right",
+  "updated_at": "2026-09-10T20:52:14.644602-04:00"
+}

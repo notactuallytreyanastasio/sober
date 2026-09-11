@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e97adb92-74da-4257-abe4-ddda641b4bb9",
+  "created_at": "2026-09-10T19:22:47.979742-04:00",
+  "description": "Gap to a real program after round 5 (maps): structs, Enum over lists, opaque value types (String.t, DateTime.t) with equality only, PubSub broadcast as an effect to a subscriber set, Registry, ets as a shared-map actor, Task.async/await. The user referenced a specific program from another session; ask which.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Survey of 31 GenServer modules across 7 local projects: Map 22, Enum 26, GenServer.call 25, handle_info 21, String 23, DateTime/monotonic 21, PubSub 18, defstruct 14, send_after 12, ets 7, Registry 6, Task 6, handle_continue 4, monitor 1. Smallest real candidates: loom table_registry.ex (69 lines), blinks_backend link_check.ex (91), ensemble log_store.ex (94), big_bill search/server.ex (98)",
+  "updated_at": "2026-09-10T19:22:47.979742-04:00"
+}

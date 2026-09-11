@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T20:20:54.001366-04:00",
+  "edge_id": "8f3715f5a839dc1a79d4",
+  "edge_type": "leads_to",
+  "from_change_id": "2c0762c5-a1ef-42e1-839a-49eb036c60f0",
+  "rationale": "what fixing the draft taught",
+  "to_change_id": "d891801b-d578-4000-8950-371e5454389b",
+  "weight": 1.0
+}

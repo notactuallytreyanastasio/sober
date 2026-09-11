@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T19:28:37.267656-04:00",
+  "edge_id": "d7ecc454164b4b9b0934",
+  "edge_type": "leads_to",
+  "from_change_id": "64f4827b-d991-4e01-afae-590b5d36e1ef",
+  "rationale": "first piece: the Lean side",
+  "to_change_id": "a0bd8a0c-fe6d-4010-a74e-da3a0a80b940",
+  "weight": 1.0
+}

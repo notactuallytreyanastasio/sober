@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "c19c0491-544d-43d3-aeb7-8155817685af",
+  "created_at": "2026-09-10T20:52:14.710586-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "README.md: status counts, table rows (Task/Watchdog/Ttl liveness, Registry), Layout rows (AssocList, TaskLive, WatchdogLive, TtlLive, Registry x3, Replay, fuzz.exs, maps fixtures), Maps and Differential testing paragraphs, Liveness section rewritten for the three new results with witnesses, Build section; NOTES.md Round 5 section",
+  "updated_at": "2026-09-10T20:52:14.710586-04:00"
+}

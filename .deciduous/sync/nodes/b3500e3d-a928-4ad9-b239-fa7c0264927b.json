@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b3500e3d-a928-4ad9-b239-fa7c0264927b",
+  "created_at": "2026-09-10T19:32:05.988908-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "AssocList.lean compiles with zero warnings: 9 defs, 13 lemmas; erase had to be recursive (bne in filter blocks simp)",
+  "updated_at": "2026-09-10T19:32:05.988908-04:00"
+}

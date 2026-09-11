@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "7de12d92-f594-4f1a-a4c3-e5592759dab4",
+  "created_at": "2026-09-10T19:30:11.560130-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Write Leanactors/Examples/TtlLive.lean: generic list/timer lemmas, Good + Armed invariant, cache_run_cases, two rank stages, exists_last, gen_advances_or_clears + corollaries, W-state witness run",
+  "updated_at": "2026-09-10T19:30:11.560130-04:00"
+}

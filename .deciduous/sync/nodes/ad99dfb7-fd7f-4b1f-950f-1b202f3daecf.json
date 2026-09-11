@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "ad99dfb7-fd7f-4b1f-950f-1b202f3daecf",
+  "created_at": "2026-09-10T20:26:10.903059-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "wf5/diff-fuzz complete: three commits on the branch; ./check.sh green in the worktree (Gen identical, 35/35 fixtures, lake build no errors/warnings/sorry, six drivers OK, fuzz 200/200 in 13.4s); ./verify run green; Replay.lean recompiled warning-free; worktree clean (its checked-in .deciduous db restored)",
+  "updated_at": "2026-09-10T20:26:10.903059-04:00"
+}

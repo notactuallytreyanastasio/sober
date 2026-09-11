@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "c630942b-ed76-458b-b529-47fc55f0c635",
+  "created_at": "2026-09-10T20:17:59.927981-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 88
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Resume the draft and fix its 16 errors (simp orientation 0=p vs p≠0, Pending dot-notation on anonymous constructors, implicit b in armed_deliver, witness lemmas stated on deadSt/liveSt instead of run.st, dotted Msg.compute)",
+  "updated_at": "2026-09-10T20:17:59.927981-04:00"
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "a443a9ac-ddf6-46a7-a82a-05d115daa162",
+  "created_at": "2026-09-10T19:34:45.307634-04:00",
+  "description": "Pre-existing: elixir elixir/bank.exs | tail -1 etc. Verified the fuzz mismatch exits 1 (System.halt(1)) and that with a pipe the shell saw 0.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "check.sh pipes every driver through tail -1 under plain sh (no pipefail), so a driver's exit 1 is hidden by tail's 0; the fuzz line runs unpiped so its exit status propagates. The integrator may want set -o pipefail or to drop the tails for the older drivers.",
+  "updated_at": "2026-09-10T19:34:45.307634-04:00"
+}

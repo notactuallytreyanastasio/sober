@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T19:28:37.206620-04:00",
+  "edge_id": "4ba54c27a192ebb36c0f",
+  "edge_type": "leads_to",
+  "from_change_id": "dabf4ba7-9830-47cf-95ad-16dbbd3bf0b8",
+  "rationale": "rejected: a run line is not a BEAM synchronisation point (get_state waits for the whole mailbox, not one message)",
+  "to_change_id": "64f4827b-d991-4e01-afae-590b5d36e1ef",
+  "weight": 1.0
+}

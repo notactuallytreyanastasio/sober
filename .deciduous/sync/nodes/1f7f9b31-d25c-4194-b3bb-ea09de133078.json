@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "1f7f9b31-d25c-4194-b3bb-ea09de133078",
+  "created_at": "2026-09-10T20:27:29.335830-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Draft compiles clean (lake env lean: zero errors, zero warnings) after: Classical.byContradiction for by_contra; nomatch greedy-comma parse fixed with parentheses (⟨(fun h => nomatch h), ...⟩); per-constructor cases in dog_run_cases; w0 kept after subst in Armed/ChildLt.step; init_armed/init_childLt as separate theorems; Reason.kill annotated; msgPending_pop given explicit b via hst/hmbb terms. Committed c3108e1",
+  "updated_at": "2026-09-10T20:27:29.335830-04:00"
+}

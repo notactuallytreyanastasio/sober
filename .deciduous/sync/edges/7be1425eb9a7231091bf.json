@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T19:28:37.161174-04:00",
+  "edge_id": "7be1425eb9a7231091bf",
+  "edge_type": "leads_to",
+  "from_change_id": "01d343b6-2a33-4122-8b8f-c767434ebef3",
+  "rationale": "chosen: the BEAM cannot be made to follow an arbitrary schedule, but a confluent phase has one observable result whatever the scheduler does",
+  "to_change_id": "64f4827b-d991-4e01-afae-590b5d36e1ef",
+  "weight": 1.0
+}

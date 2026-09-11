@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "53f8024a-22e4-4929-8b68-9457b17e4455",
+  "created_at": "2026-09-10T20:25:00.056396-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Legitimate Lean/BEAM disagreements handled by constraining the generator, not the comparison: (1) untimed timers: the model lets a stale after_run fire at any time and be ignored, the BEAM cancelled it, so 'stale i' phases are Lean-only (no BEAM action) and 'expire' is only ever the live timer, realised as a 300ms sleep with no message in between; a second expiry inside the window is unobservable (nil stays nil); (2) real time: a non-expire phase that stalls >100ms may expire the cache on the BEAM where the script did not, so a ttl mismatch after such a measured stall is retried up to 3 times (counted and printed as timing retries; 0 in all runs so far); (3) scheduling: no phase delivers to two processes, and a waiting lock client gets at most one deferred tick (a second would race its re-acquire against the next holder's release at the server); (4) dead cache: put 0 is terminal because send(Cache, ...) by registered name raises on the BEAM while the model drops sends to a dead pid; (5) run-p steps are implicit on the BEAM, so every phase is a shape with one outcome under any scheduling and the twin waits for the phase's causal end (get_state behind the message, a receive trace, a DOWN).",
+  "updated_at": "2026-09-10T20:25:00.056396-04:00"
+}

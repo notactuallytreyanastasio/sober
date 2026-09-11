@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "8a5235a6-8f21-4331-856f-b83ef730005c",
+  "created_at": "2026-09-10T19:35:55.673906-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Write WatchdogLive.lean part 1: generic timer/list plumbing, Good, dog_run_cases, dog_signal_cases, restart_eventually (supervisor recipe)",
+  "updated_at": "2026-09-10T19:35:55.673906-04:00"
+}

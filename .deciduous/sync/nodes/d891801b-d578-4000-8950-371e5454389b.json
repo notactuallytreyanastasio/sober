@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "d891801b-d578-4000-8950-371e5454389b",
+  "created_at": "2026-09-10T20:20:50.889097-04:00",
+  "description": "All errors were local plumbing; no statement changed.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Draft-resume lessons: (1) dot-notation on an ascribed anonymous constructor (⟨r, hc⟩ : Pending w a).mboxOf fails because the inferred type is the unfolded Exists; call Pending.mboxOf (w := w) (s := a) ⟨r, hc⟩. (2) After subst of p = w, simp sets need Ne.symm hw0 to discharge the 'if 0 = p' from stateOf_set (the hypothesis is p ≠ 0). (3) obtain ⟨h1, h2⟩ := armed_deliver hp rfl rfl leaves the implicit target system as a metavariable that rfl unifies wrongly; pass (b := ...) or use exact against the goal. (4) Witness lemmas must be stated on ρ.st (t+k), not on the underlying sequence deadSt/liveSt, for rw to find the pattern; both are rfl-provable. (5) Inside namespace Leanactors / Examples.Task, Msg.compute through the export alias resolved to an unknown constant; fully qualified Leanactors.Gen.Task.Msg.compute works. (6) An elaboration error inside liveRun's definition made every later rfl about liveRun.st fail with a '?m = ?m' type mismatch; the rfl reduction itself (5 runSys steps) is fine.",
+  "updated_at": "2026-09-10T20:20:50.889097-04:00"
+}

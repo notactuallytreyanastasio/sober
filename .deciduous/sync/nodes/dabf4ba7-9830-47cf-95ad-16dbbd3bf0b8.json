@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "dabf4ba7-9830-47cf-95ad-16dbbd3bf0b8",
+  "created_at": "2026-09-10T19:28:27.175488-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 40
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Drive the BEAM from the text script, treating each run line as a sync point",
+  "updated_at": "2026-09-10T19:28:27.175488-04:00"
+}

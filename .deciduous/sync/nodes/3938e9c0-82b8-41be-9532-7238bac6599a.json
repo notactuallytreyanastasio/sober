@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "3938e9c0-82b8-41be-9532-7238bac6599a",
+  "created_at": "2026-09-10T19:27:30.167139-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Assume WeakFair (.timer 0) and WeakFair (.run 0); two rank_leads_to_of_step stages (timer index, then mailbox index) with Q = 'cache no longer .cache v g'; first-leaving-time lemma + run 0 classification gives the 3-way outcome; Good = Inv ∧ links=[] ∧ signals=[] ∧ downs=[] ∧ after_run g in flight",
+  "updated_at": "2026-09-10T19:27:30.167139-04:00"
+}

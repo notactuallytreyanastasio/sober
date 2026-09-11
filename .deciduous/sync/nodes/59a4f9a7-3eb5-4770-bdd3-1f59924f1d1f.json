@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "59a4f9a7-3eb5-4770-bdd3-1f59924f1d1f",
+  "created_at": "2026-09-10T20:17:26.881745-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Leanactors/Replay.lean + lakefile [[lean_exe]] replay: line script on stdin (example, deliver/run/signal/down/timer, end), bank via run, ttl via runSys, disabled choice = error exit 2, canonical observables",
+  "updated_at": "2026-09-10T20:17:26.881745-04:00"
+}

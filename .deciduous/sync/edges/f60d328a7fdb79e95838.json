@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T20:21:45.137431-04:00",
+  "edge_id": "f60d328a7fdb79e95838",
+  "edge_type": "leads_to",
+  "from_change_id": "4a5b37f3-88be-4d6b-b442-b986a6eedbc9",
+  "rationale": "not chosen, but exposed via the forall-i corollary",
+  "to_change_id": "c689b97e-0989-4435-88ed-4b4359054137",
+  "weight": 1.0
+}

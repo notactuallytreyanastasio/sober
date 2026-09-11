@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "a0bd8a0c-fe6d-4010-a74e-da3a0a80b940",
+  "created_at": "2026-09-10T19:28:37.243870-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Add lean_exe replay (Leanactors/Replay.lean): line script on stdin -> canonical observables for bank (run) and ttl (runSys)",
+  "updated_at": "2026-09-10T19:28:37.243870-04:00"
+}

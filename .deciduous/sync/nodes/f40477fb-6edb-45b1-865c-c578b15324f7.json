@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "f40477fb-6edb-45b1-865c-c578b15324f7",
+  "created_at": "2026-09-10T19:34:45.227615-04:00",
+  "description": "Where: elixir/fuzz.exs header, phase put0. The comparison was constrained, not the generator's comparison logic.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Registered-name divergence: after the cache dies the model drops sends to pid 0 (Config.deliver on a dead pid) but send(Cache, m) by name raises ArgumentError on the BEAM and would kill the reader on its next ask. Generator constraint: put 0 is always the last phase. Registration is static in the model (constant pid).",
+  "updated_at": "2026-09-10T19:34:45.227615-04:00"
+}

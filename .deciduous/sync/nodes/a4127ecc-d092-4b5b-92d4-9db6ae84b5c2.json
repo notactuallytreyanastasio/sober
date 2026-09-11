@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "a4127ecc-d092-4b5b-92d4-9db6ae84b5c2",
+  "created_at": "2026-09-10T20:16:34.115447-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90,
+    "prompt": "Prove job_eventually_settles for the task system along fair runs from any Good start; unconditional when the pending worker is dead, conditional on environment fairness when it is alive; non-vacuity witnesses; wire into Leanactors.lean"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "wf5/task-live: task liveness in Examples/TaskLive.lean (dead-worker unconditional + live-worker conditional via SysRunE)",
+  "updated_at": "2026-09-10T20:16:34.115447-04:00"
+}

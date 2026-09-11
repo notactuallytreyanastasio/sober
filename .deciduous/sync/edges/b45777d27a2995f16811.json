@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T19:29:50.993528-04:00",
+  "edge_id": "b45777d27a2995f16811",
+  "edge_type": "leads_to",
+  "from_change_id": "e386539e-00a9-4845-b0b6-f149b724a401",
+  "rationale": "rejected: the spec names the reply shapes",
+  "to_change_id": "167ade36-1d21-414c-a52f-10594140d31f",
+  "weight": 1.0
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "cfdbe027-9ba5-4d4e-9e3c-056064a6ae46",
+  "created_at": "2026-09-10T19:34:45.187334-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "fuzz.exs: 200 scripts (100 bank, 100 ttl, 916 phases, 57 expiries, 19 crashes) agree in 18.8s; two BEAM-side mutants (withdraw guard n<b, cache keeps its value on expiry) each caught on the first affected script",
+  "updated_at": "2026-09-10T19:34:45.187334-04:00"
+}

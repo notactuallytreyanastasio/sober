@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e0703427-7561-4b71-aec7-a5459cd8ca07",
+  "created_at": "2026-09-10T19:24:19.977325-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 70
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Dead-worker theorem only, over closed SysRun (two rank stages on downs and mailbox 0)",
+  "updated_at": "2026-09-10T19:24:19.977325-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5469f098-106d-4e8b-b6d8-e61d5aed98f9",
+  "created_at": "2026-09-10T21:00:14.828958-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 92
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Round 5 integrated on main: merges 965e8b6 (maps), 014a571 (diff-fuzz), 4db82fc (task-live), 9085544 (watchdog-live), b8aff9f (ttl-live), then eed0178 (hoist of the shared generic lemmas), b740c27 (README), 8386270 (NOTES). ./check.sh green on main: seven Gen files up to date, 37/37 fixtures, all proofs check with no sorry and no warnings, seven BEAM drivers OK, fuzz 200/200 (67 bank/67 ttl/66 lock, 1045 phases, 0 timing retries, 13.3s). Nothing skipped: all three liveness builders proved their headline theorems with witnesses. Worktrees removed, wf5/* branches deleted. Counts: 13,130 hand-written lines / 29 files / 724 theorems, 356 generated lines / 7 files",
+  "updated_at": "2026-09-10T21:00:14.828958-04:00"
+}

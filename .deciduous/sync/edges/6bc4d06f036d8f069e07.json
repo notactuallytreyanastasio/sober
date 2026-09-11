@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T19:35:50.787745-04:00",
+  "edge_id": "6bc4d06f036d8f069e07",
+  "edge_type": "leads_to",
+  "from_change_id": "8da2ac28-d77d-446e-b5be-2b114b9cc082",
+  "rationale": "approach to timer fairness",
+  "to_change_id": "fc21ba97-c939-4f92-9fa4-6b0414729d16",
+  "weight": 1.0
+}

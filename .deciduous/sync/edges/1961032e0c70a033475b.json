@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T20:20:20.432660-04:00",
+  "edge_id": "1961032e0c70a033475b",
+  "edge_type": "leads_to",
+  "from_change_id": "a44b1957-228f-4dd8-9ad2-61a2de1873a2",
+  "rationale": "rejected: no DecidableEq structure for rfl and explorers",
+  "to_change_id": "882ff002-0e56-4214-996c-7a23800bb27a",
+  "weight": 1.0
+}

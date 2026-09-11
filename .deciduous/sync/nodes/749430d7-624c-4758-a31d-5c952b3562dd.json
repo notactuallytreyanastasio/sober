@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "749430d7-624c-4758-a31d-5c952b3562dd",
+  "created_at": "2026-09-10T19:24:20.012701-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Open SysRunE in Fair.lean (generic env relation, mirrors CRun) and prove all four stages over it; closed SysRun theorem via an embedding SysRun.toE",
+  "updated_at": "2026-09-10T19:24:20.012701-04:00"
+}

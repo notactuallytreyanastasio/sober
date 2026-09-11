@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T19:34:49.827209-04:00",
+  "edge_id": "e056de18ba4c0680f9e7",
+  "edge_type": "leads_to",
+  "from_change_id": "cfdbe027-9ba5-4d4e-9e3c-056064a6ae46",
+  "rationale": "found while wiring check.sh",
+  "to_change_id": "a443a9ac-ddf6-46a7-a82a-05d115daa162",
+  "weight": 1.0
+}

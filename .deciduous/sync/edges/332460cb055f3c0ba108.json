@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T20:46:36.861121-04:00",
+  "edge_id": "332460cb055f3c0ba108",
+  "edge_type": "leads_to",
+  "from_change_id": "7b2a7025-c4bd-44d2-b271-303747133bad",
+  "rationale": "both files import into Leanactors.lean; same names in namespace Leanactors clash at import",
+  "to_change_id": "9cb6c393-528b-4569-abc6-9e8ff9587ee8",
+  "weight": 1.0
+}

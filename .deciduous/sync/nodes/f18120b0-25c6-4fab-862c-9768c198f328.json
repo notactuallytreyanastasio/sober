@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "f18120b0-25c6-4fab-862c-9768c198f328",
+  "created_at": "2026-09-10T19:29:51.089225-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 75
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Extend to_lean.exs: map types, Map.* expressions, map patterns, tagged unions, fn predicates for Map.filter/reject; fixtures maps.ex, map_patterns.ex, error_map_fresh.ex",
+  "updated_at": "2026-09-10T19:29:51.089225-04:00"
+}

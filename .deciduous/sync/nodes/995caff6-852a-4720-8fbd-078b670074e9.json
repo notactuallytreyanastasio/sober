@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "995caff6-852a-4720-8fbd-078b670074e9",
+  "created_at": "2026-09-10T20:47:41.392962-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "All five branches merged --no-ff (965e8b6 maps, 014a571 diff-fuzz, 4db82fc task-live, 9085544 watchdog-live, b8aff9f ttl-live). Textual conflicts: check.sh (registry driver line vs fuzz stage: kept both, registry then fuzz) and Leanactors.lean (Registry imports vs TtlLive import: kept all). Fair.lean merged cleanly (only task-live touched it). Not yet built: WatchdogLive and TtlLive both declare Leanactors.List.mem_eraseIdx_of_ne, List.findIdx_eraseIdx_le, Sys.timers_applyEffect_append, timers_foldl_applyEffect_append, runE_timers_append, signalE_timers, downE_timers; importing both into Leanactors.lean would clash",
+  "updated_at": "2026-09-10T20:47:41.392962-04:00"
+}

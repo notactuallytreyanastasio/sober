@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "cf786a51-23ba-40b0-96fe-5bca63757719",
+  "created_at": "2026-09-10T20:17:36.448491-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Fix the compile errors in the resumed draft (by_contra without Mathlib, dog_run_cases anonymous-constructor arities, shadowed w in Armed/ChildLt.step, Good.init simp, .kill elaboration)",
+  "updated_at": "2026-09-10T20:17:36.448491-04:00"
+}

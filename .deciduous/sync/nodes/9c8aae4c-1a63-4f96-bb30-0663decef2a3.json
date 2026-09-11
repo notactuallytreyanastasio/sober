@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "9c8aae4c-1a63-4f96-bb30-0663decef2a3",
+  "created_at": "2026-09-10T20:27:29.410884-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Witnesses: hung_worker_reachable (run 0, env hang 1, run 1, run 1, run 0), SysRun.exists_of_inv (build a run from a phase invariant via Classical.choose), Cyc phase invariant (timer 0, run 0, signal, signal, run 0 with next = k+1), fair run from the hung system for signal, run 0, every timer i and run 1",
+  "updated_at": "2026-09-10T20:27:29.410884-04:00"
+}

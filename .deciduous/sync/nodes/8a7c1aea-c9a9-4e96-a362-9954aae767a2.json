@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "8a7c1aea-c9a9-4e96-a362-9954aae767a2",
+  "created_at": "2026-09-10T19:27:25.258205-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Timer fairness as WeakFair (.timer 0): rank = index of (0, after_run g) in timers; the oldest timer firing delivers ours or drops the index",
+  "updated_at": "2026-09-10T19:27:25.258205-04:00"
+}

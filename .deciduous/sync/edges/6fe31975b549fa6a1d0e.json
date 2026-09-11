@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T20:16:18.721621-04:00",
+  "edge_id": "6fe31975b549fa6a1d0e",
+  "edge_type": "leads_to",
+  "from_change_id": "2b5ab315-b9f6-4868-9fe5-7ce3b2de7f48",
+  "rationale": "round 5 Lean piece: watchdog liveness",
+  "to_change_id": "85799a9b-09d0-43fa-98d6-5e636dbc4cfc",
+  "weight": 1.0
+}

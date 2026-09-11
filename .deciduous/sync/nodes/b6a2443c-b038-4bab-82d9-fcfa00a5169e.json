@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b6a2443c-b038-4bab-82d9-fcfa00a5169e",
+  "created_at": "2026-09-10T20:16:53.663029-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "option",
+  "status": "pending",
+  "title": "Resume the cut-off draft: Fair.lean SysRunE addition builds; TaskLive.lean (1063 lines, 4 LeadsTo stages) has 16 elaboration errors to fix",
+  "updated_at": "2026-09-10T20:16:53.663029-04:00"
+}
