@@ -12,6 +12,7 @@ elixir elixir/to_lean.exs elixir/src/task.ex Leanactors.Gen.Task --pid Caller=ca
 elixir elixir/to_lean.exs elixir/src/watchdog.ex Leanactors.Gen.Watchdog --pid Watchdog=watchdog > /tmp/Gen.Watchdog.lean
 elixir elixir/to_lean.exs elixir/src/ttl.ex Leanactors.Gen.Ttl > /tmp/Gen.Ttl.lean
 elixir elixir/to_lean.exs elixir/src/registry.ex Leanactors.Gen.Registry > /tmp/Gen.Registry.lean
+elixir elixir/to_lean.exs elixir/src/feed.ex Leanactors.Gen.Feed > /tmp/Gen.Feed.lean
 diff -q /tmp/Gen.Lock.lean Leanactors/Gen/Lock.lean
 diff -q /tmp/Gen.Bank.lean Leanactors/Gen/Bank.lean
 diff -q /tmp/Gen.Supervisor.lean Leanactors/Gen/Supervisor.lean
@@ -19,6 +20,7 @@ diff -q /tmp/Gen.Task.lean Leanactors/Gen/Task.lean
 diff -q /tmp/Gen.Watchdog.lean Leanactors/Gen/Watchdog.lean
 diff -q /tmp/Gen.Ttl.lean Leanactors/Gen/Ttl.lean
 diff -q /tmp/Gen.Registry.lean Leanactors/Gen/Registry.lean
+diff -q /tmp/Gen.Feed.lean Leanactors/Gen/Feed.lean
 echo "   generated files are up to date"
 
 echo "== translator fixtures"
@@ -37,6 +39,7 @@ elixir elixir/task.exs | tail -1
 elixir elixir/watchdog.exs | tail -1
 elixir elixir/ttl.exs | tail -1
 elixir elixir/registry.exs | tail -1
+elixir elixir/feed.exs | tail -1
 
 echo "== differential fuzz (Lean replay vs BEAM)"
 # lake build above also built .lake/build/bin/replay (a default target).

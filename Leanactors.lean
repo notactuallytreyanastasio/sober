@@ -32,3 +32,5 @@ import Leanactors.Examples.TtlProof
 import Leanactors.Examples.TtlLive
 import Leanactors.Gen.Registry
 import Leanactors.Examples.Registry
+import Leanactors.Gen.Feed
+import Leanactors.Examples.Feed
