@@ -37,7 +37,9 @@ echo "== readiness self-check"
 # every module of elixir/src must still report as translatable (the same
 # allowlist walk elixir/readiness.exs runs over real projects for docs/readiness.md);
 # --strict exits 1 if any candidate module is not translatable.
-elixir elixir/readiness.exs --strict elixir/src > /tmp/readiness.src.txt
+# (pubsub.ex is the local Phoenix.PubSub twin the drivers send through, not
+# a module the model translates: PubSub is an effect of Sys, not an actor.)
+elixir elixir/readiness.exs --strict --exclude elixir/src/pubsub.ex elixir/src > /tmp/readiness.src.txt
 grep "candidate modules" /tmp/readiness.src.txt | sed 's/^/   /'
 
 echo "== prove"
