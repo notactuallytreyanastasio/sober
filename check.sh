@@ -24,6 +24,13 @@ echo "   generated files are up to date"
 echo "== translator fixtures"
 elixir elixir/test/run_fixtures.exs | grep -v "^PASS "
 
+echo "== readiness self-check"
+# every module of elixir/src must still report as translatable (the same
+# allowlist walk elixir/readiness.exs runs over real projects for docs/readiness.md);
+# --strict exits 1 if any candidate module is not translatable.
+elixir elixir/readiness.exs --strict elixir/src > /tmp/readiness.src.txt
+grep "candidate modules" /tmp/readiness.src.txt | sed 's/^/   /'
+
 echo "== prove"
 lake build 2>&1 | grep -E "^(error|warning)" && exit 1 || true
 grep -rl sorry Leanactors && { echo "sorry found"; exit 1; } || true
