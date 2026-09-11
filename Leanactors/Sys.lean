@@ -30,6 +30,14 @@ Spawn, links and exits, as a layer over `Config`.
   `kill` is untrappable). `Effect.exit r` is a self-exit: the actor dies
   with `r`, and its links and monitors see `r.propagated` (`kill` becomes
   `error`, the BEAM's `:killed`).
+* PubSub (`Phoenix.PubSub`) is a broadcast effect over a subscription list
+  `subs : List (topic × Pid)`: `subscribe p t` appends `(t, p)`,
+  `unsubscribe p t` drops every `(t, p)`, and `broadcast t m` is one
+  `deliverAll` of `m` to every subscriber of `t` in subscription order
+  (a dead subscriber's copy is dropped by `deliver`). `terminate p` drops
+  `p`'s subscriptions. The subscriber pid is explicit (`me` in a handler,
+  the child's `fresh` pid at a spawn site whose `init/1` subscribes) the
+  way `sendAfter` names its target. Topics are `String`s.
 * `lift` embeds a message-only `Behavior`; `runE_lift` shows the old `step`
   is exactly the new one on systems with no links and no signals, so every
   earlier theorem still applies.
@@ -65,6 +73,12 @@ inductive Effect (σ μ : Type)
   | sendAfter (to : Pid) (m : μ)
   | signal (q : Pid) (r : Reason)
   | exit (r : Reason)
+  /-- `Phoenix.PubSub.subscribe(_, topic)` by `p`. -/
+  | subscribe (p : Pid) (topic : String)
+  /-- `Phoenix.PubSub.unsubscribe(_, topic)` by `p`. -/
+  | unsubscribe (p : Pid) (topic : String)
+  /-- `Phoenix.PubSub.broadcast(_, topic, m)`: `m` to every subscriber of `topic`. -/
+  | broadcast (topic : String) (m : μ)
   deriving Repr
 
 /-- `self → fresh → state → message → (state', effects)`. -/
@@ -90,6 +104,8 @@ structure Sys (σ μ : Type) where
   downs : List (Pid × Pid × Reason) := []
   /-- Pending timers `(target, message)`; any may fire at any time. -/
   timers : List (Pid × μ) := []
+  /-- PubSub subscriptions `(topic, subscriber)`, oldest first. -/
+  subs : List (String × Pid) := []
 
 namespace Config
 
@@ -164,11 +180,48 @@ theorem mem_unlink {links : List (Pid × Pid)} {a b p : Pid} (h : (a, b) ∈ lin
   rw [List.mem_filter]
   exact ⟨h, by simp [ha, hb]⟩
 
+/-- The subscribers of `topic`, in subscription order. -/
+def subscribers (subs : List (String × Pid)) (topic : String) : List Pid :=
+  subs.filterMap fun tp => if tp.1 = topic then some tp.2 else none
+
+/-- Drop every subscription of `p` (a death). -/
+def unsubscribeAll (subs : List (String × Pid)) (p : Pid) : List (String × Pid) :=
+  subs.filter fun tp => tp.2 != p
+
+/-- Drop `p`'s subscriptions to `topic`. -/
+def unsubscribe (subs : List (String × Pid)) (p : Pid) (topic : String) : List (String × Pid) :=
+  subs.filter fun tp => tp.1 != topic || tp.2 != p
+
+theorem mem_subscribers_iff {subs : List (String × Pid)} {topic : String} {q : Pid} :
+    q ∈ subscribers subs topic ↔ (topic, q) ∈ subs := by
+  unfold subscribers
+  rw [List.mem_filterMap]
+  constructor
+  · rintro ⟨⟨t, q'⟩, h, he⟩
+    by_cases ht : t = topic
+    · subst ht; simp at he; subst he; exact h
+    · simp [ht] at he
+  · intro h; exact ⟨(topic, q), h, by simp⟩
+
+theorem mem_unsubscribeAll_iff {subs : List (String × Pid)} {p : Pid} {x : String × Pid} :
+    x ∈ unsubscribeAll subs p ↔ x ∈ subs ∧ x.2 ≠ p := by
+  unfold unsubscribeAll
+  rw [List.mem_filter]
+  simp
+
+theorem mem_unsubscribe_iff {subs : List (String × Pid)} {p : Pid} {topic : String}
+    {x : String × Pid} :
+    x ∈ unsubscribe subs p topic ↔ x ∈ subs ∧ ¬ (x.1 = topic ∧ x.2 = p) := by
+  unfold unsubscribe
+  rw [List.mem_filter]
+  simp [Decidable.imp_iff_not_or]
+
 namespace Sys
 
 variable {σ μ : Type}
 
-/-- Terminate `p`: remove it, drop its links, queue a signal to each linked actor. -/
+/-- Terminate `p`: remove it, drop its links and subscriptions, queue a
+signal to each linked actor and a DOWN to each watcher. -/
 def terminate (s : Sys σ μ) (p : Pid) (r : Reason) : Sys σ μ :=
   { cfg := s.cfg.remove p
     next := s.next
@@ -176,7 +229,8 @@ def terminate (s : Sys σ μ) (p : Pid) (r : Reason) : Sys σ μ :=
     signals := s.signals ++ (linkedTo s.links p).map fun q => (q, p, r)
     monitors := unmonitor s.monitors p
     downs := s.downs ++ (watchers s.monitors p).map fun w => (w, p, r)
-    timers := s.timers }
+    timers := s.timers
+    subs := unsubscribeAll s.subs p }
 
 /-- One effect on behalf of `p`; the `Option Reason` records a pending self-exit. -/
 def applyEffect (p : Pid) : Sys σ μ × Option Reason → Effect σ μ → Sys σ μ × Option Reason
@@ -198,6 +252,10 @@ def applyEffect (p : Pid) : Sys σ μ × Option Reason → Effect σ μ → Sys 
   | (s, d), .sendAfter to m => ({ s with timers := s.timers ++ [(to, m)] }, d)
   | (s, d), .signal q r => ({ s with signals := s.signals ++ [(q, p, r)] }, d)
   | (s, _), .exit r => (s, some r)
+  | (s, d), .subscribe q t => ({ s with subs := s.subs ++ [(t, q)] }, d)
+  | (s, d), .unsubscribe q t => ({ s with subs := unsubscribe s.subs q t }, d)
+  | (s, d), .broadcast t m =>
+      ({ s with cfg := s.cfg.deliverAll ((subscribers s.subs t).map fun q => (q, m)) }, d)
 
 def applyEffects (p : Pid) (s : Sys σ μ) (effs : List (Effect σ μ)) : Sys σ μ × Option Reason :=
   effs.foldl (applyEffect p) (s, none)
@@ -341,7 +399,8 @@ theorem Sys.applyEffects_sends {σ μ : Type} (p : Pid) (s : Sys σ μ) (l : Lis
 
 /-- On a system with no links and no signals, the old `step` is the new `runE`. -/
 theorem runE_lift {σ μ : Type} (beh : Behavior σ μ) (c : Config σ μ) (n : Pid) (p : Pid) :
-    Sys.runE (lift beh) ⟨c, n, [], [], [], [], []⟩ p = (step beh c p).map fun c' => ⟨c', n, [], [], [], [], []⟩ := by
+    Sys.runE (lift beh) ⟨c, n, [], [], [], [], [], []⟩ p =
+      (step beh c p).map fun c' => ⟨c', n, [], [], [], [], [], []⟩ := by
   unfold Sys.runE step
   cases hg : c.get p with
   | none => rfl

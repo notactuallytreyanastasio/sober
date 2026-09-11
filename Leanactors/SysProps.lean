@@ -252,6 +252,13 @@ theorem grows_deliver (s : Sys σ μ) (q : Pid) (m : μ) :
    fun _ _ _ => by rw [mcount_deliver]; omega,
    fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h⟩
 
+/-- Only the `cfg` changed, by a batch of deliveries (a `broadcast`). -/
+theorem grows_deliverAll (s : Sys σ μ) (l : List (Pid × μ)) :
+    Grows s { s with cfg := s.cfg.deliverAll l } :=
+  ⟨Nat.le_refl _, fun _ _ => stateOf_deliverAll _ _ _, fun _ h => by rw [isSome_deliverAll]; exact h,
+   fun _ _ _ => by rw [mcount_deliverAll]; omega,
+   fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h⟩
+
 /-- Overwriting `p`'s actor record. -/
 theorem frame_set (s : Sys σ μ) (p : Pid) (a : Actor σ μ) :
     Frame p s { s with cfg := s.cfg.set p a } :=
@@ -304,6 +311,10 @@ theorem applyEffect_grows (p : Pid) (s : Sys σ μ) (d : Option Reason) (e : Eff
     exact ⟨Nat.le_refl _, fun _ _ => rfl, fun _ h => h, fun _ _ _ => Nat.le_refl _,
       fun _ h => h, fun _ h => h, fun _ h => List.mem_append_left _ h, fun _ h => h, fun _ h => h⟩
   | exit r => exact Grows.refl s
+  | subscribe q t | unsubscribe q t =>
+    exact ⟨Nat.le_refl _, fun _ _ => rfl, fun _ h => h, fun _ _ _ => Nat.le_refl _,
+      fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h, fun _ h => h⟩
+  | broadcast t m => exact grows_deliverAll s _
 
 theorem foldl_applyEffect_grows (p : Pid) (effs : List (Effect σ μ)) (s : Sys σ μ)
     (d : Option Reason) : Grows s (effs.foldl (applyEffect p) (s, d)).1 := by
@@ -542,6 +553,7 @@ theorem applyEffect_stateOf (p : Pid) (s : Sys σ μ) (d : Option Reason) (e : E
     · exact Or.inl (by simp [applyEffect, stateOf_set, hq])
   | link q' => simp only [applyEffect]; split <;> exact Or.inl rfl
   | monitor q' => simp only [applyEffect]; split <;> exact Or.inl rfl
+  | broadcast t m' => exact Or.inl (stateOf_deliverAll _ _ _)
   | _ => exact Or.inl rfl
 
 theorem foldl_applyEffect_stateOf (p : Pid) (effs : List (Effect σ μ)) (s : Sys σ μ)
@@ -1154,6 +1166,13 @@ theorem fresh_deliver {s : Sys σ μ} (hf : s.Fresh) (q : Pid) (m : μ) :
   rw [isSome_deliver]
   exact hf q' hq
 
+theorem fresh_deliverAll {s : Sys σ μ} (hf : s.Fresh) (l : List (Pid × μ)) :
+    Fresh { s with cfg := s.cfg.deliverAll l } := by
+  intro q' hq
+  simp only
+  rw [isSome_deliverAll]
+  exact hf q' hq
+
 theorem fresh_set {s : Sys σ μ} (hf : s.Fresh) {p : Pid} (hp : p < s.next) (a : Actor σ μ) :
     Fresh { s with cfg := s.cfg.set p a } := by
   intro q hq
@@ -1193,6 +1212,9 @@ theorem fresh_applyEffect {s : Sys σ μ} (hf : s.Fresh) (p : Pid) (d : Option R
   | sendAfter to m => exact hf
   | signal q r => exact hf
   | exit r => exact hf
+  | subscribe q t => exact hf
+  | unsubscribe q t => exact hf
+  | broadcast t m => exact fresh_deliverAll hf _
 
 theorem fresh_foldl_applyEffect (p : Pid) (effs : List (Effect σ μ)) {s : Sys σ μ} (hf : s.Fresh)
     (d : Option Reason) : Fresh (effs.foldl (applyEffect p) (s, d)).1 := by
@@ -1262,7 +1284,7 @@ theorem SysReach.fresh {beh : EBehavior σ μ} {sig : Signals σ μ} {s s' : Sys
 /-- `ofList` with every pid below `n` is fresh at `n`. -/
 theorem Sys.fresh_ofList (xs : List (Pid × σ)) (n : Pid) (hxs : ∀ x ∈ xs, x.1 < n)
     (links : List (Pid × Pid)) (signals : List (Pid × Pid × Reason)) :
-    Fresh (⟨Config.ofList xs, n, links, signals, [], [], []⟩ : Sys σ μ) := by
+    Fresh (⟨Config.ofList xs, n, links, signals, [], [], [], []⟩ : Sys σ μ) := by
   intro q hq
   have hq' : n ≤ q := hq
   simp only [Config.get, Config.ofList, Option.isSome_map]
@@ -1433,5 +1455,305 @@ theorem downE_timers {sig : Signals σ μ} {s s' : Sys σ μ} (h : downE sig s =
   rcases hc with ⟨_, _, _, rfl⟩ | rfl <;> rfl
 
 end Sys
+
+/-! ## Subscriptions (PubSub)
+
+`subs` is not part of `Grows`/`Frame`: an `unsubscribe` shrinks it. The
+facts below are exact: a death drops the dead pid's subscriptions
+(`terminate_subs`), an effect leaves `subs` alone, appends one
+`(topic, subscriber)` pair (`subscribe`) or filters (`unsubscribe`)
+(`applyEffect_subs_cases`), so without an `unsubscribe` `subs` only grows
+(`applyEffects_mem_subs`) and every subscription is an old one or a
+`subscribe` of the step (`applyEffects_mem_subs_cases`); a `broadcast` is
+one `deliverAll` to the topic's subscribers (`applyEffect_broadcast`,
+`broadcast_stateOf`, `broadcast_mcount`); signal, DOWN and timer steps
+touch `subs` only through a death (`signalE_subs`, `downE_subs`,
+`timerE_subs`). `SysStep.mem_subs` and `SysStep.mem_subs_cases` are the
+step-level forms the example proofs use. -/
+
+/-- Everything but `subscribe` and `unsubscribe`. -/
+def Effect.keepsSubs : Effect σ μ → Bool
+  | .subscribe _ _ | .unsubscribe _ _ => false
+  | _ => true
+
+/-- `count` of a pair in a list of pairs with a fixed second component. -/
+theorem List.count_map_pair {α β : Type} [DecidableEq α] [DecidableEq β] (l : List α) (m m' : β)
+    (q : α) :
+    (l.map fun x => (x, m)).count (q, m') = if m' = m then l.count q else 0 := by
+  induction l with
+  | nil => simp
+  | cons x rest ih =>
+    simp only [List.map_cons, List.count_cons, ih]
+    by_cases hm : m' = m <;> by_cases hx : x = q <;> simp [hm, hx, Ne.symm]
+
+namespace Sys
+
+section terminate_subs
+
+variable (s : Sys σ μ) (p : Pid) (r : Reason)
+
+@[simp] theorem terminate_subs : (s.terminate p r).subs = unsubscribeAll s.subs p := rfl
+
+theorem terminate_mem_subs_iff (x : String × Pid) :
+    x ∈ (s.terminate p r).subs ↔ x ∈ s.subs ∧ x.2 ≠ p :=
+  mem_unsubscribeAll_iff
+
+theorem terminate_mem_subs {x : String × Pid} (h : x ∈ s.subs) (hx : x.2 ≠ p) :
+    x ∈ (s.terminate p r).subs :=
+  mem_unsubscribeAll_iff.mpr ⟨h, hx⟩
+
+end terminate_subs
+
+/-- One effect leaves `subs` alone, appends one pair, or filters one pid's
+subscriptions to one topic. -/
+theorem applyEffect_subs_cases (p : Pid) (s : Sys σ μ) (d : Option Reason) (e : Effect σ μ) :
+    (applyEffect p (s, d) e).1.subs = s.subs ∨
+    (∃ q t, e = .subscribe q t ∧ (applyEffect p (s, d) e).1.subs = s.subs ++ [(t, q)]) ∨
+    (∃ q t, e = .unsubscribe q t ∧ (applyEffect p (s, d) e).1.subs = unsubscribe s.subs q t) := by
+  cases e with
+  | link q => simp only [applyEffect]; split <;> exact Or.inl rfl
+  | monitor q => simp only [applyEffect]; split <;> exact Or.inl rfl
+  | subscribe q t => exact Or.inr (Or.inl ⟨q, t, rfl, rfl⟩)
+  | unsubscribe q t => exact Or.inr (Or.inr ⟨q, t, rfl, rfl⟩)
+  | _ => exact Or.inl rfl
+
+theorem applyEffect_subs_of_keepsSubs (p : Pid) (s : Sys σ μ) (d : Option Reason)
+    {e : Effect σ μ} (he : e.keepsSubs = true) : (applyEffect p (s, d) e).1.subs = s.subs := by
+  rcases applyEffect_subs_cases p s d e with h | ⟨q, t, rfl, _⟩ | ⟨q, t, rfl, _⟩
+  · exact h
+  · cases he
+  · cases he
+
+theorem foldl_applyEffect_subs_of_keepsSubs (p : Pid) {effs : List (Effect σ μ)}
+    (h : ∀ e ∈ effs, e.keepsSubs = true) (s : Sys σ μ) (d : Option Reason) :
+    (effs.foldl (applyEffect p) (s, d)).1.subs = s.subs := by
+  induction effs generalizing s d with
+  | nil => rfl
+  | cons e rest ih =>
+    rw [List.foldl_cons]
+    have he := applyEffect_subs_of_keepsSubs p s d (h e List.mem_cons_self)
+    revert he
+    generalize applyEffect p (s, d) e = x
+    obtain ⟨s1, d1⟩ := x
+    intro he
+    exact (ih (fun e' he' => h e' (List.mem_cons_of_mem _ he')) s1 d1).trans he
+
+/-- A behaviour that never subscribes or unsubscribes leaves `subs` alone. -/
+theorem applyEffects_subs_of_keepsSubs (p : Pid) (s : Sys σ μ) {effs : List (Effect σ μ)}
+    (h : ∀ e ∈ effs, e.keepsSubs = true) : (applyEffects p s effs).1.subs = s.subs :=
+  foldl_applyEffect_subs_of_keepsSubs p h s none
+
+/-- Without an `unsubscribe`, one effect keeps every subscription. -/
+theorem applyEffect_mem_subs (p : Pid) (s : Sys σ μ) (d : Option Reason) {e : Effect σ μ}
+    (he : ∀ q t, e ≠ .unsubscribe q t) {x : String × Pid} (hx : x ∈ s.subs) :
+    x ∈ (applyEffect p (s, d) e).1.subs := by
+  rcases applyEffect_subs_cases p s d e with h | ⟨q, t, _, h⟩ | ⟨q, t, rfl, _⟩
+  · rw [h]; exact hx
+  · rw [h]; exact List.mem_append_left _ hx
+  · exact absurd rfl (he q t)
+
+theorem foldl_applyEffect_mem_subs (p : Pid) {effs : List (Effect σ μ)}
+    (h : ∀ q t, Effect.unsubscribe q t ∉ effs) (s : Sys σ μ) (d : Option Reason)
+    {x : String × Pid} (hx : x ∈ s.subs) : x ∈ (effs.foldl (applyEffect p) (s, d)).1.subs := by
+  induction effs generalizing s d with
+  | nil => exact hx
+  | cons e rest ih =>
+    rw [List.foldl_cons]
+    have he : ∀ q t, e ≠ .unsubscribe q t := fun q t hqt => h q t (hqt ▸ List.mem_cons_self)
+    have h1 := applyEffect_mem_subs p s d he hx
+    revert h1
+    generalize applyEffect p (s, d) e = y
+    obtain ⟨s1, d1⟩ := y
+    intro h1
+    exact ih (fun q t hqt => h q t (List.mem_cons_of_mem _ hqt)) s1 d1 h1
+
+/-- `subs` only grows under an effect list with no `unsubscribe`. -/
+theorem applyEffects_mem_subs (p : Pid) (s : Sys σ μ) {effs : List (Effect σ μ)}
+    (h : ∀ q t, Effect.unsubscribe q t ∉ effs) {x : String × Pid} (hx : x ∈ s.subs) :
+    x ∈ (applyEffects p s effs).1.subs :=
+  foldl_applyEffect_mem_subs p h s none hx
+
+/-- A subscription after one effect is an old one or that `subscribe`. -/
+theorem applyEffect_mem_subs_cases (p : Pid) (s : Sys σ μ) (d : Option Reason) (e : Effect σ μ)
+    {x : String × Pid} (hx : x ∈ (applyEffect p (s, d) e).1.subs) :
+    x ∈ s.subs ∨ e = .subscribe x.2 x.1 := by
+  rcases applyEffect_subs_cases p s d e with h | ⟨q, t, rfl, h⟩ | ⟨q, t, _, h⟩
+  · exact Or.inl (h ▸ hx)
+  · rw [h] at hx
+    rcases List.mem_append.mp hx with h' | h'
+    · exact Or.inl h'
+    · simp at h'; subst h'; exact Or.inr rfl
+  · rw [h] at hx; exact Or.inl (mem_unsubscribe_iff.mp hx).1
+
+theorem foldl_applyEffect_mem_subs_cases (p : Pid) (effs : List (Effect σ μ)) (s : Sys σ μ)
+    (d : Option Reason) {x : String × Pid} (hx : x ∈ (effs.foldl (applyEffect p) (s, d)).1.subs) :
+    x ∈ s.subs ∨ Effect.subscribe x.2 x.1 ∈ effs := by
+  induction effs generalizing s d with
+  | nil => exact Or.inl hx
+  | cons e rest ih =>
+    rw [List.foldl_cons] at hx
+    have hstep := @applyEffect_mem_subs_cases σ μ p s d e
+    revert hx hstep
+    generalize applyEffect p (s, d) e = y
+    obtain ⟨s1, d1⟩ := y
+    intro hx hstep
+    rcases ih s1 d1 hx with h1 | h1
+    · rcases hstep h1 with h2 | h2
+      · exact Or.inl h2
+      · exact Or.inr (h2 ▸ List.mem_cons_self)
+    · exact Or.inr (List.mem_cons_of_mem _ h1)
+
+/-- Every subscription after a step's effects is an old one or a `subscribe`
+of the step. -/
+theorem applyEffects_mem_subs_cases (p : Pid) (s : Sys σ μ) (effs : List (Effect σ μ))
+    {x : String × Pid} (hx : x ∈ (applyEffects p s effs).1.subs) :
+    x ∈ s.subs ∨ Effect.subscribe x.2 x.1 ∈ effs :=
+  foldl_applyEffect_mem_subs_cases p effs s none hx
+
+/-! ### `broadcast` is one `deliverAll` -/
+
+@[simp] theorem applyEffect_broadcast (p : Pid) (s : Sys σ μ) (d : Option Reason) (t : String)
+    (m : μ) :
+    applyEffect p (s, d) (.broadcast t m) =
+      ({ s with cfg := s.cfg.deliverAll ((subscribers s.subs t).map fun q => (q, m)) }, d) := rfl
+
+theorem broadcast_stateOf (p : Pid) (s : Sys σ μ) (d : Option Reason) (t : String) (m : μ)
+    (q : Pid) : (applyEffect p (s, d) (.broadcast t m)).1.cfg.stateOf q = s.cfg.stateOf q :=
+  stateOf_deliverAll _ _ _
+
+/-- A live subscriber of the topic gets one copy of `m` per subscription;
+nobody else's counts move. -/
+theorem broadcast_mcount [DecidableEq μ] (p : Pid) (s : Sys σ μ) (d : Option Reason) (t : String)
+    (m : μ) (q : Pid) (m' : μ) :
+    (applyEffect p (s, d) (.broadcast t m)).1.cfg.mcount q m' =
+      s.cfg.mcount q m' +
+        if (s.cfg.get q).isSome ∧ m' = m then (subscribers s.subs t).count q else 0 := by
+  rw [applyEffect_broadcast, mcount_deliverAll, List.count_map_pair]
+  by_cases hq : (s.cfg.get q).isSome <;> by_cases hm : m' = m <;> simp [hq, hm]
+
+/-! ### Steps -/
+
+/-- A `runE` by `p` keeps every subscription whose owner is still alive
+afterwards, provided the popped message emits no `unsubscribe`. -/
+theorem runE_mem_subs {beh : EBehavior σ μ} {s s' : Sys σ μ} {p : Pid} (h : runE beh s p = some s')
+    (hu : ∀ st m rest, s.cfg.get p = some ⟨st, m :: rest⟩ →
+      ∀ q t, Effect.unsubscribe q t ∉ (beh p s.next st m).2)
+    {x : String × Pid} (hx : x ∈ s.subs) (halive : (s'.cfg.get x.2).isSome) : x ∈ s'.subs := by
+  obtain ⟨st, m, rest, hget, hs'⟩ := runE_cases h
+  simp only at hs'
+  have h1 : x ∈ (applyEffects p { s with cfg := s.cfg.set p ⟨(beh p s.next st m).1, rest⟩ }
+      (beh p s.next st m).2).1.subs :=
+    applyEffects_mem_subs p _ (hu st m rest hget) hx
+  rcases hs' with ⟨_, rfl⟩ | ⟨reason, _, rfl⟩
+  · exact h1
+  · refine terminate_mem_subs _ p _ h1 ?_
+    intro hxp
+    rw [terminate_isSome, if_pos hxp] at halive
+    cases halive
+
+/-- A subscription after a `runE` is an old one or a `subscribe` of the popped message. -/
+theorem runE_mem_subs_cases {beh : EBehavior σ μ} {s s' : Sys σ μ} {p : Pid}
+    (h : runE beh s p = some s') {x : String × Pid} (hx : x ∈ s'.subs) :
+    x ∈ s.subs ∨ ∃ st m rest, s.cfg.get p = some ⟨st, m :: rest⟩ ∧
+      Effect.subscribe x.2 x.1 ∈ (beh p s.next st m).2 := by
+  obtain ⟨st, m, rest, hget, hs'⟩ := runE_cases h
+  simp only at hs'
+  have key : x ∈ (applyEffects p { s with cfg := s.cfg.set p ⟨(beh p s.next st m).1, rest⟩ }
+      (beh p s.next st m).2).1.subs → x ∈ s.subs ∨ ∃ st m rest,
+        s.cfg.get p = some ⟨st, m :: rest⟩ ∧ Effect.subscribe x.2 x.1 ∈ (beh p s.next st m).2 := by
+    intro hx'
+    rcases applyEffects_mem_subs_cases p _ _ hx' with h1 | h1
+    · exact Or.inl h1
+    · exact Or.inr ⟨st, m, rest, hget, h1⟩
+  rcases hs' with ⟨_, rfl⟩ | ⟨reason, _, rfl⟩
+  · exact key hx
+  · exact key ((terminate_mem_subs_iff _ _ _ _).mp hx).1
+
+/-- A `runE` whose popped message neither subscribes nor unsubscribes
+changes `subs` only by the runner's own death. -/
+theorem runE_subs_of_keepsSubs {beh : EBehavior σ μ} {s s' : Sys σ μ} {p : Pid}
+    (h : runE beh s p = some s')
+    (hk : ∀ st m rest, s.cfg.get p = some ⟨st, m :: rest⟩ →
+      ∀ e ∈ (beh p s.next st m).2, e.keepsSubs = true) :
+    s'.subs = s.subs ∨ s'.subs = unsubscribeAll s.subs p := by
+  obtain ⟨st, m, rest, hget, hs'⟩ := runE_cases h
+  simp only at hs'
+  have h1 := applyEffects_subs_of_keepsSubs p
+    { s with cfg := s.cfg.set p ⟨(beh p s.next st m).1, rest⟩ } (hk st m rest hget)
+  rcases hs' with ⟨_, rfl⟩ | ⟨reason, _, rfl⟩
+  · exact Or.inl h1
+  · exact Or.inr (by rw [terminate_subs, h1])
+
+/-- A signal step touches `subs` only by killing its target. -/
+theorem signalE_subs {sig : Signals σ μ} {s s' : Sys σ μ} (h : signalE sig s = some s') :
+    s'.subs = s.subs ∨ ∃ q, s'.subs = unsubscribeAll s.subs q := by
+  obtain ⟨q, src, r, rest, _, hc⟩ := signalE_cases h
+  rcases hc with ⟨_, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩
+  · exact Or.inl rfl
+  · exact Or.inl rfl
+  · exact Or.inl rfl
+  · exact Or.inr ⟨q, rfl⟩
+  · exact Or.inr ⟨q, rfl⟩
+
+/-- A signal step keeps every subscription whose owner survives it. -/
+theorem signalE_mem_subs {sig : Signals σ μ} {s s' : Sys σ μ} (h : signalE sig s = some s')
+    {x : String × Pid} (hx : x ∈ s.subs) (halive : (s'.cfg.get x.2).isSome) : x ∈ s'.subs := by
+  obtain ⟨q, src, r, rest, _, hc⟩ := signalE_cases h
+  rcases hc with ⟨_, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩ | ⟨_, _, _, rfl⟩
+  · exact hx
+  · exact hx
+  · exact hx
+  · refine terminate_mem_subs _ q _ hx ?_
+    intro hxq
+    rw [terminate_isSome, if_pos hxq] at halive
+    cases halive
+  · refine terminate_mem_subs _ q _ hx ?_
+    intro hxq
+    rw [terminate_isSome, if_pos hxq] at halive
+    cases halive
+
+theorem downE_subs {sig : Signals σ μ} {s s' : Sys σ μ} (h : downE sig s = some s') :
+    s'.subs = s.subs := by
+  obtain ⟨_, _, _, _, _, hc⟩ := downE_cases h
+  rcases hc with ⟨_, _, _, rfl⟩ | rfl <;> rfl
+
+theorem timerE_subs {s s' : Sys σ μ} {i : Nat} (h : timerE s i = some s') : s'.subs = s.subs := by
+  obtain ⟨to, m, _, rfl⟩ := timerE_cases h
+  rfl
+
+end Sys
+
+open Sys in
+/-- **Subscriptions survive a step** whose owner survives it, as long as no
+popped message emits an `unsubscribe`. -/
+theorem SysStep.mem_subs {beh : EBehavior σ μ} {sig : Signals σ μ} {s s' : Sys σ μ}
+    (h : SysStep beh sig s s')
+    (hb : ∀ q st m rest, s.cfg.get q = some ⟨st, m :: rest⟩ →
+      ∀ q' t, Effect.unsubscribe q' t ∉ (beh q s.next st m).2)
+    {x : String × Pid} (hx : x ∈ s.subs) (halive : (s'.cfg.get x.2).isSome) : x ∈ s'.subs := by
+  cases h with
+  | run p _ hrun => exact runE_mem_subs hrun (hb p) hx halive
+  | signal _ hsig => exact signalE_mem_subs hsig hx halive
+  | down _ hdown => rw [downE_subs hdown]; exact hx
+  | timer i _ htimer => rw [timerE_subs htimer]; exact hx
+
+open Sys in
+/-- **Where subscriptions come from**: an old one, or a `subscribe` effect of
+the actor that ran. -/
+theorem SysStep.mem_subs_cases {beh : EBehavior σ μ} {sig : Signals σ μ} {s s' : Sys σ μ}
+    (h : SysStep beh sig s s') {x : String × Pid} (hx : x ∈ s'.subs) :
+    x ∈ s.subs ∨ ∃ p st m rest, s.cfg.get p = some ⟨st, m :: rest⟩ ∧
+      Effect.subscribe x.2 x.1 ∈ (beh p s.next st m).2 := by
+  cases h with
+  | run p _ hrun =>
+    rcases runE_mem_subs_cases hrun hx with h | ⟨st, m, rest, hget, hm⟩
+    · exact Or.inl h
+    · exact Or.inr ⟨p, st, m, rest, hget, hm⟩
+  | signal _ hsig =>
+    rcases signalE_subs hsig with h | ⟨q, h⟩
+    · exact Or.inl (h ▸ hx)
+    · rw [h] at hx; exact Or.inl (mem_unsubscribeAll_iff.mp hx).1
+  | down _ hdown => exact Or.inl ((downE_subs hdown) ▸ hx)
+  | timer i _ htimer => exact Or.inl ((timerE_subs htimer) ▸ hx)
 
 end Leanactors

@@ -106,6 +106,9 @@ theorem mboxOf_applyEffect_append (p : Pid) (s : Sys σ μ) (d : Option Reason) 
   | sendAfter to m => exact ⟨[], by simp [applyEffect]⟩
   | signal q' r => exact ⟨[], by simp [applyEffect]⟩
   | exit r => exact ⟨[], by simp [applyEffect]⟩
+  | subscribe q' t => exact ⟨[], by simp [applyEffect]⟩
+  | unsubscribe q' t => exact ⟨[], by simp [applyEffect]⟩
+  | broadcast t m => exact mboxOf_deliverAll s.cfg _ q
 
 theorem mboxOf_foldl_applyEffect_append (p : Pid) (effs : List (Effect σ μ)) (s : Sys σ μ)
     (d : Option Reason) {q : Pid} (hq : q < s.next) :
