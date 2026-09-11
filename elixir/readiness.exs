@@ -71,11 +71,24 @@
 # several findings (`Logger.info("x: #{y}")` is a call, a string and an
 # interpolation): the counts are of constructs, not of lines to fix.
 #
+# The "Landed" section. `--markdown` also renders one table that is not a
+# measurement of the real projects at all: what has actually been landed out
+# of them, read from elixir/real/MANIFEST.json (the origin of every file under
+# elixir/real/, written by elixir/land_real.exs) and from the Lean files
+# themselves -- whether each landed module has a hand-written model proved
+# equal to the generated one, a bounded check, and a proof. It is in this
+# report so that the README's claims about landed modules are generated rather
+# than written by hand and left to rot.
+#
 # The walker does not type anything: a construct the translator rejects for
 # a type reason only (an atom at a non-enum position, a variable reused at
 # another type) is not reported here, and a form reported here may in rare
 # cases be accepted (a helper the translator never reaches because it is in
 # an ignored def). Kinds are meant to be read by frequency, not as a proof.
+
+# the manifest of landed real modules, shared with elixir/land_real.exs and
+# elixir/real_provenance.exs (it defines a module and runs nothing)
+Code.require_file("real_manifest.exs", __DIR__)
 
 defmodule Readiness do
   @root Path.expand("..", __DIR__)
@@ -2273,6 +2286,66 @@ defmodule Readiness do
   defp kind_name(:genserver), do: "GenServer"
   defp kind_name(:loop), do: "receive loop"
 
+  # What has actually been landed: every file under elixir/real/, where it came
+  # from, and what exists in Lean for it. Read off elixir/real/MANIFEST.json and
+  # the Lean files, never from prose -- this table is the README's source for
+  # its claims about landed modules.
+  defp landed_section do
+    entries =
+      try do
+        RealManifest.entries(RealManifest.read(@root))
+      rescue
+        _ -> :unreadable
+      end
+
+    body =
+      case entries do
+        :unreadable ->
+          ["`elixir/real/MANIFEST.json` could not be read (reading it needs OTP 27 or later)."]
+
+        [] ->
+          ["No real module has been landed yet (`elixir/real/` is empty)."]
+
+        list ->
+          [
+            "| Module | Origin | Lines | Generated | Hand model | Bounded check | Proof |",
+            "|---|---|---:|---|---|---|---|",
+            for e <- list do
+              st = RealManifest.status(@root, e)
+              origin = "#{e["project"]} `#{e["origin_rel"]}`"
+
+              "| `#{e["module"]}` | #{origin} | #{e["lines"]} | `#{st.gen}` | " <>
+                yn(st.beh_eq_gen) <> " | " <> yn(st.checker) <> " | " <>
+                (if st.proof, do: "`#{st.proof}`", else: "--") <> " |"
+            end
+          ]
+      end
+
+    [
+      "## Landed",
+      "",
+      "The files under `elixir/real/` are modules copied VERBATIM out of the projects measured above and",
+      "translated as they stand, with no annotations and no edits. `elixir/real/MANIFEST.json` records where",
+      "each one came from and its md5 at that moment; `elixir/real_provenance.exs`, which `check.sh` runs",
+      "before it translates anything, fails if a copy is no longer byte-identical to its origin. This table is",
+      "generated from that manifest and from the Lean files themselves, so every column is read off the tree.",
+      "",
+      body,
+      "",
+      "*Hand model*: `Leanactors/Examples/<Name>.lean` defines a hand-written `beh` and proves",
+      "`theorem beh_eq_gen` against the generated one, so the readable model and the translation are the same",
+      "behaviour. *Bounded check*: that file runs the explorer of `Leanactors/Explore.lean` over it (`#eval`).",
+      "*Proof*: a `Leanactors/Examples/<Name>Proof.lean` states the property for every reachable configuration.",
+      "`elixir elixir/land_real.exs <path to the module>` does the mechanical part of adding a row -- the copy,",
+      "the translation, the `check.sh` lines, an example skeleton and the manifest entry; the property is the",
+      "part it cannot do.",
+      ""
+    ]
+  end
+
+  defp yn(true), do: "yes"
+  defp yn(false), do: "--"
+
   defp markdown(projects) do
     mods = for pr <- projects, f <- pr.files, m <- f.modules, do: m
     yes = Enum.count(mods, &translatable?/1)
@@ -2322,6 +2395,7 @@ defmodule Readiness do
           (skipped |> Enum.frequencies_by(&elem(&1, 1)) |> Enum.sort_by(fn {_, n} -> -n end) |> Enum.map_join(", ", fn {w, n} -> "#{n} #{w}" end)) <> ".",
         ""
       ]),
+      landed_section(),
       "## Blocking constructs by family",
       "",
       "The same blockers grouped into the feature each one would need: every call into one module is one family,",

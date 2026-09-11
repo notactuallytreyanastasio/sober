@@ -10,6 +10,15 @@ export PATH="$HOME/.elan/bin:$PATH"
 OUT=$(mktemp -d)
 trap 'rm -rf "$OUT"' EXIT
 
+echo "== real provenance"
+# Every file under elixir/real/ is a copy of a module from a real project.
+# This checks each one is still byte-identical to the origin recorded in
+# elixir/real/MANIFEST.json (written by elixir/land_real.exs), so "we translate
+# real, unmodified code" is a checked claim and not a sentence in the README.
+# An origin that is not on this machine is reported and skipped, like the
+# readiness gate's project paths; an EDITED COPY always fails.
+elixir elixir/real_provenance.exs --quiet
+
 echo "== translate"
 elixir elixir/to_lean.exs elixir/src/lock.ex Leanactors.Gen.Lock --pid Lock=server > $OUT/Gen.Lock.lean
 elixir elixir/to_lean.exs elixir/src/bank.ex Leanactors.Gen.Bank --pid Bank=bank > $OUT/Gen.Bank.lean
@@ -37,7 +46,16 @@ diff -q $OUT/Gen.TableRegistry.lean Leanactors/Gen/TableRegistry.lean
 echo "   generated files are up to date"
 
 echo "== translator fixtures"
-elixir elixir/test/run_fixtures.exs | grep -v "^PASS "
+# `cmd | grep -v` would hide a failure: the pipeline reports grep's status, and
+# grep succeeds precisely when there are FAIL lines to print. So the output is
+# captured, a non-zero exit is fatal, and only then are the PASS lines dropped.
+elixir elixir/test/run_fixtures.exs > $OUT/fixtures.txt || { cat $OUT/fixtures.txt; exit 1; }
+grep -v "^PASS " $OUT/fixtures.txt
+# and the self-test of the landing tooling: it runs elixir/land_real.exs and
+# elixir/real_provenance.exs against a scratch repository under $TMPDIR and
+# removes it again, touching nothing here.
+elixir elixir/test/land_real_test.exs > $OUT/land_real.txt || { cat $OUT/land_real.txt; exit 1; }
+grep -v "^PASS " $OUT/land_real.txt
 
 echo "== readiness self-check"
 # every module of elixir/src must still report as translatable (the same
