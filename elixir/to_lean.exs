@@ -184,6 +184,72 @@
 #   delivery to every subscriber in subscription order and a death drops its
 #   subscriptions.
 #
+#   Local bindings: a statement `v = e` inside a callback body binds `v`
+#   to the rendered expression (nothing is emitted); the rest of the body
+#   uses it. `Map.pop(m, k)` is only supported as a `case` scrutinee:
+#   `case Map.pop(m, k) do {nil, rest} -> ..; {v, rest} -> .. end` becomes
+#   `match AssocList.get? m k with | none => .. | some v => ..` with `rest`
+#   bound to `m` in the first arm and to `AssocList.erase m k` in the
+#   second. (On the BEAM a stored `nil` would take the first arm too; the
+#   model's values are never nil.)
+#
+# Untyped mode. A module that declares none of @type msg/cast/info/call
+#   has its message unions inferred from its own source, and a file with no
+#   @type reply and a module with no @type state likewise (`infer_types/1`
+#   builds exactly the declarations the typed path above consumes, so every
+#   decision downstream is still type-directed):
+#     * messages: each handle_cast/handle_info/handle_call clause pattern
+#       contributes its tag at the arity it is matched with, and the
+#       callback fixes the kind (cast/info/call); messages the module sends
+#       with a literal tag (`send/2`, `GenServer.cast/2`,
+#       `Process.send_after/3`) that nobody handles or declares join its
+#       @type msg. A tag matched at two arities is an error: declare it.
+#     * reply: when every `{:reply, r, _}`, `{:reply, r, _, _}`,
+#       `{:stop, _, r, _}` and `GenServer.reply(_, r)` in the file is a
+#       literal atom or tagged tuple, the alternatives become the tagged
+#       union `Reply` as a declared @type reply would; otherwise the reply
+#       type is `term()`. A tag that appears at two arities (`:ok` and
+#       `{:ok, ref}`) names its tuple form with the arity appended (`ok`
+#       and `ok1`).
+#     * state: the literal of `init/1`. `%{k: e, ..}` (atom keys) is a
+#       record type (see below), `%{}` a map, an integer `integer()`, a
+#       boolean `boolean()`, `nil` `term() | nil`, a list `[term()]`, a
+#       tuple positional; anything else `term()`.
+#   Every inferred field type is `term()`, which renders as the opaque
+#   `Term` of Leanactors/Term.lean (a structure over Nat with DecidableEq
+#   and Repr, imported when it occurs); `any()` and `reference()` render
+#   the same way. A @type declaration, where one is present, refines those
+#   fields exactly as before, so the annotated sources translate byte for
+#   byte. An atom literal at a `Term` position is an error: give the field
+#   a @type so it becomes an enum.
+#
+# Record-shaped state. A state type `%{k: T, ..}` with atom keys becomes
+#   one St constructor with NAMED fields, one per key, in declaration
+#   order. In a clause, a whole-state variable `s` binds every field the
+#   body reads (`s.f` is the field, `%{s | f: e}` rebuilds the constructor
+#   with that field replaced, a bare `s` is the whole constructor); a field
+#   the body never reads is `_`. A map pattern `%{f: p, ..}`, optionally
+#   `= s`, binds the named fields to their sub-patterns and the rest as the
+#   whole variable would. A record state literal must give every field.
+#
+# External resources. `:ets.new(..)` on the right of a binding is a fresh
+#   opaque reference: the module's state gets a hidden trailing counter
+#   field `(ets : Nat)` (like the after-timer generation), the k-th table a
+#   body creates is `Term.mk (ets + k)`, and the continuing state advances
+#   the counter. `:ets.f(..)` as a statement, and a `try .. rescue .. end`
+#   whose body is only such calls, are dropped before translation: what
+#   happens inside ETS is not modelled, so properties proved about such a
+#   module are properties of the map of references it keeps, not of ETS. A
+#   `try` with any other body, or with an `after`/`else`/`catch` block, is
+#   an error. A blocking call in a module that creates tables is not
+#   supported.
+#
+# Public API. `def`s that are not callbacks (init, handle_*, start,
+#   start_link, terminate, child_spec, or the receive loop) are not
+#   translated: they are the module's own API wrappers around
+#   GenServer.call/cast, and `raise` inside one is not a callback body. The
+#   generated file names them in a comment under its header.
+#
 # Registered names: `send(Mod, m)`, `GenServer.cast(Mod, m)` and
 #   `GenServer.call(Mod, m)` need a constant pid for Mod. With `--pid`
 #   flags the map is exactly those flags. Without any, it is derived from
@@ -242,7 +308,8 @@ defmodule ToLean do
               extra: [], awaits: %{}, reply_type: nil, traps: %{}, pid_vars: [],
               covered: [], inits: %{}, mods: [], kinds: %{}, loops: %{}, defers: [], afters: %{},
               pubsub: [[:Phoenix, :PubSub], [:PubSub]], attrs: %{}, init_subs: %{},
-              structs: %{}, struct_states: %{}, struct_order: []
+              structs: %{}, struct_states: %{}, struct_order: [],
+              records: %{}, ets: [], ignored: []
   end
 
   # ---------- entry ----------
@@ -266,7 +333,9 @@ defmodule ToLean do
       end)
 
     {:ok, ast} = src |> File.read!() |> Code.string_to_quoted(columns: false)
-    mods = for {:defmodule, _, [{:__aliases__, _, [name]}, [do: body]]} <- top(ast), do: {name, subst_attrs(stmts(body))}
+    # a module `Loom.Teams.TableRegistry` is known by its last segment
+    mods = for {:defmodule, _, [{:__aliases__, _, segs}, [do: body]]} <- top(ast),
+               do: {List.last(segs), strip_resource_noops(List.last(segs), subst_attrs(stmts(body)))}
     # registered names: the --pid flags if any are given, else derived from
     # the source (name: __MODULE__ in start_link/start, Process.register/2)
     pids = if map_size(pids) == 0, do: register_names(mods), else: pids
@@ -280,7 +349,14 @@ defmodule ToLean do
     # a module with a defstruct and no callbacks or receive loop only
     # declares a struct: it has no state and no clauses
     mods = Enum.reject(mods, fn {name, body} -> struct_only?(ctx, name, body) end)
+    # untyped mode: message unions, the reply and the state a module does
+    # not declare are inferred from its clauses, replies, sends and init/1;
+    # a declaration always wins over an inferred one
+    ctx = %{ctx | types: Map.merge(infer_types(ctx, mods), ctx.types)}
     ctx = Enum.reduce(mods, ctx, fn {name, body}, c -> collect_types(c, name, body) end)
+    # modules that create ETS tables carry a hidden counter field `ets`
+    ctx = %{ctx | ets: for({name, body} <- mods, ets_new?(body), do: name),
+                  ignored: for({name, body} <- mods, f <- ignored_defs(body), do: "#{name}.#{f}")}
     # the tagged unions and structs by Lean name, for the expression and
     # pattern renderers (which do not carry the context)
     Process.put(:to_lean_unions, tagged_unions(ctx))
@@ -288,6 +364,8 @@ defmodule ToLean do
     Process.put(:to_lean_struct_states, ctx.struct_states)
     # the first alternative of every enum, the only default value `hd/1` has
     Process.put(:to_lean_firsts, first_ctors(ctx))
+    # the record-shaped modules, for `spat_bare?`/`spat_general?`
+    Process.put(:to_lean_records, ctx.records)
     clauses = for {name, body} <- mods, cl <- ordered(clauses(name, body)), do: cl
     traps = for {name, body} <- mods, traps?(body), into: %{}, do: {name, true}
     inits0 = for {name, body} <- mods, init = init_of(ctx, name, body), init != nil, do: {name, init}
@@ -400,9 +478,10 @@ defmodule ToLean do
   # Registered names derived from the source (used when no --pid flag is
   # given): `GenServer.start_link/start(_, _, name: N)` and
   # `Process.register(_, N)` anywhere in a module, where N is __MODULE__
-  # (that module), an alias or an atom. The Lean constant is N lowercased.
+  # (that module), an alias or an atom. The Lean constant is N underscored
+  # (`Cache` -> `cache`, `TableRegistry` -> `table_registry`).
   defp register_names(mods) do
-    for {mod, body} <- mods, name <- registered_in(mod, body), into: %{}, do: {name, String.downcase(name)}
+    for {mod, body} <- mods, name <- registered_in(mod, body), into: %{}, do: {name, Macro.underscore(name)}
   end
 
   defp registered_in(mod, body) do
@@ -419,7 +498,7 @@ defmodule ToLean do
   end
 
   defp reg_name(mod, {:__MODULE__, _, _}), do: Atom.to_string(mod)
-  defp reg_name(_mod, {:__aliases__, _, [m]}), do: Atom.to_string(m)
+  defp reg_name(_mod, {:__aliases__, _, segs}), do: Atom.to_string(List.last(segs))
   defp reg_name(_mod, a) when is_atom(a) and a not in [nil, true, false], do: Atom.to_string(a)
   defp reg_name(mod, x), do: fail("#{mod}: unsupported registered name #{Macro.to_string(x)}")
 
@@ -431,6 +510,175 @@ defmodule ToLean do
 
   # the model-only message a receive loop with `after` sends itself
   defp after_tag(fname), do: :"after_#{fname}"
+
+  # ---------- untyped mode: inferred declarations ----------
+
+  # The @type declarations a module lacks, inferred from its source and keyed
+  # like the declared ones, so everything downstream is type-directed as
+  # before. A module with none of @type msg/cast/info/call gets its message
+  # unions from the patterns of its handle_cast/handle_info/handle_call
+  # clauses (or receive arms): each tag with the arity of its pattern and the
+  # kind of the callback, every field `term()` (an opaque `Term`); messages
+  # it sends (`send/2`, `GenServer.cast/2`, `Process.send_after/3`) with a
+  # literal tag join its msg union. A file with no @type reply gets one
+  # inferred from every `{:reply, r, ..}`, `{:stop, _, r, _}` and
+  # `GenServer.reply(_, r)`: a tagged union of the literal atoms and tagged
+  # tuples (fields `term()`) when every reply is one, `term()` otherwise. A
+  # module with no @type state gets the state of its `init/1` literal: a
+  # map with atom keys is a record `%{k: T, ..}`, `%{}` a map `%{term() =>
+  # term()}`, integers `integer()`, booleans `boolean()`, `nil` `term() |
+  # nil`, lists `[term()]`, tuples positionally, anything else `term()`.
+  defp infer_types(ctx, mods) do
+    declared = fn _mod, body, name ->
+      Enum.any?(body, fn
+        {:@, _, [{:type, _, [{:"::", _, [{^name, _, _}, _]}]}]} -> true
+        _ -> false
+      end)
+    end
+    known_tags =
+      for {mod, body} <- mods, name <- [:msg, :cast, :info, :call], declared.(mod, body, name),
+          {:@, _, [{:type, _, [{:"::", _, [{^name, _, _}, t]}]}]} <- body, alt <- union(t), do: tag_of(alt)
+    msgs =
+      for {mod, body} <- mods, not Enum.any?([:msg, :cast, :info, :call], &declared.(mod, body, &1)),
+          {name, alts} <- inferred_msgs(mod, body, known_tags), alts != [],
+          into: %{}, do: {{mod, name}, union_ast(alts)}
+    replies =
+      if Enum.any?(mods, fn {mod, body} -> declared.(mod, body, :reply) end) do
+        %{}
+      else
+        rs = for {_, body} <- mods, r <- replies_of(body), do: r
+        with_calls = for {mod, body} <- mods, replies_of(body) != [], do: mod
+        cond do
+          rs == [] -> %{}
+          Enum.all?(rs, &reply_literal?/1) ->
+            alts = rs |> Enum.map(&reply_alt/1) |> Enum.uniq_by(&{tag_of(&1), tuple_arity(&1)})
+            for mod <- with_calls, into: %{}, do: {{mod, :reply}, union_ast(alts)}
+          true ->
+            for mod <- with_calls, into: %{}, do: {{mod, :reply}, {:term, [], []}}
+        end
+      end
+    states =
+      for {mod, body} <- mods, not declared.(mod, body, :state), init = init_of(ctx, mod, body), init != nil,
+          into: %{}, do: {{mod, :state}, infer_type(elem(init, 1))}
+    Map.merge(msgs, replies) |> Map.merge(states)
+  end
+
+  # {kind name, alternatives} for an undeclared module: the clause patterns
+  # by callback, then the sent messages whose tag nobody declares or handles
+  defp inferred_msgs(mod, body, known_tags) do
+    cls = clauses(mod, body)
+    by_kind =
+      for cl <- cls, not bare?(cl.mpat), cl[:after] == nil, {tag, args} = msg_shape(cl.mpat), reduce: %{} do
+        acc ->
+          name = if(loop_of(body) != nil, do: :msg, else: %{handle_cast: :cast, handle_info: :info, handle_call: :call}[cl.kind])
+          case Enum.find(Map.get(acc, name, []), &(tag_of(&1) == tag)) do
+            nil -> Map.update(acc, name, [msg_alt(tag, length(args))], &(&1 ++ [msg_alt(tag, length(args))]))
+            alt ->
+              tuple_arity(alt) == length(args) ||
+                fail("#{mod}: message tag #{tag} is matched with #{tuple_arity(alt)} and #{length(args)} arguments; declare its shape with a @type")
+              acc
+          end
+      end
+    handled = for {_, alts} <- by_kind, alt <- alts, do: tag_of(alt)
+    sent =
+      for m <- sent_msgs(body), tag_of(m) != nil, tag_of(m) not in handled, tag_of(m) not in known_tags,
+          uniq: true, do: msg_alt(tag_of(m), tuple_arity(m))
+    Map.to_list(Map.update(by_kind, :msg, sent, &(&1 ++ sent)))
+  end
+
+  defp msg_alt(tag, 0), do: tag
+  defp msg_alt(tag, n), do: {:{}, [], [tag | List.duplicate({:term, [], []}, n)]}
+
+  defp union_ast([a]), do: a
+  defp union_ast([a | rest]), do: {:|, [], [a, union_ast(rest)]}
+
+  defp tuple_arity(a) when is_atom(a), do: 0
+  defp tuple_arity({_, _}), do: 1
+  defp tuple_arity({:{}, _, [_ | rest]}), do: length(rest)
+
+  # message literals the module sends (a variable message has no tag to infer)
+  defp sent_msgs(body) do
+    {_, ms} = Macro.prewalk({:__block__, [], body}, [], fn
+      {:send, _, [_, m]} = n, acc -> {n, [m | acc]}
+      {{:., _, [{:__aliases__, _, [:GenServer]}, :cast]}, _, [_, m]} = n, acc -> {n, [m | acc]}
+      {{:., _, [{:__aliases__, _, [:Process]}, :send_after]}, _, [_, m, _]} = n, acc -> {n, [m | acc]}
+      n, acc -> {n, acc}
+    end)
+    Enum.reverse(ms) |> Enum.filter(&(is_atom(&1) or tagged_tuple?(&1)))
+  end
+
+  # every reply expression of a module's callbacks, in source order
+  defp replies_of(body) do
+    {_, rs} = Macro.prewalk({:__block__, [], body}, [], fn
+      {:{}, _, [:reply, r, _]} = n, acc -> {n, [r | acc]}
+      {:{}, _, [:reply, r, _, _]} = n, acc -> {n, [r | acc]}
+      {:{}, _, [:stop, _, r, _]} = n, acc -> {n, [r | acc]}
+      {{:., _, [{:__aliases__, _, [:GenServer]}, :reply]}, _, [_, r]} = n, acc -> {n, [r | acc]}
+      n, acc -> {n, acc}
+    end)
+    Enum.reverse(rs)
+  end
+
+  defp reply_literal?(a) when is_atom(a) and a not in [nil, true, false], do: true
+  defp reply_literal?(t), do: tagged_tuple?(t)
+
+  defp reply_alt(a) when is_atom(a), do: a
+  defp reply_alt(t), do: msg_alt(tag_of(t), tuple_arity(t))
+
+  # the type of an init/1 state literal (see infer_types)
+  defp infer_type({:%{}, _, []}), do: {:%{}, [], [{{:term, [], []}, {:term, [], []}}]}
+  defp infer_type({:%{}, _, pairs} = e) do
+    Keyword.keyword?(pairs) || fail("cannot infer a state type from #{Macro.to_string(e)}: give it a @type state")
+    {:%{}, [], for({k, v} <- pairs, do: {k, infer_type(v)})}
+  end
+  defp infer_type(n) when is_integer(n), do: {:integer, [], []}
+  defp infer_type(b) when is_boolean(b), do: {:boolean, [], []}
+  defp infer_type(nil), do: {:|, [], [{:term, [], []}, nil]}
+  defp infer_type(l) when is_list(l), do: [{:term, [], []}]
+  defp infer_type({:{}, _, xs}), do: {:{}, [], Enum.map(xs, &infer_type/1)}
+  defp infer_type({a, b}), do: {:{}, [], [infer_type(a), infer_type(b)]}
+  defp infer_type(_), do: {:term, [], []}
+
+  # ---------- external resources ----------
+
+  # `:ets.f(...)` as a statement, and a `try do .. rescue .. end` whose body
+  # is only such calls, are removed before translation: the model does not
+  # see ETS. `:ets.new(...)` on the right of a binding stays (it yields a
+  # fresh opaque reference, see `sends`). A try/rescue around anything else
+  # is an error: caught exceptions are not modelled.
+  defp strip_resource_noops(mod, body) do
+    Macro.prewalk(body, fn
+      {:__block__, m, stmts} -> {:__block__, m, Enum.reject(stmts, &resource_noop?(mod, &1))}
+      n -> n
+    end)
+  end
+
+  defp resource_noop?(_mod, {{:., _, [:ets, _f]}, _, _}), do: true
+  defp resource_noop?(mod, {:try, _, [opts]} = t) do
+    Enum.each(Keyword.keys(opts), fn k -> k in [:do, :rescue] || fail("#{mod}: try with #{k} is not supported: #{Macro.to_string(t)}") end)
+    Enum.all?(stmts(opts[:do]), &match?({{:., _, [:ets, _]}, _, _}, &1)) ||
+      fail("#{mod}: try/rescue is only supported around external resource calls (:ets.*), which are no-ops in the model; got #{Macro.to_string(t)}")
+    true
+  end
+  defp resource_noop?(_mod, _), do: false
+
+  defp ets_new?(body) do
+    {_, found} = Macro.prewalk({:__block__, [], body}, false, fn
+      {{:., _, [:ets, :new]}, _, _} = n, _ -> {n, true}
+      n, acc -> {n, acc}
+    end)
+    found
+  end
+
+  # public functions that are not callbacks (API wrappers around
+  # GenServer.call/cast, `raise` inside them included) are not translated;
+  # start/start_link are the conventional entry points and go unmentioned
+  @callbacks [:init, :handle_cast, :handle_info, :handle_call, :handle_continue, :start, :start_link, :terminate, :child_spec]
+  defp ignored_defs(body) do
+    loop = case loop_of(body), do: ({f, _, _, _} -> f; nil -> nil)
+    for {:def, _, [head | _]} <- body, {f, args, _} = head_parts(head), f not in @callbacks, f != loop,
+        uniq: true, do: "#{f}/#{length(args || [])}"
+  end
 
   # `init/1` as a pure state expression of its parameter: {param_pattern,
   # expr, pubsub_subscriptions}. Accepted: `def init(p), do: {:ok, e}` or a
@@ -483,7 +731,7 @@ defmodule ToLean do
   # parameter to the parts of a tuple literal, positionally.
   defp child_state(ctx, env, child, arg, cctor, cfields) do
     case Map.get(ctx.inits, child) do
-      nil -> state_expr(env, arg, cctor, cfields)
+      nil -> state_expr(ctx, env, arg, cctor, cfields)
       {param, e} ->
         binds =
           case {param, arg} do
@@ -503,7 +751,7 @@ defmodule ToLean do
           {v, _, nil} = n when is_atom(v) -> Map.get(binds, v, n)
           n -> n
         end)
-        state_expr(env, bound, cctor, cfields)
+        state_expr(ctx, env, bound, cctor, cfields)
     end
   end
 
@@ -683,10 +931,11 @@ defmodule ToLean do
             %{c | reply_type: lt} |> add_msg_ctor(mod, {:reply, rt})
           :error -> c
         end
-      st = Map.fetch!(c.types, {mod, :state})
+      st = Map.get(c.types, {mod, :state}) || fail("#{mod} declares no @type state and has no init/1 to infer it from")
+      # hidden trailing fields: the after-timer generation, the ETS counter
+      hidden = if(after?, do: [{"gen", "Nat"}], else: []) ++ if(ets_new?(body), do: [{"ets", "Nat"}], else: [])
       {fields, c} = state_fields(c, mod, st)
-      fields = fields ++ if(after?, do: [{"gen", "Nat"}], else: [])
-      %{c | st_ctors: c.st_ctors ++ [{ctor_name(mod), fields}]}
+      %{c | st_ctors: c.st_ctors ++ [{ctor_name(mod), fields ++ hidden}]}
     end)
   end
 
@@ -720,11 +969,21 @@ defmodule ToLean do
   end
 
   # A state type becomes one constructor of St with positional fields; a
-  # state that is a struct (the module's own `t()` or `%__MODULE__{}`, or
-  # another module's) is flattened into one field per struct field, in
-  # defstruct order and under the struct's field names.
+  # record type `%{k: T, ..}` (a map with atom keys) gets the keys as named
+  # fields and the module is remembered as record-shaped; a state that is a
+  # struct (the module's own `t()` or `%__MODULE__{}`, or another module's)
+  # is flattened into one field per struct field, in defstruct order and
+  # under the struct's field names.
   defp state_fields(ctx, mod, {:{}, _, ts}), do: {ts |> Enum.with_index() |> Enum.map(fn {t, i} -> {"f#{i}", lean_type(ctx, mod, t)} end), ctx}
   defp state_fields(ctx, mod, {a, b}), do: state_fields(ctx, mod, {:{}, [], [a, b]})
+  defp state_fields(ctx, mod, {:%{}, _, pairs}) when pairs != [] and is_list(pairs) do
+    if Keyword.keyword?(pairs) do
+      fields = for {k, t} <- pairs, do: {lean_ident(Atom.to_string(k)), lean_type(ctx, mod, t)}
+      {fields, %{ctx | records: Map.put(ctx.records, mod, Enum.map(pairs, &elem(&1, 0)))}}
+    else
+      {[{"s", lean_type(ctx, mod, {:%{}, [], pairs})}], ctx}
+    end
+  end
   defp state_fields(ctx, mod, t) do
     lt = lean_type(ctx, mod, t)
     case Map.get(ctx.structs, lt) do
@@ -753,11 +1012,19 @@ defmodule ToLean do
   # `:queue.queue(T)` is a list, oldest first (see the :queue calls in `expr`)
   defp lean_type(ctx, mod, {{:., _, [:queue, :queue]}, _, [t]}), do: "List " <> paren(lean_type(ctx, mod, t))
   defp lean_type(_ctx, _mod, {{:., _, [:queue, :queue]}, _, []} = t), do: fail("#{Macro.to_string(t)} needs an element type: :queue.queue(T)")
+  # an opaque term (Leanactors/Term.lean): what untyped mode gives every
+  # field, and what an ETS reference is
+  defp lean_type(_ctx, _mod, {t, _, []}) when t in [:term, :any, :reference], do: "Term"
   defp lean_type(ctx, mod, a) when is_atom(a) and a not in [nil, true, false], do: enum_name(ctx, mod, [a])
   defp lean_type(ctx, mod, [t]), do: "List " <> paren(lean_type(ctx, mod, t))
   # a map %{K => V} is an association list; see Leanactors/AssocList.lean
-  defp lean_type(ctx, mod, {:%{}, _, [{k, v}]}),
+  defp lean_type(ctx, mod, {:%{}, _, [{k, v}]}) when not is_atom(k),
     do: "List (" <> lean_type(ctx, mod, k) <> " × " <> lean_type(ctx, mod, v) <> ")"
+  defp lean_type(_ctx, _mod, {:%{}, _, pairs} = t) when is_list(pairs) and pairs != [] do
+    if Keyword.keyword?(pairs),
+      do: fail("a record type `%{k: T, ..}` is only supported as the whole @type state: #{Macro.to_string(t)}"),
+      else: fail("a map type needs exactly one `K => V` pair: #{Macro.to_string(t)}")
+  end
   defp lean_type(_ctx, _mod, {:%{}, _, _} = t), do: fail("a map type needs exactly one `K => V` pair: #{Macro.to_string(t)}")
   defp lean_type(ctx, mod, {:|, _, _} = u) do
     alts = union(u)
@@ -835,6 +1102,23 @@ defmodule ToLean do
   defp union_ctors(nil), do: nil
   defp union_ctors(t), do: Map.get(Process.get(:to_lean_unions, %{}), t)
 
+  # The Lean constructor of a tagged union for a tag at an arity:
+  # {name, field types}. A tag that occurs at two arities (an inferred reply
+  # union with both `:ok` and `{:ok, ref}`) names its tuple forms with the
+  # arity appended (`ok`, `ok1`); an atom keeps the bare tag.
+  defp union_ctor(ctors, tag, arity) do
+    case Enum.find(ctors, fn {t, ts} -> t == tag and length(ts) == arity end) do
+      nil -> nil
+      {_, ts} -> {union_ctor_name(ctors, tag, arity), ts}
+    end
+  end
+
+  defp union_ctor_name(ctors, tag, arity) do
+    if arity > 0 and Enum.count(ctors, fn {t, _} -> t == tag end) > 1,
+      do: "#{tag}#{arity}",
+      else: Atom.to_string(tag)
+  end
+
   # `List (K × V)` -> {K, V}, or nil for any other type
   defp map_type(nil), do: nil
   defp map_type("List (" <> rest) do
@@ -880,7 +1164,8 @@ defmodule ToLean do
     exact intro cases induction rfl)
   # Elixir variable -> Lean identifier (avoid Lean keywords)
   defp lean_ident(name), do: if(name in @lean_keywords, do: name <> "_", else: name)
-  defp ctor_name(mod), do: mod |> Atom.to_string() |> String.downcase()
+  # `Cache` -> `cache`, `TableRegistry` -> `table_registry`
+  defp ctor_name(mod), do: mod |> Atom.to_string() |> Macro.underscore()
 
   # ---------- clauses ----------
 
@@ -1245,7 +1530,7 @@ defmodule ToLean do
         {name, Enum.flat_map(ctors, &elem(&1, 1)),
          "inductive #{name}\n" <>
            Enum.map_join(ctors, "\n", fn {tag, ts} ->
-             String.trim_trailing("  | #{tag} " <> (ts |> Enum.with_index() |> Enum.map_join(" ", fn {t, i} -> "(a#{i} : #{t})" end)))
+             String.trim_trailing("  | #{union_ctor_name(ctors, tag, length(ts))} " <> (ts |> Enum.with_index() |> Enum.map_join(" ", fn {t, i} -> "(a#{i} : #{t})" end)))
            end) <> "\n  deriving Repr, DecidableEq\n"}
       end
     # structs, in source order, when some message, state field, union or
@@ -1278,6 +1563,8 @@ defmodule ToLean do
     # a map anywhere in the types needs the association-list helpers
     all_types = base_types ++ Enum.flat_map(used_structs, fn n -> Enum.map(ctx.structs[n], &elem(&1, 1)) end)
     maps_import = if Enum.any?(all_types, &String.contains?(&1, " × ")), do: "import Leanactors.AssocList\n", else: ""
+    # an opaque field needs Leanactors/Term.lean
+    term_import = if Enum.any?(all_types, &(&1 =~ ~r/\bTerm\b/)), do: "import Leanactors.Term\n", else: ""
 
     msg =
       "inductive Msg\n" <>
@@ -1332,10 +1619,16 @@ defmodule ToLean do
         Enum.join(beh_clauses ++ ctx.extra, "\n") <> catch_all
 
 
+    # public functions that are not callbacks: noted, not translated
+    ignored_note =
+      if ctx.ignored == [],
+        do: "",
+        else: "-- Not translated (public API, not a callback): " <> Enum.join(ctx.ignored, ", ") <> "\n"
+
     """
     -- GENERATED by elixir/to_lean.exs. Do not edit.
-    import Leanactors.Sys
-    #{maps_import}
+    #{ignored_note}import Leanactors.Sys
+    #{maps_import}#{term_import}
     namespace #{ctx.ns}
 
     open Leanactors
@@ -1367,6 +1660,7 @@ defmodule ToLean do
   defp default_of(_ctx, "Reason"), do: "r"
   defp default_of(_ctx, t) when t in ["Nat", "Int"], do: "0"
   defp default_of(_ctx, "Bool"), do: "false"
+  defp default_of(_ctx, "Term"), do: "(Term.mk 0)"
   defp default_of(_ctx, "List " <> _), do: "[]"
   defp default_of(_ctx, "Option " <> _), do: "none"
   defp default_of(ctx, t) do
@@ -1374,9 +1668,9 @@ defmodule ToLean do
       {_, u} ->
         case tuple_tag(List.first(union(u))) do
           {tag, []} -> ".#{tag}"
-          {tag, _} ->
-            {^tag, ts} = List.keyfind(union_ctors(t), tag, 0)
-            "(.#{tag} " <> Enum.map_join(ts, " ", &paren_or(default_of(ctx, &1))) <> ")"
+          {tag, args} ->
+            {name, ts} = union_ctor(union_ctors(t), tag, length(args))
+            "(.#{name} " <> Enum.map_join(ts, " ", &paren_or(default_of(ctx, &1))) <> ")"
         end
       nil -> fail("no default value of type #{t} for the exitMsg placeholder")
     end
@@ -1387,7 +1681,8 @@ defmodule ToLean do
   # variable linter, so it is renamed `_part` in the state pattern.
   defp hide_unused_parts(env, sp, rhs) do
     parts =
-      for {k, v} <- env, is_binary(k), String.starts_with?(k, "__whole__"), is_list(v), p <- v, plain?(p), do: p
+      for {k, v} <- env, is_binary(k), String.starts_with?(k, "__whole__"), is_list(v), p <- v,
+          plain?(p), not String.starts_with?(p, "_"), do: p
     Enum.reduce(Enum.uniq(parts), sp, fn p, acc ->
       if Regex.match?(~r/\b#{p}\b/, rhs), do: acc, else: Regex.replace(~r/\b#{p}\b/, acc, "_" <> p)
     end)
@@ -1401,7 +1696,7 @@ defmodule ToLean do
     # would be in the single Lean match, so that is an error.
     indexed = Enum.reject(indexed, fn {cl, j} ->
       Enum.any?(indexed, fn {e, i} ->
-        sub = i < j and e.mod == cl.mod and general?(e.mpat, cl.mpat) and general?(e.spat, cl.spat)
+        sub = i < j and e.mod == cl.mod and general?(e.mpat, cl.mpat) and spat_general?(cl.mod, e.spat, cl.spat)
         if sub and e.kind != cl.kind,
           do: fail("a #{cl.kind} clause of #{cl.mod} is shadowed by a bare #{e.kind} pattern; use a tag")
         sub
@@ -1434,7 +1729,7 @@ defmodule ToLean do
             {rhs, c, deferred}
         end
       c =
-        if cl.guard == nil and bare?(cl.mpat) and bare?(cl.spat),
+        if cl.guard == nil and bare?(cl.mpat) and spat_bare?(cl.mod, cl.spat),
           do: %{c | covered: [ctor_name(cl.mod) | c.covered]},
           else: c
       # a deferring fallback re-enqueues the whole message: name the pattern
@@ -1537,7 +1832,7 @@ defmodule ToLean do
               else: nil)
           nil -> nil
         end
-      {_, ctors} -> for {tag, ts} <- ctors, do: {{:ctor, Atom.to_string(tag)}, ts}
+      {_, ctors} -> for {tag, ts} <- ctors, do: {{:ctor, union_ctor_name(ctors, tag, length(ts))}, ts}
     end
   end
 
@@ -1619,9 +1914,8 @@ defmodule ToLean do
   defp defer_clause(ctx, mod) do
     {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(mod), 0)
     parts = visible_fields(ctx, mod, fields) |> Enum.with_index() |> Enum.map(fn {_, i} -> "s_#{i}" end)
-    gen = if Map.has_key?(ctx.afters, mod), do: ["gen"], else: []
-    sp = state_str(ctor, parts ++ gen)
-    sp2 = state_str(ctor, parts ++ Enum.map(gen, fn _ -> "(gen + 1)" end))
+    sp = state_str(ctor, parts ++ hidden_fields(ctx, mod))
+    sp2 = state_str(ctor, parts) <> hidden_next(ctx, mod, %{})
     "  | me, _, #{sp}, m => (#{sp2}, [#{Enum.join([send_str(ctx, "me", "m") | after_arm(ctx, mod, "me", "(gen + 1)")], ", ")}])"
   end
 
@@ -1634,15 +1928,30 @@ defmodule ToLean do
     end
   end
 
-  # the state fields a source pattern or expression sees: the hidden `gen`
-  # of a loop with `after` is appended separately (`patterns`, `plain_body`,
-  # the spawn site)
-  defp visible_fields(ctx, mod, fields),
-    do: if(Map.has_key?(ctx.afters, mod), do: Enum.drop(fields, -1), else: fields)
+  # The hidden trailing state fields of a module, in order: the after-timer
+  # generation `gen` of a loop with `after`, the ETS counter `ets` of a
+  # module that calls `:ets.new`. Source patterns and expressions never see
+  # them; `patterns` binds them by name, every continuing state appends
+  # them (`hidden_next`), a spawn starts them at 0 (`spawn_hidden`).
+  defp hidden_fields(ctx, mod),
+    do: if(Map.has_key?(ctx.afters, mod), do: ["gen"], else: []) ++ if(mod in ctx.ets, do: ["ets"], else: [])
 
-  # the generation a re-entered state and the child of a spawn carry
-  defp gen_suffix(ctx, mod), do: if(Map.has_key?(ctx.afters, mod), do: " (gen + 1)", else: "")
-  defp spawn_gen(ctx, mod), do: if(Map.has_key?(ctx.afters, mod), do: " 0", else: "")
+  # the state fields a source pattern or expression sees
+  defp visible_fields(ctx, mod, fields), do: Enum.drop(fields, -length(hidden_fields(ctx, mod)))
+
+  # the hidden fields of a continuing state: the generation bumped, the ETS
+  # counter advanced by the tables the body created (`sends` counts them)
+  defp hidden_next(ctx, mod, env) do
+    Enum.map_join(hidden_fields(ctx, mod), "", fn
+      "gen" -> " (gen + 1)"
+      "ets" ->
+        case Map.get(env, :__ets__, 0) do
+          0 -> " ets"
+          k -> " (ets + #{k})"
+        end
+    end)
+  end
+  defp spawn_hidden(ctx, mod), do: Enum.map_join(hidden_fields(ctx, mod), "", fn _ -> " 0" end)
 
   defp state_str(ctor, []), do: ".#{ctor}"
   defp state_str(ctor, parts), do: ".#{ctor} " <> Enum.join(parts, " ")
@@ -1650,7 +1959,7 @@ defmodule ToLean do
   # the clause's state pattern re-entered: the visible parts unchanged, gen bumped
   defp reenter_state(ctx, mod, env) do
     {ctor, _} = List.keyfind(ctx.st_ctors, ctor_name(mod), 0)
-    state_str(ctor, env[:__vparts__]) <> gen_suffix(ctx, mod)
+    state_str(ctor, env[:__vparts__]) <> hidden_next(ctx, mod, env)
   end
 
   # the name for a whole message in a deferring clause (avoid the clause's own `m`)
@@ -1701,7 +2010,7 @@ defmodule ToLean do
   defp fallthrough(ctx, clauses, i, env, sp) do
     cl = Enum.at(clauses, i)
     later = clauses |> Enum.with_index() |> Enum.filter(fn {c, j} -> j > i and c.mod == cl.mod and c.kind == cl.kind end)
-    case Enum.find(later, fn {c, _} -> general?(c.mpat, cl.mpat) and general?(c.spat, cl.spat) end) do
+    case Enum.find(later, fn {c, _} -> general?(c.mpat, cl.mpat) and spat_general?(cl.mod, c.spat, cl.spat) end) do
       nil ->
         cond do
           # a receive arm whose guard fails does not consume the message;
@@ -1719,12 +2028,51 @@ defmodule ToLean do
       {c, _} ->
         env2 = aliases(c.mpat, cl.mpat, env, %{__msg_parts__: env[:__mparts__]})
         {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(cl.mod), 0)
-        env2 = whole_alias(c.spat, state_str(ctor, env[:__vparts__]), visible_fields(ctx, cl.mod, fields), env2)
+        env2 =
+          if Map.has_key?(ctx.records, cl.mod),
+            do: record_alias(ctx, cl.mod, c.spat, env, env2),
+            else: whole_alias(c.spat, state_str(ctor, env[:__vparts__]), visible_fields(ctx, cl.mod, fields), env2)
         env2 = if c.from, do: Map.put(env2, {:alias, from_var(c.from)}, env[:__from__]), else: env2
         env2 = if uses_self?(c), do: Map.put(env2, :__self__, true), else: env2
         {b, ctx} = body(ctx, c.mod, env2, c.body)
         if c.guard, do: fail("chained guards are not supported (clause #{i})")
         {b, ctx, false}
+    end
+  end
+
+  # A state pattern of a record-shaped module is a real Lean pattern, one
+  # part per field, not a variable plus guards, so `bare?`/`general?` must
+  # look at the field patterns. `record_parts` is the pattern as that list
+  # (`nil` for a module whose state is not a record).
+  defp record_parts(mod, p) do
+    keys = Map.get(Process.get(:to_lean_records, %{}), mod)
+    pairs =
+      case p do
+        {:%{}, _, ps} when is_list(ps) -> ps
+        {:=, _, [{:%{}, _, ps}, {v, _, nil}]} when is_atom(v) and is_list(ps) -> ps
+        {v, _, nil} when is_atom(v) -> []
+        _ -> nil
+      end
+    if keys == nil or pairs == nil,
+      do: nil,
+      else: for(k <- keys, do: (case List.keyfind(pairs, k, 0) do
+              {_, x} -> x
+              nil -> {:_, [], nil}
+            end))
+  end
+
+  defp spat_bare?(mod, p) do
+    case record_parts(mod, p) do
+      nil -> bare?(p)
+      parts -> Enum.all?(parts, &bare?/1)
+    end
+  end
+
+  defp spat_general?(mod, a, b) do
+    case {record_parts(mod, a), record_parts(mod, b)} do
+      {pa, pb} when pa != nil and pb != nil ->
+        Enum.zip(pa, pb) |> Enum.all?(fn {x, y} -> general?(x, y) end)
+      _ -> general?(a, b)
     end
   end
 
@@ -1789,6 +2137,37 @@ defmodule ToLean do
   end
   defp whole_alias(_, _, _, env), do: env
 
+  # The later clause's record state pattern bound to the current clause's
+  # parts (a guarded clause keeps every field named): a whole variable gets
+  # the parts field by field, a map pattern's variables the parts of their
+  # fields
+  defp record_alias(ctx, mod, spat, env, env2) do
+    keys = Map.fetch!(ctx.records, mod)
+    {_, fields} = List.keyfind(ctx.st_ctors, ctor_name(mod), 0)
+    types = visible_fields(ctx, mod, fields) |> Enum.map(&elem(&1, 1))
+    parts = env[:__vparts__]
+    whole = fn e, v ->
+      name = lean_ident(Atom.to_string(v))
+      e = Enum.zip([keys, parts, types]) |> Enum.reduce(e, fn {k, part, t}, e -> e |> Map.put({:field, name, k}, part) |> Map.put(part, t) end)
+      e |> Map.put("__whole__" <> name, parts) |> Map.put({:record, name}, keys)
+    end
+    sub = fn e, pairs ->
+      Enum.reduce(pairs, e, fn
+        {k, {v, _, nil}}, e when is_atom(v) ->
+          name = Atom.to_string(v)
+          i = Enum.find_index(keys, &(&1 == k)) || fail("#{mod}: #{k} is not a field of the state")
+          if String.starts_with?(name, "_"), do: e, else: e |> Map.put({:alias, name}, Enum.at(parts, i)) |> Map.put(lean_ident(name), Enum.at(types, i))
+        {_, other}, _ -> fail("#{mod}: cannot alias the fallthrough pattern #{Macro.to_string(other)}")
+      end)
+    end
+    case spat do
+      {v, _, nil} when is_atom(v) -> if(String.starts_with?(Atom.to_string(v), "_"), do: env2, else: whole.(env2, v))
+      {:=, _, [{:%{}, _, pairs}, {v, _, nil}]} when is_atom(v) -> sub.(whole.(env2, v), pairs)
+      {:%{}, _, pairs} -> sub.(env2, pairs)
+      _ -> env2
+    end
+  end
+
   # Variables the body uses where a pid is required.
   defp pid_uses(body) do
     {_, vs} = Macro.prewalk(body, [], fn
@@ -1825,24 +2204,108 @@ defmodule ToLean do
       end
     {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(cl.mod), 0)
     vfields = visible_fields(ctx, cl.mod, fields)
-    struct = Map.get(ctx.struct_states, ctor_name(cl.mod))
-    {sub, whole} = state_subpats(cl.spat, length(vfields), struct, vfields)
-    {vparts, env, gs} = pat_list(ctx, sub, Enum.map(vfields, &elem(&1, 1)), env, gs)
-    # a struct state pattern `%__MODULE__{f: p} = v`: the whole variable
-    # names all the parts, the named fields included
-    env = if whole, do: Map.put(env, "__whole__" <> whole, vparts), else: env
-    env = if struct, do: Map.put(env, :__struct_state__, struct), else: env
-    # a loop with `after`: the hidden generation field is the pattern variable `gen`
-    {sparts, env} =
-      if Map.has_key?(ctx.afters, cl.mod) do
-        if Map.has_key?(env, "gen"), do: fail("#{cl.mod}: `gen` is reserved for the after-timer generation")
-        {vparts ++ ["gen"], Map.put(env, "gen", "Nat")}
+    {vparts, env, gs} =
+      if Map.has_key?(ctx.records, cl.mod) do
+        record_pats(ctx, cl, vfields, env, gs)
       else
-        {vparts, env}
+        # a struct state pattern `%__MODULE__{f: p} = v`: the whole variable
+        # names all the parts, the named fields included
+        struct = Map.get(ctx.struct_states, ctor_name(cl.mod))
+        {sub, whole} = state_subpats(cl.spat, length(vfields), struct, vfields)
+        {vparts, env, gs} = pat_list(ctx, sub, Enum.map(vfields, &elem(&1, 1)), env, gs)
+        env = if whole, do: Map.put(env, "__whole__" <> whole, vparts), else: env
+        env = if struct, do: Map.put(env, :__struct_state__, struct), else: env
+        {vparts, env, gs}
       end
+    # the hidden fields are the pattern variables `gen` and `ets`
+    {sparts, env} =
+      Enum.reduce(hidden_fields(ctx, cl.mod), {vparts, env}, fn h, {parts, env} ->
+        if Map.has_key?(env, h), do: fail("#{cl.mod}: `#{h}` is reserved for the hidden #{if(h == "gen", do: "after-timer generation", else: "ETS counter")} field")
+        {parts ++ [h], Map.put(env, h, "Nat")}
+      end)
     sp = state_str(ctor, sparts)
     env = env |> Map.put(:__mp__, mp) |> Map.put(:__sparts__, sparts) |> Map.put(:__vparts__, vparts)
     {env, mp, sp, gs}
+  end
+
+  # The state pattern of a record-shaped module (`%{k: T, ..}`), one Lean
+  # part per field. A whole-state variable `s` binds every field by its own
+  # name (`s_<field>` when the name is taken), and `s.f`, `%{s | f: e}` and a
+  # bare `s` in the body read those parts (`expr`, `state_expr`); a field the
+  # body never reads is the wildcard `_`. A map pattern `%{f: p, ..}`,
+  # optionally `= s`, binds the mentioned fields to their sub-patterns (typed
+  # by the field) and the others as the whole variable would, or `_`.
+  defp record_pats(ctx, cl, vfields, env, gs) do
+    fnames = Enum.map(vfields, &elem(&1, 0))
+    keys = Map.fetch!(ctx.records, cl.mod)
+    {whole, pairs} =
+      case cl.spat do
+        {:_, _, nil} -> {nil, []}
+        {v, _, nil} when is_atom(v) -> {v, []}
+        {:=, _, [{:%{}, _, pairs}, {v, _, nil}]} when is_atom(v) -> {v, pairs}
+        {:%{}, _, pairs} -> {nil, pairs}
+        p -> fail("#{cl.mod}: state pattern #{Macro.to_string(p)} does not fit the record state %{#{Enum.join(keys, ", ")}}")
+      end
+    Enum.each(pairs, fn {k, _} -> k in keys || fail("#{cl.mod}: #{k} is not a field of the state (#{Enum.join(keys, ", ")})") end)
+    whole_name = whole && lean_ident(Atom.to_string(whole))
+    # a whole variable needs the fields the body reads through it; a guard,
+    # a map-pattern fallthrough or an exit/raise (they rebuild the state)
+    # keep every field
+    used =
+      cond do
+        whole == nil -> []
+        cl.guard != nil or env[:__mapbinds__] != nil or needs_state?(cl.body) -> :all
+        String.starts_with?(Atom.to_string(whole), "_") -> []
+        true -> used_fields(record_uses([cl.body], whole), keys)
+      end
+    {parts, {env, gs}} =
+      Enum.zip([keys, vfields]) |> Enum.map_reduce({env, gs}, fn {k, {fname, t}}, {e, g} ->
+        case List.keyfind(pairs, k, 0) do
+          {_, sub} ->
+            {ps, e, g} = pat(ctx, sub, t, e, g)
+            {ps, {e, g}}
+          nil ->
+            if used == :all or k in used do
+              name = if(Map.has_key?(e, fname), do: "#{whole_name}_#{fname}", else: fname)
+              {name, {Map.put(e, name, t), g}}
+            else
+              {"_", {e, g}}
+            end
+        end
+      end)
+    env =
+      if whole do
+        parts_by_key = Enum.zip(keys, parts)
+        env = Enum.reduce(parts_by_key, env, fn {k, part}, e -> if(part == "_", do: e, else: Map.put(e, {:field, whole_name, k}, part)) end)
+        env |> Map.put("__whole__" <> whole_name, parts) |> Map.put({:record, whole_name}, keys)
+      else
+        env
+      end
+    _ = fnames
+    {parts, env, gs}
+  end
+
+  # how a body uses the whole-state variable `v` of a record: `v.f` reads
+  # field f, `%{v | f: e, ..}` reads every field but those, a bare `v`
+  # reads all
+  defp record_uses({{:., _, [{v, _, nil}, f]}, _, []}, v) when is_atom(f), do: [f]
+  defp record_uses({:%{}, _, [{:|, _, [{v, _, nil}, ups]}]}, v) when is_list(ups),
+    do: [{:all_but, Keyword.keys(ups)} | Enum.flat_map(ups, fn {_, e} -> record_uses(e, v) end)]
+  defp record_uses({v, _, nil}, v), do: [:all]
+  defp record_uses({f, _, args}, v) when is_list(args), do: record_uses(f, v) ++ Enum.flat_map(args, &record_uses(&1, v))
+  defp record_uses({a, b}, v), do: record_uses(a, v) ++ record_uses(b, v)
+  defp record_uses(l, v) when is_list(l), do: Enum.flat_map(l, &record_uses(&1, v))
+  defp record_uses(_, _), do: []
+
+  defp used_fields(uses, keys) do
+    if :all in uses do
+      :all
+    else
+      Enum.flat_map(uses, fn
+        {:all_but, ks} -> keys -- ks
+        f -> [f]
+      end) |> Enum.uniq()
+    end
   end
 
   # the `from` argument of handle_call: a variable (possibly _-prefixed) or {pid, _ref}
@@ -2021,10 +2484,9 @@ defmodule ToLean do
     cond do
       union_ctors(t) != nil and tagged_tuple?(p) ->
         {tag, args} = tuple_tag(p)
-        {^tag, ts} = List.keyfind(union_ctors(t), tag, 0) || fail("#{tag} is not an alternative of #{t}")
-        length(args) == length(ts) || fail("arity mismatch for #{tag} at #{t}")
+        {name, ts} = union_ctor(union_ctors(t), tag, length(args)) || fail("#{tag}/#{length(args)} is not an alternative of #{t}")
         {parts, env, gs} = pat_list(ctx, args, ts, env, gs)
-        {"(.#{tag}" <> Enum.map_join(parts, "", &(" " <> &1)) <> ")", env, gs}
+        {"(.#{name}" <> Enum.map_join(parts, "", &(" " <> &1)) <> ")", env, gs}
       prod_type(t) != nil and tuple_parts(p) != nil and length(tuple_parts(p)) == 2 ->
         {kt, vt} = prod_type(t)
         {parts, env, gs} = pat_list(ctx, tuple_parts(p), [kt, vt], env, gs)
@@ -2100,7 +2562,7 @@ defmodule ToLean do
   end
   defp unparen("(" <> rest), do: String.trim_trailing(rest, ")")
   defp unparen(t), do: t
-  defp enum_type?(t), do: t =~ ~r/^[A-Z][a-z]*$/ and t not in ["Pid", "Int", "Nat", "Bool", "Reason"]
+  defp enum_type?(t), do: t =~ ~r/^[A-Z][a-z]*$/ and t not in ["Pid", "Int", "Nat", "Bool", "Reason", "Term"]
 
   defp guard_to_lean(_env, {:eq, a, b}), do: "#{a} = #{b}"
   defp guard_to_lean(_env, {:map_has, m, k}), do: "AssocList.hasKey #{m} #{paren_or(k)}"
@@ -2130,6 +2592,39 @@ defmodule ToLean do
       end
     body(ctx, mod, env, {:case, m, [q, [do: arms]]})
   end
+
+  # `case Map.pop(m, k)`: a match on `get? m k`; the arm `{nil, r}` is `none`
+  # with r the map itself, `{p, r}` is `some p` with r the map without k
+  # (`erase`). A value that is literally nil would take the first arm on the
+  # BEAM; the model's values are never nil.
+  defp body(ctx, mod, env, {:case, _, [{{:., _, [{:__aliases__, _, [:Map]}, :pop]}, _, [m, k]} = scrut, [do: arms]]}) do
+    {kt, vt} = map_type(var_type(env, m)) || fail("case over #{Macro.to_string(scrut)}: #{Macro.to_string(m)} is not a map variable or field")
+    mt = "List (#{kt} × #{vt})"
+    ms = paren_or(expr(env, m, mt))
+    ks = paren_or(expr(env, k, kt))
+    bind_rest = fn env, r, rest ->
+      case r do
+        {v, _, nil} when is_atom(v) ->
+          name = Atom.to_string(v)
+          if String.starts_with?(name, "_"), do: env, else: env |> Map.put({:alias, name}, rest) |> Map.put(lean_ident(name), mt)
+        other -> fail("case Map.pop: the second element of an arm pattern must be a variable, got #{Macro.to_string(other)}")
+      end
+    end
+    {arm_strs, ctx} =
+      Enum.map_reduce(arms, ctx, fn {:->, _, [[p], b]}, c ->
+        {pstr, env2} =
+          case p do
+            {nil, r} -> {"none", bind_rest.(env, r, ms)}
+            {vp, r} ->
+              {ps, env2, []} = pat(c, prune_arm_vars(vp, b, env), vt, env, [])
+              {"(some #{ps})", bind_rest.(env2, r, "(AssocList.erase #{ms} #{ks})")}
+            other -> fail("case Map.pop: arm pattern must be a pair {value, rest}, got #{Macro.to_string(other)}")
+          end
+        {bs, c} = body(c, mod, env2, b)
+        {"| #{pstr} => #{bs}", c}
+      end)
+    {"(match AssocList.get? #{ms} #{ks} with " <> Enum.join(arm_strs, " ") <> ")", ctx}
+  end
   defp body(ctx, mod, env, {:case, _, [scrut, [do: arms]]}) do
     st = guess_type(env, scrut)
     {arm_strs, {ctx, _}} =
@@ -2146,7 +2641,7 @@ defmodule ToLean do
               if String.starts_with?(name, "_") or Map.has_key?(env, name),
                 do: pat(c, p, st, env, []),
                 else: {"(some #{name})", Map.put(env, name, unparen(inner)), []}
-            _ -> pat(c, p, st, env, [])
+            _ -> pat(c, prune_arm_vars(p, b, env), st, env, [])
           end
         {bs, c} = body(c, mod, env2, b)
         {"| #{pstr} => #{bs}", {c, saw_nil or p == nil}}
@@ -2154,6 +2649,18 @@ defmodule ToLean do
     {"(match #{expr(env, scrut, nil)} with " <> Enum.join(arm_strs, " ") <> ")", ctx}
   end
   defp body(ctx, mod, env, b), do: body_stmts(ctx, mod, env, stmts(b))
+
+  # a fresh variable of a case-arm pattern the arm's body never uses (its only
+  # use was a resource call the model dropped) is the wildcard `_v`
+  defp prune_arm_vars(p, b, env) do
+    used = free_vars(b)
+    Macro.postwalk(p, fn
+      {v, m, nil} = n when is_atom(v) ->
+        s = Atom.to_string(v)
+        if s in used or String.starts_with?(s, "_") or Map.has_key?(env, lean_ident(s)), do: n, else: {:"_#{s}", m, nil}
+      n -> n
+    end)
+  end
 
   # the rest of a body after a blocking call may be a single `if`/`case`
   defp body_stmts(ctx, mod, env, [{:if, _, _} = e]), do: body(ctx, mod, env, e)
@@ -2181,7 +2688,12 @@ defmodule ToLean do
     case Enum.split_while(stmts, fn s -> not blocking_call?(s) end) do
       {before, [call | rest]} when rest != [] -> cps_split(ctx, mod, env, before, call, rest)
       {_, [_]} -> fail("a blocking call must be followed by the rest of the body")
-      _ -> plain_body(ctx, mod, env, stmts)
+      _ ->
+        # statements before a final if/case run in every branch
+        case List.last(stmts) do
+          {f, _, _} = last when f in [:if, :case] and length(stmts) > 1 -> body(ctx, mod, env, prepend_stmts(Enum.drop(stmts, -1), last))
+          _ -> plain_body(ctx, mod, env, stmts)
+        end
     end
   end
 
@@ -2196,6 +2708,7 @@ defmodule ToLean do
   defp cps_split(ctx, mod, env, before, {:=, _, [lhs, {_, _, [{:__aliases__, _, [target]}, m | _timeout]}]}, rest) do
     ctx.reply_type || fail("GenServer.call used but no module declares @type reply")
     Map.has_key?(ctx.afters, mod) && fail("#{mod}: a blocking call inside a receive loop with `after` is not supported")
+    mod in ctx.ets && fail("#{mod}: a blocking call in a module that creates ETS tables is not supported")
     const = pid_const(ctx, target)
     i = Map.get(ctx.awaits, mod, 0)
     ctx = %{ctx | awaits: Map.put(ctx.awaits, mod, i + 1)}
@@ -2268,7 +2781,7 @@ defmodule ToLean do
           {:__reply__, _, [r]} -> {reply_str(c, e, r), {c, e}}
           {:=, _, [{:ok, {v, _, nil}}, {{:., _, [{:__aliases__, _, [:GenServer]}, f]}, _, [{:__aliases__, _, [child]}, arg]}]} when is_atom(v) and f in [:start_link, :start] ->
             {cctor, cfields} = List.keyfind(c.st_ctors, ctor_name(child), 0) || fail("unknown child module #{child}")
-            init = child_state(c, e, child, arg, cctor, cfields)
+            init = child_state(c, e, child, arg, cctor, visible_fields(c, child, cfields)) <> spawn_hidden(c, child)
             e = bind_fresh(e, v)
             # the child's init/1 subscriptions, on behalf of the child's pid
             subs = for {sf, topic} <- Map.get(c.init_subs, child, []), do: ".#{sf} #{paren_or(e[{:alias, Atom.to_string(v)}])} #{topic}"
@@ -2282,7 +2795,7 @@ defmodule ToLean do
               end
             Map.get(c.loops, child) == fname || fail("#{child}.#{fname} is not the receive loop of #{child}")
             {cctor, cfields} = List.keyfind(c.st_ctors, ctor_name(child), 0) || fail("unknown module #{child}")
-            init = state_expr(e, arg, cctor, visible_fields(c, child, cfields)) <> spawn_gen(c, child)
+            init = state_expr(c, e, arg, cctor, visible_fields(c, child, cfields)) <> spawn_hidden(c, child)
             eff = %{spawn: ".spawn", spawn_link: ".spawnLink", spawn_monitor: ".spawnMonitor"}[f]
             e = bind_fresh(e, v)
             # the child's first receive arms its after-timer, if it has one:
@@ -2293,17 +2806,34 @@ defmodule ToLean do
             {".monitor #{paren_or(expr(e, target, "Pid"))}", {c, e}}
           {:=, _, [{_ref, _, nil}, {{:., _, [{:__aliases__, _, [:Process]}, :monitor]}, _, [target]}]} ->
             {".monitor #{paren_or(expr(e, target, "Pid"))}", {c, e}}
+          # `v = :ets.new(..)`: a fresh opaque reference, no effect the model
+          # can see. The state carries the hidden counter `ets`; the k-th
+          # table this body creates is `Term.mk (ets + k)` and the continuing
+          # state advances the counter (`hidden_next`).
+          {:=, _, [{v, _, nil}, {{:., _, [:ets, :new]}, _, _}]} when is_atom(v) ->
+            k = Map.get(e, :__ets__, 0)
+            ref = if k == 0, do: "(Term.mk ets)", else: "(Term.mk (ets + #{k}))"
+            e = e |> Map.put(:__ets__, k + 1) |> bind_local(v, ref, "Term")
+            {"", {c, e}}
           {f, _, args} when f in [:raise, :throw] and is_list(args) ->
             fail("#{f} is only supported as the last statement of a body (it exits the process): #{Macro.to_string(s)}")
           # `{_, q} = :queue.out(q0)`: the queue without its oldest element
           # (`:queue.out` of an empty queue gives it back unchanged, as `tail` does)
           {:=, _, [{{:_, _, nil}, {v, _, nil}}, {{:., _, [:queue, :out]}, _, [q]}]} when is_atom(v) ->
             {nil, {c, let_bind(e, v, "List.tail #{paren_or(expr(e, q, type_of(e, q)))}", type_of(e, q))}}
-          # a local binding `v = e` is a `let`
+          # A pure local binding `v = e` is a `let` around the clause result.
+          # A binding that reuses a name already in scope -- a state field the
+          # clause pattern bound, as `refs = Map.put(refs, k, v)` does -- is
+          # not let-bound but substituted at its uses, because the `let` would
+          # shadow the part the rest of the clause reads.
           {:=, _, [{v, _, nil}, rhs]} when is_atom(v) ->
-            t = type_of(e, rhs)
+            t = type_of(e, rhs) || expr_type(e, rhs)
             struct_state_of_type(t) && fail("#{v} = #{Macro.to_string(rhs)}: a whole state value cannot be bound; bind its fields or return it")
-            {nil, {c, let_bind(e, v, expr(e, rhs, t), t)}}
+            if Map.has_key?(e, lean_ident(Atom.to_string(v))) do
+              {"", {c, bind_local(e, v, paren_or(expr(e, rhs, t)), t)}}
+            else
+              {nil, {c, let_bind(e, v, expr(e, rhs, t), t)}}
+            end
           other ->
             case pubsub_call(c, Map.get(e, :__mod__), other) do
               {:subscribe, topic, nil} -> {".subscribe me #{topic}", {c, e}}
@@ -2313,7 +2843,14 @@ defmodule ToLean do
             end
         end
       end)
-    {Enum.reject(strs, &is_nil/1), c, e}
+    {Enum.reject(strs, &(is_nil(&1) or &1 == "")), c, e}
+  end
+
+  # a local binding: the name renders as `s` wherever the body uses it
+  defp bind_local(env, v, s, t) do
+    name = Atom.to_string(v)
+    env = Map.put(env, {:alias, name}, s)
+    if t, do: Map.put(env, lean_ident(name), t), else: env
   end
 
   # record `let v := s` (rendered by `wrap_lets` around the clause result)
@@ -2357,7 +2894,7 @@ defmodule ToLean do
     {send_strs, ctx, env} = sends(ctx, Map.put(env, :__mod__, mod), sends)
     # a continuing state of a loop with `after` re-enters the receive at the
     # next generation (an exit, raise or throw keeps the whole state instead)
-    next_state = fn e -> state_expr(env, e, ctor, visible_fields(ctx, mod, fields)) <> gen_suffix(ctx, mod) end
+    next_state = fn e -> state_expr(ctx, env, e, ctor, visible_fields(ctx, mod, fields)) <> hidden_next(ctx, mod, env) end
     timeout = fn ->
       List.keymember?(ctx.msg_ctors, :timeout, 0) || fail("GenServer timeout used but :timeout not in @type msg")
       ".sendAfter me .timeout"
@@ -2407,6 +2944,7 @@ defmodule ToLean do
   end
 
   defp guess_type(env, {v, _, nil}) when is_atom(v), do: Map.get(env, Atom.to_string(v)) || fail("untyped scrutinee #{v}")
+  defp guess_type(env, {{:., _, [{v, _, nil}, f]}, _, []} = e) when is_atom(v) and is_atom(f), do: var_type(env, e) || fail("untyped scrutinee #{Macro.to_string(e)}")
   # `case Map.get(m, k)` / `case Map.fetch(m, k)` is a match on an Option
   defp guess_type(env, {{:., _, [{:__aliases__, _, [:Map]}, f]}, _, [m | _]} = e) when f in [:get, :fetch] do
     {_, vt} = map_type(var_type(env, m)) || fail("case over #{Macro.to_string(e)}: #{Macro.to_string(m)} is not a map variable")
@@ -2418,11 +2956,85 @@ defmodule ToLean do
   defp guess_type(env, e),
     do: type_of(env, e) || fail("case scrutinee must be a variable, Map.get/Map.fetch, :queue.out/peek or an Enum call of known type, got #{Macro.to_string(e)}")
 
-  # the Lean type of a variable bound by the patterns, or nil
+  # the Lean type of a variable bound by the patterns (or a local binding),
+  # of a record field `s.f`, or nil
   defp var_type(env, {v, _, nil}) when is_atom(v), do: Map.get(env, lean_ident(Atom.to_string(v)))
+  defp var_type(env, {{:., _, [{v, _, nil}, f]}, _, []}) when is_atom(v) and is_atom(f) do
+    case Map.get(env, {:field, lean_ident(Atom.to_string(v)), f}) do
+      nil -> nil
+      part -> Map.get(env, part)
+    end
+  end
   defp var_type(_env, _), do: nil
 
+  # the Lean type of a local binding's right-hand side, when it can be told
+  # from the source: a variable or field, a Map call (the map's own type,
+  # or the value's), `:ets.new` (a Term), a literal
+  defp expr_type(env, {{:., _, [{:__aliases__, _, [:Map]}, f]}, _, [m | _]}) when f in [:put, :delete, :filter, :reject], do: var_type(env, m)
+  defp expr_type(env, {{:., _, [{:__aliases__, _, [:Map]}, :get]}, _, [m, _, _]}), do: with({_, vt} <- map_type(var_type(env, m)), do: vt)
+  defp expr_type(env, {{:., _, [{:__aliases__, _, [:Map]}, f]}, _, [m, _]}) when f in [:get, :fetch], do: with({_, vt} <- map_type(var_type(env, m)), do: "Option " <> paren_or(vt))
+  defp expr_type(_env, {{:., _, [:ets, :new]}, _, _}), do: "Term"
+  defp expr_type(_env, n) when is_integer(n), do: "Int"
+  defp expr_type(_env, b) when is_boolean(b), do: "Bool"
+  defp expr_type(env, e), do: var_type(env, e)
+
+  # the record keys of a state constructor, or nil for a positional state
+  defp record_keys(ctx, ctor), do: Enum.find_value(ctx.records, fn {mod, keys} -> ctor_name(mod) == ctor && keys end)
+
   # rebuild the state constructor from an expression of the state type
+  # a record update `%{s | f: e, ..}`: the parts of `s` with those fields replaced
+  defp state_expr(ctx, env, {:%{}, _, [{:|, _, [{v, _, nil}, ups]}]} = e, ctor, fields)
+       when is_atom(v) and is_list(ups) do
+    name = lean_ident(Atom.to_string(v))
+    # a struct-shaped state takes the same syntax, and is rebuilt by state_expr/4
+    if record_keys(ctx, ctor) == nil do
+      state_expr(env, e, ctor, fields)
+    else
+      record_update_expr(env, e, v, name, ups, ctor, fields)
+    end
+  end
+
+  defp state_expr(ctx, env, e, ctor, fields) do
+    case record_keys(ctx, ctor) do
+      nil -> state_expr(env, e, ctor, fields)
+      keys ->
+        case e do
+          # a record literal `%{f: e, ..}`: every field must be given
+          {:%{}, _, pairs} when is_list(pairs) ->
+            Keyword.keyword?(pairs) || fail("#{Macro.to_string(e)}: a record state literal needs atom keys")
+            Enum.each(pairs, fn {k, _} -> k in keys || fail("#{Macro.to_string(e)}: #{k} is not a field of the state") end)
+            ".#{ctor} " <>
+              Enum.map_join(Enum.zip(keys, fields), " ", fn {k, {_, t}} ->
+                case List.keyfind(pairs, k, 0) do
+                  {_, x} -> paren_or(expr(env, x, t))
+                  nil -> fail("#{Macro.to_string(e)}: the state literal must give every field, #{k} is missing")
+                end
+              end)
+          # the whole-state variable: an alias from a fallthrough, or the parts it binds
+          {v, _, nil} when is_atom(v) ->
+            case Map.get(env, {:alias, Atom.to_string(v)}) do
+              nil ->
+                parts = Map.get(env, "__whole__" <> lean_ident(Atom.to_string(v))) || fail("whole-state variable #{v} not bound by a pattern")
+                ".#{ctor} " <> Enum.join(parts, " ")
+              s -> s
+            end
+          _ -> fail("state expression #{Macro.to_string(e)} does not fit the record state %{#{Enum.join(keys, ", ")}}")
+        end
+    end
+  end
+
+  defp record_update_expr(env, e, v, name, ups, ctor, fields) do
+    keys = Map.get(env, {:record, name}) || fail("#{Macro.to_string(e)}: #{v} is not the whole-state variable of the record state")
+    parts = Map.fetch!(env, "__whole__" <> name)
+    Enum.each(ups, fn {k, _} -> k in keys || fail("#{Macro.to_string(e)}: #{k} is not a field of the state") end)
+    ".#{ctor} " <>
+      Enum.map_join(Enum.zip([keys, parts, fields]), " ", fn {k, part, {_, t}} ->
+        case List.keyfind(ups, k, 0) do
+          {_, x} -> paren_or(expr(env, x, t))
+          nil -> (part != "_" && part) || fail("#{Macro.to_string(e)}: field #{k} of #{v} is not bound (translator bug)")
+        end
+      end)
+  end
   defp state_expr(env, e, ctor, fields) do
     case {struct_state_of(ctor), e} do
       {st, {:%, _, [m, {:%{}, _, kvs}]}} when st != nil ->
@@ -2539,15 +3151,21 @@ defmodule ToLean do
     (t == nil or t == st) || fail("#{Macro.to_string(e)} at type #{t}")
     struct_lit(env, st, kvs)
   end
+  # `s.f`: the field of a record-shaped state bound by the whole variable `s`,
+  # the part a flattened struct state bound, or the projection of a struct value
   defp expr(env, {{:., _, [{v, _, nil}, f]}, _, []} = e, _t) when is_atom(v) and is_atom(f) do
-    case state_field(env, v, f) do
-      {part, _} -> part
-      nil ->
-        name = lean_ident(Atom.to_string(v))
-        st = Map.get(env, name) || fail("#{Macro.to_string(e)}: the type of #{v} is not known")
-        struct_fields(st) || fail("#{Macro.to_string(e)}: #{v} is not a struct (#{st})")
-        field_type(st, f)
-        "#{name}.#{f}"
+    name = lean_ident(Atom.to_string(v))
+    if Map.has_key?(env, {:record, name}) do
+      Map.get(env, {:field, name, f}) || fail("#{Macro.to_string(e)}: #{f} is not a field of the state (translator bug if it is)")
+    else
+      case state_field(env, v, f) do
+        {part, _} -> part
+        nil ->
+          st = Map.get(env, name) || fail("#{Macro.to_string(e)}: the type of #{v} is not known")
+          struct_fields(st) || fail("#{Macro.to_string(e)}: #{v} is not a struct (#{st})")
+          field_type(st, f)
+          "#{name}.#{f}"
+      end
     end
   end
   # ---- Enum over lists, and the list builtins ----
@@ -2576,6 +3194,8 @@ defmodule ToLean do
     do: fail("unsupported :queue function :queue.#{f}/#{length(args)} in #{Macro.to_string(e)}")
   defp expr(env, {:not, _, [a]}, _t), do: "(¬ #{expr(env, a, nil)})"
   defp expr(_env, b, _t) when is_boolean(b), do: "#{b}"
+  defp expr(_env, a, "Term") when is_atom(a) and a not in [nil, true, false],
+    do: fail("the atom #{inspect(a)} is used at an opaque Term position; declare the type (@type) so it becomes an enum")
   defp expr(_env, a, _t) when is_atom(a) and a not in [nil, true, false], do: ".#{a}"
   defp expr(_env, n, _t) when is_integer(n), do: "#{n}"
   defp expr(_env, [], _t), do: "[]"
@@ -2596,15 +3216,12 @@ defmodule ToLean do
         "(#{expr(env, a, kt)}, #{expr(env, b, vt)})"
       tagged_tuple?(e) and (t == nil or union_ctors(t) != nil) ->
         {tag, args} = tuple_tag(e)
-        ts =
+        {name, ts} =
           case union_ctors(t) do
-            nil -> List.duplicate(nil, length(args))
-            ctors ->
-              {^tag, ts} = List.keyfind(ctors, tag, 0) || fail("#{tag} is not an alternative of #{t}")
-              length(args) == length(ts) || fail("arity mismatch for #{tag} at #{t}")
-              ts
+            nil -> {Atom.to_string(tag), List.duplicate(nil, length(args))}
+            ctors -> union_ctor(ctors, tag, length(args)) || fail("#{tag}/#{length(args)} is not an alternative of #{t}")
           end
-        "(.#{tag}" <> Enum.map_join(Enum.zip(args, ts), "", fn {a, at} -> " " <> paren_or(expr(env, a, at)) end) <> ")"
+        "(.#{name}" <> Enum.map_join(Enum.zip(args, ts), "", fn {a, at} -> " " <> paren_or(expr(env, a, at)) end) <> ")"
       true -> fail("unsupported expression #{Macro.to_string(e)}" <> if(t, do: " at type #{t}", else: ""))
     end
   end

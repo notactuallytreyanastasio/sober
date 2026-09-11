@@ -6,6 +6,7 @@ import Leanactors.SysProps
 import Leanactors.Explore
 import Leanactors.Fair
 import Leanactors.AssocList
+import Leanactors.Term
 import Leanactors.Examples.Bank
 import Leanactors.Examples.Lock
 import Leanactors.Examples.LockProof
@@ -36,3 +37,5 @@ import Leanactors.Gen.Feed
 import Leanactors.Examples.Feed
 import Leanactors.Gen.Ringlog
 import Leanactors.Examples.Ringlog
+import Leanactors.Gen.TableRegistry
+import Leanactors.Examples.TableRegistry

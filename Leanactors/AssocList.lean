@@ -197,4 +197,108 @@ theorem mem_filter {m : List (κ × ν)} {f : κ × ν → Bool} {kv : κ × ν}
   unfold filter at h
   exact List.mem_filter.mp h
 
+/-- Every pair of `m` at a key other than `k` survives `erase`. -/
+theorem mem_erase_of_ne {m : List (κ × ν)} {k : κ} {kv : κ × ν}
+    (h : kv ∈ m) (hk : kv.1 ≠ k) : kv ∈ erase m k := by
+  induction m with
+  | nil => cases h
+  | cons x rest ih =>
+    obtain ⟨k'', v''⟩ := x
+    rcases List.mem_cons.mp h with rfl | h
+    · simp only [erase, if_neg hk]
+      exact List.mem_cons_self
+    · by_cases hx : k'' = k
+      · simp only [erase, if_pos hx]
+        exact ih h
+      · simp only [erase, if_neg hx]
+        exact List.mem_cons_of_mem _ (ih h)
+
+/-! ## Uniqueness
+
+A map built from `[]` by `insert` and `erase` has unique keys; when every
+value inserted is fresh it has unique values too. `Uniq` says both at
+once, `key_inj` and `val_inj` are what a property about such a map usually
+needs, and `insert_fresh` and `Uniq.erase` are the two steps that keep it.
+Nothing else in this file assumes uniqueness. -/
+
+/-- No two entries share a key, and no two entries share a value. -/
+def Uniq : List (κ × ν) → Prop
+  | [] => True
+  | kv :: rest => (∀ x ∈ rest, x.1 ≠ kv.1 ∧ x.2 ≠ kv.2) ∧ Uniq rest
+
+omit [DecidableEq κ] in
+@[simp] theorem uniq_nil : Uniq ([] : List (κ × ν)) := trivial
+
+omit [DecidableEq κ] in
+theorem uniq_cons {kv : κ × ν} {rest : List (κ × ν)} :
+    Uniq (kv :: rest) ↔ (∀ x ∈ rest, x.1 ≠ kv.1 ∧ x.2 ≠ kv.2) ∧ Uniq rest := Iff.rfl
+
+omit [DecidableEq κ] in
+/-- One key, one value. -/
+theorem Uniq.key_inj {m : List (κ × ν)} (h : Uniq m) {k : κ} {v v' : ν}
+    (h1 : (k, v) ∈ m) (h2 : (k, v') ∈ m) : v = v' := by
+  induction m with
+  | nil => cases h1
+  | cons x rest ih =>
+    obtain ⟨kx, vx⟩ := x
+    obtain ⟨hhead, htail⟩ := h
+    simp only [List.mem_cons, Prod.mk.injEq] at h1 h2
+    rcases h1 with ⟨rfl, rfl⟩ | h1 <;> rcases h2 with ⟨hk2, hv2⟩ | h2
+    · exact hv2.symm
+    · exact absurd rfl (hhead _ h2).1
+    · exact absurd hk2 (hhead _ h1).1
+    · exact ih htail h1 h2
+
+omit [DecidableEq κ] in
+/-- One value, one key. -/
+theorem Uniq.val_inj {m : List (κ × ν)} (h : Uniq m) {k k' : κ} {v : ν}
+    (h1 : (k, v) ∈ m) (h2 : (k', v) ∈ m) : k = k' := by
+  induction m with
+  | nil => cases h1
+  | cons x rest ih =>
+    obtain ⟨kx, vx⟩ := x
+    obtain ⟨hhead, htail⟩ := h
+    simp only [List.mem_cons, Prod.mk.injEq] at h1 h2
+    rcases h1 with ⟨rfl, rfl⟩ | h1 <;> rcases h2 with ⟨hk2, hv2⟩ | h2
+    · exact hk2.symm
+    · exact absurd rfl (hhead _ h2).2
+    · exact absurd hv2 (hhead _ h1).2
+    · exact ih htail h1 h2
+
+/-- Inserting a value no entry already carries keeps `Uniq`. -/
+theorem Uniq.insert_fresh {m : List (κ × ν)} (h : Uniq m) {k : κ} {v : ν}
+    (hf : ∀ x ∈ m, x.2 ≠ v) : Uniq (insert m k v) := by
+  induction m with
+  | nil =>
+    refine (uniq_cons (kv := (k, v)) (rest := [])).mpr ⟨?_, uniq_nil⟩
+    intro x hx
+    cases hx
+  | cons x rest ih =>
+    obtain ⟨k', v'⟩ := x
+    obtain ⟨hhead, htail⟩ := h
+    by_cases hk : k = k'
+    · rw [insert, if_pos hk]
+      refine uniq_cons.mpr ⟨fun y hy => ⟨hk ▸ (hhead y hy).1, hf y (List.mem_cons_of_mem _ hy)⟩, htail⟩
+    · rw [insert, if_neg hk]
+      refine uniq_cons.mpr ⟨fun y hy => ?_, ih htail fun y hy => hf y (List.mem_cons_of_mem _ hy)⟩
+      obtain ⟨ky, vy⟩ := y
+      rcases mem_insert hy with ⟨rfl, rfl⟩ | hy
+      · exact ⟨hk, fun e => hf (k', v') List.mem_cons_self (e ▸ rfl)⟩
+      · exact hhead _ hy
+
+/-- Erasing a key keeps `Uniq`. -/
+theorem Uniq.erase {m : List (κ × ν)} (h : Uniq m) (k : κ) : Uniq (AssocList.erase m k) := by
+  induction m with
+  | nil => exact uniq_nil
+  | cons x rest ih =>
+    obtain ⟨k', v'⟩ := x
+    obtain ⟨hhead, htail⟩ := h
+    by_cases hk : k' = k
+    · rw [AssocList.erase, if_pos hk]
+      exact ih htail
+    · rw [AssocList.erase, if_neg hk]
+      refine uniq_cons.mpr ⟨fun y hy => ?_, ih htail⟩
+      obtain ⟨ky, vy⟩ := y
+      exact hhead _ (mem_erase hy).1
+
 end Leanactors.AssocList
