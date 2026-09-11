@@ -127,8 +127,9 @@
 #   expression, is the constructor applied to its fields.
 #   Structs: `defstruct f: d, ..` with `@type t :: %__MODULE__{f: T, ..}`
 #   is a Lean `structure` with the same fields, each defaulting to `d`
-#   (a field with no declared type takes Nat/Int/Bool from its default;
-#   anything else must be declared). `%Mod{f: e}` is
+#   (a field with no declared type takes Nat/Int/Bool from a numeric or
+#   boolean default, `String` from a binary one and `List Term` from
+#   `:queue.new()`; anything else must be declared). `%Mod{f: e}` is
 #   `({ f := e } : Mod)` with the other fields at their defaults, `%{s | f:
 #   e}` is `{ s with f := e }`, `x.f` is the projection, and a pattern
 #   `%Mod{f: p}` is the anonymous constructor `⟨.., p, ..⟩` with a wildcard
@@ -224,11 +225,15 @@
 #       and `case :queue.out(q)` stay whole-body forms.
 #     * A block `(a; b; c)` is nested `let`s with the last statement as the
 #       value. Its other statements must be bindings: an effect belongs to
-#       the clause body, where the model can order it.
+#       the clause body, where the model can order it. The one non-binding
+#       statement allowed is `{_, q} = :queue.out(q0)`, which is the same
+#       `let q := List.tail q0` the statement form gives it.
 #     * A binding `x = e` is `let x := e` (a variable simply shadows; Lean's
 #       `let` is not recursive, so the right-hand side still reads the old
 #       one). A pattern binding `{a, b} = e` is `let (a, b) := e`, and a
-#       struct pattern `%Mod{f: p} = e` the anonymous constructor. Only a
+#       struct pattern `%Mod{f: p} = e` the anonymous constructor (a pair of
+#       two typed expressions has the product type `A × B`, so
+#       `{a, b} = if .. do {x, y} else {u, v} end` binds). Only a
 #       pattern that is total at its type may be bound (`irrefutable?`):
 #       a variable, `_`, a pair at a product type, a struct pattern,
 #       `%{}`. `{:ok, v} = Map.fetch(m, k)` and `%{k => v} = m` can fail and
@@ -260,19 +265,23 @@
 #       contributes its tag at the arity it is matched with, and the
 #       callback fixes the kind (cast/info/call); messages the module sends
 #       with a literal tag (`send/2`, `GenServer.cast/2`,
-#       `Process.send_after/3`) that nobody handles or declares join its
-#       @type msg. A tag matched at two arities is an error: declare it.
+#       `Process.send_after/3`, `Phoenix.PubSub.broadcast/3`) that nobody
+#       handles or declares join its @type msg. A tag matched at two
+#       arities is an error: declare it.
 #     * reply: when every `{:reply, r, _}`, `{:reply, r, _, _}`,
 #       `{:stop, _, r, _}` and `GenServer.reply(_, r)` in the file is a
 #       literal atom or tagged tuple, the alternatives become the tagged
 #       union `Reply` as a declared @type reply would; otherwise the reply
-#       type is `term()`. A tag that appears at two arities (`:ok` and
-#       `{:ok, ref}`) names its tuple form with the arity appended (`ok`
-#       and `ok1`).
+#       type is `term()`, and a reply expression that does have a type in
+#       the model is then an error naming `@type reply` (the opaque
+#       constructor cannot carry it). A tag that appears at two arities
+#       (`:ok` and `{:ok, ref}`) names its tuple form with the arity
+#       appended (`ok` and `ok1`).
 #     * state: the literal of `init/1`. `%{k: e, ..}` (atom keys) is a
 #       record type (see below), `%{}` a map, an integer `integer()`, a
-#       boolean `boolean()`, `nil` `term() | nil`, a list `[term()]`, a
-#       tuple positional; anything else `term()`. With no init/1 either, the
+#       boolean `boolean()`, a binary `binary()`, `nil` `term() | nil`, a
+#       list `[term()]`, a tuple positional, `%Mod{..}` that struct;
+#       anything else `term()`. With no init/1 either, the
 #       shape comes from the state patterns of the callbacks, which must
 #       agree: a map pattern anywhere makes it a record whose fields are the
 #       keys the patterns match and the keys the bodies update or return,
@@ -345,7 +354,10 @@
 #   the source: `GenServer.start_link/start(_, _, name: N)` and
 #   `Process.register(_, N)` anywhere in a module register N (__MODULE__,
 #   an alias or an atom) as the constant N lowercased (Cache -> cache).
-#   Atom names may be used as send/cast targets (`send(:cache, m)`).
+#   `name: Keyword.get(opts, :name, N)` is N with a warning: the option
+#   list a real `start_link` is handed is not modelled, the same rule
+#   `init/1` follows. Atom names may be used as send/cast targets
+#   (`send(:cache, m)`).
 #
 # Output shape: every file becomes one `def beh : EBehavior St Msg` over
 #   `Leanactors.Sys`, whose clauses are `| me, fresh, <state>, <msg> => (state,
@@ -672,7 +684,8 @@ defmodule ToLean do
           not Enum.any?(clauses, fn cl -> cl.mod == name and cl.guard == nil and bare?(cl.mpat) end),
           do: name
     ctx = %{ctx | traps: traps, inits: inits, init_subs: init_subs, mods: Enum.map(mods, &elem(&1, 0)),
-                  loops: loops, defers: defers, afters: afters, warnings: ctx.warnings ++ init_notes}
+                  loops: loops, defers: defers, afters: afters,
+                  warnings: ctx.warnings ++ init_notes ++ Process.get(:to_lean_reg_notes, [])}
     # a module whose init/1 subscribes but that nothing in this file spawns:
     # the effect has no spawn site to hang on, so the model would show no
     # subscription at all. Warn; the hand-written example that places such an
@@ -792,6 +805,18 @@ defmodule ToLean do
   end
 
   defp reg_name(mod, {:__MODULE__, _, _}), do: Atom.to_string(mod)
+  # `name: Keyword.get(opts, :name, N)`: the option list a real `start_link`
+  # is handed is not modelled (the same rule `init/1` follows), so the
+  # registered name is the literal default. Warned about, because a caller
+  # that passes `name:` gets a differently named actor than the model has.
+  defp reg_name(mod, {{:., _, [{:__aliases__, _, [:Keyword]}, :get]}, _, [{v, _, nil}, :name, d]})
+       when is_atom(v) do
+    Process.put(:to_lean_reg_notes,
+      Process.get(:to_lean_reg_notes, []) ++
+        ["#{mod}: the registered name is Keyword.get(#{v}, :name, #{Macro.to_string(d)}); " <>
+         "the option list is not modelled, so the model uses the default"])
+    reg_name(mod, d)
+  end
   defp reg_name(_mod, {:__aliases__, _, segs}), do: Atom.to_string(List.last(segs))
   defp reg_name(_mod, a) when is_atom(a) and a not in [nil, true, false], do: Atom.to_string(a)
   defp reg_name(mod, x), do: fail("#{mod}: unsupported registered name #{Macro.to_string(x)}")
@@ -967,6 +992,11 @@ defmodule ToLean do
       {:send, _, [_, m]} = n, acc -> {n, [m | acc]}
       {{:., _, [{:__aliases__, _, [:GenServer]}, :cast]}, _, [_, m]} = n, acc -> {n, [m | acc]}
       {{:., _, [{:__aliases__, _, [:Process]}, :send_after]}, _, [_, m, _]} = n, acc -> {n, [m | acc]}
+      # a PubSub broadcast delivers its message to the subscribers, so its
+      # literal is a message of this file exactly as a `send` is
+      {{:., _, [{:__aliases__, _, segs}, f]}, _, [_, _, m]} = n, acc
+        when f in [:broadcast, :broadcast!] ->
+        if List.last(segs) == :PubSub, do: {n, [m | acc]}, else: {n, acc}
       n, acc -> {n, acc}
     end)
     Enum.reverse(ms) |> Enum.filter(&(is_atom(&1) or tagged_tuple?(&1)))
@@ -1005,6 +1035,9 @@ defmodule ToLean do
   defp infer_type(l) when is_list(l), do: [{:term, [], []}]
   defp infer_type({:{}, _, xs}), do: {:{}, [], Enum.map(xs, &infer_type/1)}
   defp infer_type({a, b}), do: {:{}, [], [infer_type(a), infer_type(b)]}
+  # a struct literal is that struct's type, whatever fields the literal sets
+  # (the field types come from `defstruct` and `@type t`, not from here)
+  defp infer_type({:%, _, [m, {:%{}, _, _}]}), do: {:%, [], [m, {:%{}, [], []}]}
   defp infer_type(_), do: {:term, [], []}
 
   # ---------- external resources ----------
@@ -1887,6 +1920,10 @@ defmodule ToLean do
                     is_integer(d) and d >= 0 -> "Nat"
                     is_integer(d) -> "Int"
                     is_boolean(d) -> "Bool"
+                    # a binary default is a String, a `:queue.new()` the
+                    # empty queue (the list, oldest first)
+                    is_binary(d) -> "String"
+                    match?({{:., _, [:queue, :new]}, _, []}, d) -> "List Term"
                     true -> fail("#{mod}: declare the type of struct field #{f} in @type t :: %__MODULE__{#{f}: ..}")
                   end
               end
@@ -3711,6 +3748,16 @@ defmodule ToLean do
   # model can order it; inside an expression there is no order to put it in.
   defp block_let(s, env) do
     case s do
+      # `{_, q} = :queue.out(q0)`: the queue without its oldest element, the
+      # same rule the statement form follows (`:queue.out` of an empty queue
+      # gives it back unchanged, as `tail` does). The pair it returns has no
+      # type in the model, so it cannot go through `bind_pat_let`.
+      {:=, _, [{{:_, _, nil}, {v, _, nil}}, {{:., _, [:queue, :out]}, _, [q]}]} when is_atom(v) ->
+        qt = type_of(env, q)
+        name = lean_ident(Atom.to_string(v))
+        env = Map.delete(env, {:alias, Atom.to_string(v)})
+        env = if qt, do: Map.put(env, name, qt), else: Map.delete(env, name)
+        {"let #{name} := List.tail #{paren_or(expr(env, q, qt))}", env}
       {:=, _, [lhs, rhs]} -> bind_pat_let(env, lhs, rhs)
       other -> fail("only bindings are supported inside a block expression, got #{Macro.to_string(other)}")
     end
@@ -4156,6 +4203,17 @@ defmodule ToLean do
   # `.send <caller> (.reply r)`: the reply of a handle_call clause
   defp reply_str(ctx, env, r) do
     from = env[:__from__] || fail("{:reply, ...} outside handle_call")
+    # Untyped mode infers `term()` for a reply that is not a literal. If the
+    # expression does have a type in the model, the opaque reply constructor
+    # cannot carry it, and Lean would reject the generated file: say so here
+    # instead, naming the declaration that fixes it.
+    if ctx.reply_type == "Term" do
+      case type_of(env, r) do
+        nil -> :ok
+        "Term" -> :ok
+        rt -> fail("the reply #{Macro.to_string(r)} has type #{rt}, but the reply type was inferred as the opaque term(); declare @type reply :: ...")
+      end
+    end
     send_str(ctx, from, ".reply #{paren_or(expr(env, r, ctx.reply_type))}")
   end
 
@@ -5084,6 +5142,13 @@ defmodule ToLean do
       {kt, vt} -> if i == 0, do: kt, else: vt
       nil -> nil
     end
+  end
+  # a pair of two typed expressions is the model's one tuple value, `A × B`
+  # (this is what lets `{a, b} = if .. do {x, y} else {u, v} end` bind)
+  defp type_of(env, {a, b}) do
+    with ta when ta != nil <- type_of(env, a),
+         tb when tb != nil <- type_of(env, b),
+      do: "#{paren(ta)} × #{paren(tb)}", else: (_ -> nil)
   end
   # ---- values (binaries, the @remote table) ----
   defp type_of(_env, s) when is_binary(s), do: "String"

@@ -4,30 +4,36 @@ set -e
 cd "$(dirname "$0")"
 export PATH="$HOME/.elan/bin:$PATH"
 
+# a private scratch directory per run: two worktrees running check.sh at the
+# same moment used to clobber each other's /tmp/Gen.<Name>.lean and report a
+# drift that was not there
+OUT=$(mktemp -d)
+trap 'rm -rf "$OUT"' EXIT
+
 echo "== translate"
-elixir elixir/to_lean.exs elixir/src/lock.ex Leanactors.Gen.Lock --pid Lock=server > /tmp/Gen.Lock.lean
-elixir elixir/to_lean.exs elixir/src/bank.ex Leanactors.Gen.Bank --pid Bank=bank > /tmp/Gen.Bank.lean
-elixir elixir/to_lean.exs elixir/src/supervisor.ex Leanactors.Gen.Supervisor --pid Sup=sup > /tmp/Gen.Supervisor.lean
-elixir elixir/to_lean.exs elixir/src/task.ex Leanactors.Gen.Task --pid Caller=caller > /tmp/Gen.Task.lean
-elixir elixir/to_lean.exs elixir/src/watchdog.ex Leanactors.Gen.Watchdog --pid Watchdog=watchdog > /tmp/Gen.Watchdog.lean
-elixir elixir/to_lean.exs elixir/src/ttl.ex Leanactors.Gen.Ttl > /tmp/Gen.Ttl.lean
-elixir elixir/to_lean.exs elixir/src/registry.ex Leanactors.Gen.Registry > /tmp/Gen.Registry.lean
-elixir elixir/to_lean.exs elixir/src/feed.ex Leanactors.Gen.Feed > /tmp/Gen.Feed.lean
-elixir elixir/to_lean.exs elixir/src/ringlog.ex Leanactors.Gen.Ringlog > /tmp/Gen.Ringlog.lean
+elixir elixir/to_lean.exs elixir/src/lock.ex Leanactors.Gen.Lock --pid Lock=server > $OUT/Gen.Lock.lean
+elixir elixir/to_lean.exs elixir/src/bank.ex Leanactors.Gen.Bank --pid Bank=bank > $OUT/Gen.Bank.lean
+elixir elixir/to_lean.exs elixir/src/supervisor.ex Leanactors.Gen.Supervisor --pid Sup=sup > $OUT/Gen.Supervisor.lean
+elixir elixir/to_lean.exs elixir/src/task.ex Leanactors.Gen.Task --pid Caller=caller > $OUT/Gen.Task.lean
+elixir elixir/to_lean.exs elixir/src/watchdog.ex Leanactors.Gen.Watchdog --pid Watchdog=watchdog > $OUT/Gen.Watchdog.lean
+elixir elixir/to_lean.exs elixir/src/ttl.ex Leanactors.Gen.Ttl > $OUT/Gen.Ttl.lean
+elixir elixir/to_lean.exs elixir/src/registry.ex Leanactors.Gen.Registry > $OUT/Gen.Registry.lean
+elixir elixir/to_lean.exs elixir/src/feed.ex Leanactors.Gen.Feed > $OUT/Gen.Feed.lean
+elixir elixir/to_lean.exs elixir/src/ringlog.ex Leanactors.Gen.Ringlog > $OUT/Gen.Ringlog.lean
 # untyped mode: no @type anywhere, no --pid flag (the name is derived from
 # `GenServer.start_link(__MODULE__, opts, name: __MODULE__)`, so the Lean
 # constant is `table_registry`)
-elixir elixir/to_lean.exs elixir/real/table_registry.ex Leanactors.Gen.TableRegistry > /tmp/Gen.TableRegistry.lean
-diff -q /tmp/Gen.Lock.lean Leanactors/Gen/Lock.lean
-diff -q /tmp/Gen.Bank.lean Leanactors/Gen/Bank.lean
-diff -q /tmp/Gen.Supervisor.lean Leanactors/Gen/Supervisor.lean
-diff -q /tmp/Gen.Task.lean Leanactors/Gen/Task.lean
-diff -q /tmp/Gen.Watchdog.lean Leanactors/Gen/Watchdog.lean
-diff -q /tmp/Gen.Ttl.lean Leanactors/Gen/Ttl.lean
-diff -q /tmp/Gen.Registry.lean Leanactors/Gen/Registry.lean
-diff -q /tmp/Gen.Feed.lean Leanactors/Gen/Feed.lean
-diff -q /tmp/Gen.Ringlog.lean Leanactors/Gen/Ringlog.lean
-diff -q /tmp/Gen.TableRegistry.lean Leanactors/Gen/TableRegistry.lean
+elixir elixir/to_lean.exs elixir/real/table_registry.ex Leanactors.Gen.TableRegistry > $OUT/Gen.TableRegistry.lean
+diff -q $OUT/Gen.Lock.lean Leanactors/Gen/Lock.lean
+diff -q $OUT/Gen.Bank.lean Leanactors/Gen/Bank.lean
+diff -q $OUT/Gen.Supervisor.lean Leanactors/Gen/Supervisor.lean
+diff -q $OUT/Gen.Task.lean Leanactors/Gen/Task.lean
+diff -q $OUT/Gen.Watchdog.lean Leanactors/Gen/Watchdog.lean
+diff -q $OUT/Gen.Ttl.lean Leanactors/Gen/Ttl.lean
+diff -q $OUT/Gen.Registry.lean Leanactors/Gen/Registry.lean
+diff -q $OUT/Gen.Feed.lean Leanactors/Gen/Feed.lean
+diff -q $OUT/Gen.Ringlog.lean Leanactors/Gen/Ringlog.lean
+diff -q $OUT/Gen.TableRegistry.lean Leanactors/Gen/TableRegistry.lean
 echo "   generated files are up to date"
 
 echo "== translator fixtures"
@@ -39,8 +45,8 @@ echo "== readiness self-check"
 # --strict exits 1 if any candidate module is not translatable.
 # (pubsub.ex is the local Phoenix.PubSub twin the drivers send through, not
 # a module the model translates: PubSub is an effect of Sys, not an actor.)
-elixir elixir/readiness.exs --strict --exclude elixir/src/pubsub.ex elixir/src > /tmp/readiness.src.txt
-grep "candidate modules" /tmp/readiness.src.txt | sed 's/^/   /'
+elixir elixir/readiness.exs --strict --exclude elixir/src/pubsub.ex elixir/src > $OUT/readiness.src.txt
+grep "candidate modules" $OUT/readiness.src.txt | sed 's/^/   /'
 
 echo "== readiness regression gate"
 # Re-measure the five real projects and compare with docs/readiness-baseline.json:
