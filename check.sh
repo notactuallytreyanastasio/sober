@@ -29,6 +29,10 @@ elixir elixir/to_lean.exs elixir/real/table_registry.ex Leanactors.Gen.TableRegi
 # what it broadcasts (a socket modelled as the record of its assigns)
 elixir elixir/to_lean.exs elixir/real/log_store.ex Leanactors.Gen.LogStore > $OUT/Gen.LogStore.lean 2>/dev/null
 elixir elixir/to_lean.exs elixir/real/logs_live.ex Leanactors.Gen.LogsLive > $OUT/Gen.LogsLive.lean
+# untyped mode, a LiveView again: a chain of assigns folded into one record
+# update, and a payload inferred `term() | nil` from the `!= nil` the body
+# writes about it
+elixir elixir/to_lean.exs elixir/real/radio_live.ex Leanactors.Gen.RadioLive > $OUT/Gen.RadioLive.lean
 diff -q $OUT/Gen.Lock.lean Leanactors/Gen/Lock.lean
 diff -q $OUT/Gen.Bank.lean Leanactors/Gen/Bank.lean
 diff -q $OUT/Gen.Supervisor.lean Leanactors/Gen/Supervisor.lean
@@ -41,6 +45,7 @@ diff -q $OUT/Gen.Ringlog.lean Leanactors/Gen/Ringlog.lean
 diff -q $OUT/Gen.TableRegistry.lean Leanactors/Gen/TableRegistry.lean
 diff -q $OUT/Gen.LogStore.lean Leanactors/Gen/LogStore.lean
 diff -q $OUT/Gen.LogsLive.lean Leanactors/Gen/LogsLive.lean
+diff -q $OUT/Gen.RadioLive.lean Leanactors/Gen/RadioLive.lean
 echo "   generated files are up to date"
 
 echo "== translator fixtures"

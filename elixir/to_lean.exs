@@ -1024,12 +1024,34 @@ defmodule ToLean do
   # shapes -- there is no way to choose between them here, and `term()` is
   # the abstraction that is always sound.
   defp state_key_type(cls, k) do
-    case cls |> Enum.flat_map(&state_key_values(&1.body, k)) |> Enum.map(&infer_type/1)
-             |> Enum.reject(&(&1 == {:term, [], []})) |> Enum.uniq() do
+    case cls
+         |> Enum.flat_map(fn cl -> for v <- state_key_values(cl.body, k), do: infer_type_in(cl, v) end)
+         |> Enum.reject(&(&1 == {:term, [], []}))
+         |> Enum.uniq() do
       [t] -> t
       _ -> {:term, [], []}
     end
   end
+
+  # A value written to a state field, typed in the clause that writes it: a
+  # bare variable the clause's message pattern bound carries that payload's
+  # type (so a nil-tested payload makes the field an Option too), and
+  # anything else is read by the shape rules `infer_type` applies to an
+  # init/1 literal.
+  defp infer_type_in(cl, {v, _, nil} = e) when is_atom(v) do
+    if bare?(cl.mpat) do
+      infer_type(e)
+    else
+      {_, args} = msg_shape(cl.mpat)
+
+      case Enum.find(Enum.zip(args, payload_types(cl, args)), &match?({{^v, _, nil}, _}, &1)) do
+        {_, t} -> t
+        nil -> infer_type(e)
+      end
+    end
+  end
+
+  defp infer_type_in(_cl, e), do: infer_type(e)
 
   defp state_key_values(body, k) do
     {_, vs} =
@@ -1084,12 +1106,15 @@ defmodule ToLean do
       for cl <- cls, not bare?(cl.mpat), cl[:after] == nil, {tag, args} = msg_shape(cl.mpat), reduce: %{} do
         acc ->
           name = if(loop_of(body) != nil, do: :msg, else: %{handle_cast: :cast, handle_info: :info, handle_call: :call}[cl.kind])
+          ts = payload_types(cl, args)
           case Enum.find(Map.get(acc, name, []), &(tag_of(&1) == tag)) do
-            nil -> Map.update(acc, name, [msg_alt(tag, length(args))], &(&1 ++ [msg_alt(tag, length(args))]))
+            nil -> Map.update(acc, name, [msg_alt(tag, ts)], &(&1 ++ [msg_alt(tag, ts)]))
             alt ->
               tuple_arity(alt) == length(args) ||
                 fail("#{mod}: message tag #{tag} is matched with #{tuple_arity(alt)} and #{length(args)} arguments; declare its shape with a @type")
-              acc
+              Map.update!(acc, name, fn alts ->
+                for a <- alts, do: if(tag_of(a) == tag, do: msg_alt(tag, merge_payload(payload_types_of(a), ts)), else: a)
+              end)
           end
       end
     handled = for {_, alts} <- by_kind, alt <- alts, do: tag_of(alt)
@@ -1099,8 +1124,50 @@ defmodule ToLean do
     Map.to_list(Map.update(by_kind, :msg, sent, &(&1 ++ sent)))
   end
 
+  defp msg_alt(tag, []), do: tag
+  defp msg_alt(tag, ts) when is_list(ts), do: {:{}, [], [tag | ts]}
   defp msg_alt(tag, 0), do: tag
-  defp msg_alt(tag, n), do: {:{}, [], [tag | List.duplicate({:term, [], []}, n)]}
+  defp msg_alt(tag, n) when is_integer(n), do: {:{}, [], [tag | List.duplicate({:term, [], []}, n)]}
+
+  # The types of an inferred message's payloads. Every payload is the opaque
+  # `term()` except one the clause body compares with nil (`x == nil`,
+  # `x != nil`, `is_nil(x)`): the model has nil only at an Option type, so
+  # such a payload is `term() | nil`. This is the one thing an untyped module
+  # says about a payload -- a nil comparison is only written about a value
+  # that may be absent -- and it has to be said here, because the same test
+  # on an opaque `Term` is refused (`check_nil_cmp/4`) rather than rendered.
+  defp payload_types(cl, args) do
+    for a <- args do
+      case a do
+        {v, _, nil} when is_atom(v) ->
+          if nil_tested?(cl.body, v), do: {:|, [], [{:term, [], []}, nil]}, else: {:term, [], []}
+
+        _ ->
+          {:term, [], []}
+      end
+    end
+  end
+
+  defp payload_types_of(a) when is_atom(a), do: []
+  defp payload_types_of({_, b}), do: [b]
+  defp payload_types_of({:{}, _, [_ | rest]}), do: rest
+
+  # two clauses matching the same tag: a payload either clause nil-tests is
+  # nullable for the whole constructor
+  defp merge_payload(ts, us),
+    do: for({t, u} <- Enum.zip(ts, us), do: if(t == {:term, [], []}, do: u, else: t))
+
+  defp nil_tested?(body, v) do
+    {_, found} =
+      Macro.prewalk(body, false, fn
+        {op, _, [{^v, _, nil}, nil]} = n, _ when op in [:==, :!=, :===, :!==] -> {n, true}
+        {op, _, [nil, {^v, _, nil}]} = n, _ when op in [:==, :!=, :===, :!==] -> {n, true}
+        {:is_nil, _, [{^v, _, nil}]} = n, _ -> {n, true}
+        n, acc -> {n, acc}
+      end)
+
+    found
+  end
 
   defp union_ast([a]), do: a
   defp union_ast([a | rest]), do: {:|, [], [a, union_ast(rest)]}
@@ -1169,6 +1236,20 @@ defmodule ToLean do
   # a struct literal is that struct's type, whatever fields the literal sets
   # (the field types come from `defstruct` and `@type t`, not from here)
   defp infer_type({:%, _, [m, {:%{}, _, _}]}), do: {:%, [], [m, {:%{}, [], []}]}
+  # a comparison, a boolean connective and a Kernel type test are booleans:
+  # the shape of what a body writes to a state field is how that field's type
+  # is read, and `true`/`false` is a value the model has
+  defp infer_type({op, _, [_, _]})
+       when op in [:==, :!=, :===, :!==, :<, :>, :<=, :>=, :and, :or, :&&, :||, :in],
+       do: {:boolean, [], []}
+
+  defp infer_type({op, _, [_]}) when op in [:not, :!], do: {:boolean, [], []}
+
+  defp infer_type({f, _, [_]})
+       when f in [:is_nil, :is_pid, :is_list, :is_map, :is_integer, :is_atom, :is_boolean,
+                  :is_number, :is_float, :is_tuple, :is_binary],
+       do: {:boolean, [], []}
+
   defp infer_type(_), do: {:term, [], []}
 
   # ---------- external resources ----------
@@ -1994,18 +2075,57 @@ defmodule ToLean do
        when is_atom(v) and is_atom(k),
        do: {{:., m, [s, k]}, [no_parens: true] ++ m, []}
 
-  # `assign(s, :k, e)` -> `%{s | k: e}`
-  defp assign_node({:assign, m, [{v, _, nil} = s, k, e]}) when is_atom(v) and is_atom(k) and k not in [nil, true, false],
-    do: {:%{}, m, [{:|, m, [s, [{k, e}]]}]}
-
-  # `assign(s, k: e, ..)` and `assign(s, %{k: e, ..})` -> `%{s | k: e, ..}`
-  defp assign_node({:assign, m, [{v, _, nil} = s, kvs]}) when is_atom(v) and is_list(kvs),
-    do: if(assign_keys?(kvs), do: {:%{}, m, [{:|, m, [s, kvs]}]}, else: {:assign, m, [s, kvs]})
-
-  defp assign_node({:assign, m, [{v, _, nil} = s, {:%{}, _, kvs}]} = n) when is_atom(v) and is_list(kvs),
-    do: if(assign_keys?(kvs), do: {:%{}, m, [{:|, m, [s, kvs]}]}, else: n)
+  # `assign(s, :k, e)`, `assign(s, k: e, ..)`, `assign(s, %{k: e, ..})`, and
+  # any chain of those on one socket variable -> the single map update
+  # `%{s | k: e, ..}`.
+  defp assign_node({:assign, m, args} = n) when is_list(args) do
+    case assign_chain(n) do
+      {:ok, s, kvs} -> {:%{}, m, [{:|, m, [s, kvs]}]}
+      :no -> n
+    end
+  end
 
   defp assign_node(n), do: n
+
+  # The socket argument of an `assign` may itself be an `assign`: the LiveView
+  # pipeline `socket |> assign(:a, x) |> assign(:b, y)` desugars to
+  # `assign(assign(socket, :a, x), :b, y)`. The model's map update needs the
+  # socket VARIABLE at its head -- a record state has no whole value to nest
+  # one update inside another on -- so a chain is unfolded down to that
+  # variable and folded into one update, which is what Elixir's `%{s | ..}`
+  # already means: every value is evaluated against the original `s`, exactly
+  # as each `assign` in the chain evaluates its value against the socket the
+  # source named -- the intermediate socket of a chain is anonymous, so no
+  # value in it can name anything but the original variable, and `%{s | ..}`
+  # reads every field off that same original. The one case that is refused
+  # (the call is then left alone and reported as the unsupported one it is)
+  # is the same key written twice in one chain: the update has no second slot
+  # for it, and dropping the first write would drop its sub-expressions with
+  # it, so a construct inside them would go unreported.
+  defp assign_chain({v, _, nil} = s) when is_atom(v), do: {:ok, s, []}
+
+  defp assign_chain({:%{}, _, [{:|, _, [{v, _, nil} = s, kvs]}]}) when is_atom(v) and is_list(kvs),
+    do: if(assign_keys?(kvs), do: {:ok, s, kvs}, else: :no)
+
+  defp assign_chain({:assign, _, [inner, k, e]}) when is_atom(k) and k not in [nil, true, false],
+    do: assign_push(inner, [{k, e}])
+
+  defp assign_chain({:assign, _, [inner, kvs]}) when is_list(kvs),
+    do: if(assign_keys?(kvs), do: assign_push(inner, kvs), else: :no)
+
+  defp assign_chain({:assign, _, [inner, {:%{}, _, kvs}]}) when is_list(kvs),
+    do: if(assign_keys?(kvs), do: assign_push(inner, kvs), else: :no)
+
+  defp assign_chain(_), do: :no
+
+  defp assign_push(inner, kvs) do
+    with {:ok, s, done} <- assign_chain(inner),
+         false <- Enum.any?(Keyword.keys(kvs), &(&1 in Keyword.keys(done))) do
+      {:ok, s, done ++ kvs}
+    else
+      _ -> :no
+    end
+  end
 
   defp assign_keys?(kvs),
     do: Keyword.keyword?(kvs) and kvs != [] and Enum.all?(kvs, fn {k, _} -> atom_key?(k) end)
@@ -4838,6 +4958,7 @@ defmodule ToLean do
   end
   # `===`/`!==` are `==`/`!=`: the modelled types have no boxed-value identity
   defp expr(env, {op, _, [a, b]}, t) when op in [:*, :===, :!==] do
+    if op != :*, do: check_nil_cmp(env, a, b, op)
     lop = case op do
       :* -> "*"
       :=== -> "="
@@ -4847,6 +4968,7 @@ defmodule ToLean do
     "(#{expr(env, a, at)} #{lop} #{expr(env, b, at)})"
   end
   defp expr(env, {:!, _, [a]}, _t), do: "(¬ #{expr(env, a, nil)})"
+
   defp expr(env, {:-, _, [a]}, t) do
     at = type_of(env, a) || t
     at in [nil, "Int"] || fail("unary `-` at #{at}: only integer()")
@@ -4858,6 +4980,8 @@ defmodule ToLean do
     # arithmetic on one here rather than let Lean fail on a missing instance
     if op in [:+, :-, :<=, :>=, :<, :>] and "Instant" in [type_of(env, a), type_of(env, b)],
       do: fail("`#{op}` in #{Macro.to_string(e)}: the model has no clock, so an Instant has equality and nothing else")
+
+    if op in [:==, :!=], do: check_nil_cmp(env, a, b, op)
     lop = %{+: "+", -: "-", ++: "++", <=: "≤", >=: "≥", <: "<", >: ">", ==: "=", !=: "≠", and: "∧", or: "∨"}[op]
     at = if op in [:++], do: t, else: nil
     "(#{expr(env, a, at)} #{lop} #{expr(env, b, at)})"
@@ -4882,6 +5006,22 @@ defmodule ToLean do
     end
   end
   defp expr(_env, e, _t), do: fail("unsupported expression #{Macro.to_string(e)}")
+
+  # nil is a value of the model only at an Option type. Comparing anything
+  # else with it asks a question about a value that type does not have, so it
+  # is an error here rather than the `none` Lean would refuse to elaborate --
+  # the same rule `is_nil/1` follows in `type_test/3`.
+  defp check_nil_cmp(env, a, b, op) do
+    if (a == nil) != (b == nil) do
+      other = if a == nil, do: b, else: a
+
+      case type_of(env, other) do
+        nil -> :ok
+        "Option " <> _ -> :ok
+        t -> fail("#{Macro.to_string(other)} #{op} nil at #{t}: nil is not a value of that type in the model")
+      end
+    end
+  end
 
   # A Kernel type test, decided from the modelled type of its argument. At an
   # Option type the value is the argument or nil, so the test is `isNone` for

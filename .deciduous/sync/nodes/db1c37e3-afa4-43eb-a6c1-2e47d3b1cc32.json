@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "db1c37e3-afa4-43eb-a6c1-2e47d3b1cc32",
+  "created_at": "2026-09-11T00:00:29.432447-04:00",
+  "metadata": {
+    "branch": "wf8/batch-b",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "RadioLive lands: 76 -> 79 fixtures, Gen.RadioLive + Examples.RadioLive, property proved and checked",
+  "updated_at": "2026-09-11T00:00:29.432447-04:00"
+}

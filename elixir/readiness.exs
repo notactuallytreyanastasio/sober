@@ -115,6 +115,7 @@ defmodule Readiness do
       "assign(socket, :key, e)",
       "assign(socket, key: e, ..)",
       "assign(socket, %{key: e, ..})",
+      "socket |> assign(..) |> assign(..) (a chain on one socket variable)",
       "socket.assigns.key"
     ],
     # statements before the return form (see `sends` in the translator)
@@ -596,20 +597,46 @@ defmodule Readiness do
 
   @kernel_funs MapSet.new(Kernel.__info__(:functions) ++ Kernel.__info__(:macros))
 
-  # `assign(socket, :k, e)`, `assign(socket, k: e, ..)` and
-  # `assign(socket, %{k: e, ..})`: the LiveView assigns update the translator
-  # rewrites to `%{socket | k: e}`. A computed key, or a socket that is not a
-  # variable, is not one of these and stays a blocker.
-  defp live_assign?({:assign, _, [{v, _, nil}, k, _]}) when is_atom(v),
-    do: is_atom(k) and k not in [nil, true, false]
+  # `assign(socket, :k, e)`, `assign(socket, k: e, ..)`,
+  # `assign(socket, %{k: e, ..})` and any CHAIN of them on one socket
+  # variable (the LiveView pipeline `socket |> assign(..) |> assign(..)`):
+  # the assigns update the translator folds into the single record update
+  # `%{socket | k: e, ..}`. A computed key, a socket that is not a variable
+  # under the chain, and the same key written twice in one chain are not one
+  # of these and stay blockers -- this mirrors `assign_chain/1` in the
+  # translator.
+  defp live_assign?(e), do: match?({:ok, _, _}, assign_chain(e))
 
-  defp live_assign?({:assign, _, [{v, _, nil}, kvs]}) when is_atom(v) and is_list(kvs),
-    do: assign_keys?(kvs)
+  defp assign_chain({v, _, nil} = s) when is_atom(v), do: {:ok, s, []}
 
-  defp live_assign?({:assign, _, [{v, _, nil}, {:%{}, _, kvs}]}) when is_atom(v) and is_list(kvs),
-    do: assign_keys?(kvs)
+  defp assign_chain({:assign, _, [inner, k, e]}) when is_atom(k) and k not in [nil, true, false],
+    do: assign_push(inner, [{k, e}])
 
-  defp live_assign?(_), do: false
+  defp assign_chain({:assign, _, [inner, kvs]}) when is_list(kvs),
+    do: if(assign_keys?(kvs), do: assign_push(inner, kvs), else: :no)
+
+  defp assign_chain({:assign, _, [inner, {:%{}, _, kvs}]}) when is_list(kvs),
+    do: if(assign_keys?(kvs), do: assign_push(inner, kvs), else: :no)
+
+  defp assign_chain(_), do: :no
+
+  defp assign_push(inner, kvs) do
+    with {:ok, s, done} <- assign_chain(inner),
+         false <- Enum.any?(Keyword.keys(kvs), &(&1 in Keyword.keys(done))) do
+      {:ok, s, done ++ kvs}
+    else
+      _ -> :no
+    end
+  end
+
+  # the value expressions of a chain of assigns (what is left to check once
+  # the chain itself is accounted for)
+  defp assign_values(e) do
+    case assign_chain(e) do
+      {:ok, _, kvs} -> for {_, v} <- kvs, do: v
+      :no -> []
+    end
+  end
 
   defp assign_keys?(kvs),
     do: Keyword.keyword?(kvs) and kvs != [] and Enum.all?(kvs, fn {k, _} -> k not in [nil, true, false] end)
@@ -1931,7 +1958,7 @@ defmodule Readiness do
           # Phoenix LiveView's imported `assign/2,3` on a variable socket
           # with literal atom keys: a functional update of the socket's
           # assigns, which the translator models as a record field update
-          live_assign?(e) -> Enum.flat_map(tl(args), &check_expr(mod, &1, l))
+          live_assign?(e) -> Enum.flat_map(assign_values(e), &check_expr(mod, &1, l))
           String.starts_with?(Atom.to_string(f), "sigil_") -> blk.("sigil")
           true -> [finding(:blocker, l, call_kind(mod, f, n), str(e)) | Enum.flat_map(args, &check_expr(mod, &1, l))]
         end
