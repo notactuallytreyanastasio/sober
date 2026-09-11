@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "79425e40-de40-4d96-96ac-5cb076e86912",
+  "created_at": "2026-09-11T00:02:30.591385-04:00",
+  "description": "README.md says 37 files / 14,697 hand-written lines / ten Gen files / 509 generated lines / 809 theorems / ten worked examples / 73 fixtures (53 ok, 20 error). Batch A left its own replacement text in node 736; this composes on top of it. After batch B the true counts are: 40 hand-written Lean files under Leanactors (not counting Gen), 15,034 lines; 13 generated files under Leanactors/Gen, 612 lines; 813 theorems, zero sorry, zero axiom; 13 worked examples (bank, lock, supervisor, task, watchdog, ttl, registry, feed, ringlog, table registry, log store, logs live, radio live); 79 fixtures, 56 expect-ok and 23 expect-error; 4 of the 13 examples are modules copied unmodified out of real projects (table_registry.ex, log_store.ex, logs_live.ex, radio_live.ex).\n\nStatus paragraph, the sentence about copied modules, replace with: Four are modules that were not written for this repository -- elixir/real/table_registry.ex, log_store.ex, logs_live.ex and radio_live.ex are byte-for-byte copies of Loom.Teams.TableRegistry, Ensemble.LogStore, EnsembleWeb.LogsLive and BobsBroadcastWeb.RadioLive, translated with no annotations and no edits (see Untyped mode).\n\nNew row for the example table: Radio live -- the Play/Stop button agrees with the track -- 809 configurations, mutation-tested (the mutant that forgets the second link of the assign chain), also proved.\n\nNew row for the Layout table: Leanactors/Examples/RadioLive.lean -- BobsBroadcastWeb.RadioLive with no annotations: hand beh, beh_eq_gen, the bounded check that playing is true exactly when now_playing holds a track, the mutant that keeps the old playing, the invariant proved for every state the behaviour produces, and one trace. The property is of the mailbox and not of the running view: handle_event of the Play button sets playing on its own, and that transition is not in the model.\n\nReadiness line: the five projects now report 55 candidate modules, 721 blockers and 4 translatable (loom 1, ensemble 2, bobs_broadcast 1).\n\nThe translator header (elixir/to_lean.exs, LiveView assigns paragraph) already carries the chain-fold and nil-test wording, so no README change is needed for it beyond the counts.",
+  "metadata": {
+    "branch": "wf8/batch-b"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "README replacement text for round 8 batch B",
+  "updated_at": "2026-09-11T00:02:30.591385-04:00"
+}

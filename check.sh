@@ -49,7 +49,14 @@ diff -q $OUT/Gen.RadioLive.lean Leanactors/Gen/RadioLive.lean
 echo "   generated files are up to date"
 
 echo "== translator fixtures"
-elixir elixir/test/run_fixtures.exs | grep -v "^PASS "
+# through a file, not a pipe: `set -e` takes a pipeline's status from its LAST
+# command, so `run_fixtures.exs | grep -v` reported a failing fixture on stdout
+# and still left check.sh green
+elixir elixir/test/run_fixtures.exs > $OUT/fixtures.txt || {
+  grep -v "^PASS " $OUT/fixtures.txt
+  exit 1
+}
+grep -v "^PASS " $OUT/fixtures.txt
 
 echo "== readiness self-check"
 # every module of elixir/src must still report as translatable (the same

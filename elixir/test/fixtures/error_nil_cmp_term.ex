@@ -1,5 +1,4 @@
-# expect: error
-# error: nil is not a value of that type
+# expect: error nil is not a value of that type
 # A comparison with nil at an opaque `term()`. The model has no nil except
 # at an Option type, so the question `v != nil` asks is about a value this
 # type does not have; rendering it as `none` would be Lean the elaborator

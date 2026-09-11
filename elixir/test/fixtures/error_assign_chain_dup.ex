@@ -1,5 +1,4 @@
-# expect: error
-# error: assign
+# expect: error does not fit the record state
 # The same assign key written twice in one chain. The single record update
 # the chain folds into has one slot per key, and dropping the first write
 # would drop its sub-expressions with it -- anything unsupported inside them
