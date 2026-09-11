@@ -934,7 +934,7 @@ defmodule Readiness do
          check_blocking(ctx, call, line_of(call, line))]
       _ ->
         [for(s <- pre, do: check_stmt(ctx, s, line_of(s, line))),
-         check_last(ctx, last, line_of(last, line), Enum.any?(pre, &effectful?/1))]
+         check_last(ctx, last, line_of(last, line))]
     end
   end
 
@@ -1059,22 +1059,6 @@ defmodule Readiness do
     end
   end
 
-  # a statement with an effect of its own: anything but a pure local binding
-  # (a `let`) or a resource call the translator drops
-  defp effectful?(s) do
-    case s do
-      {:=, _, [{v, _, nil}, rhs]} when is_atom(v) -> ets_call?(rhs) == false and spawn_rhs?(rhs)
-      {:=, _, [{{:_, _, nil}, {v, _, nil}}, {{:., _, [:queue, :out]}, _, [_]}]} when is_atom(v) -> false
-      _ -> not ets_call?(s) and not resource_try?(s)
-    end
-  end
-
-  # a binding whose right-hand side is itself an effect (a spawn, a call)
-  defp spawn_rhs?({f, _, _}) when f in [:spawn, :spawn_link, :spawn_monitor], do: true
-  defp spawn_rhs?({{:., _, [{:__aliases__, _, [:GenServer]}, f]}, _, _}) when f in [:start, :start_link, :call], do: true
-  defp spawn_rhs?({{:., _, [{:__aliases__, _, [:Process]}, :monitor]}, _, _}), do: true
-  defp spawn_rhs?(_), do: false
-
   # `try do <only resource calls> rescue .. end`, dropped before translation
   defp resource_try?({:try, _, [blocks]}) when is_list(blocks) do
     (Keyword.keys(blocks) -- [:do]) == [:rescue] and Enum.all?(stmts(blocks[:do]), &ets_call?/1)
@@ -1147,14 +1131,11 @@ defmodule Readiness do
 
   # the return form of a callback body
   # an if/case/cond/... is only accepted as the whole body, not after statements
-  defp check_last(ctx, last, l, effects_before?) do
-    control? = match?({f, _, _} when f in [:if, :case, :cond, :with, :try, :unless, :receive], last)
-    [
-      if(effects_before? and control?,
-        do: [finding(:blocker, l, "if/case after a statement with an effect (it would have to be pushed into every branch)", str(last))],
-        else: []),
-      if(ctx.kind == :loop, do: check_loop_last(ctx, last, l), else: check_callback_last(ctx, last, l))
-    ]
+  # A statement with an effect before an `if`/`case` body is pushed into
+  # every branch: its effect is prepended to the effects of whichever leaf
+  # runs, which is exactly once in any run.
+  defp check_last(ctx, last, l) do
+    if ctx.kind == :loop, do: check_loop_last(ctx, last, l), else: check_callback_last(ctx, last, l)
   end
 
   defp check_callback_last(ctx, last, l) do

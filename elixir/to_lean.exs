@@ -155,9 +155,10 @@
 #   `x :: rest` and `{:empty, q}` is `[]` with q aliased to it.
 #   A local binding `v = e` is a Lean `let` wrapped around the clause's
 #   result. Statements may be followed by an if/case body, in which case the
-#   bindings wrap the whole branch; a statement with an effect of its own
-#   (a send, a spawn) there is an error, because it would have to be pushed
-#   into every branch.
+#   bindings wrap the whole branch (so the condition sees them) and a
+#   statement with an effect of its own (a send, a spawn) is pushed into
+#   every branch: its effect is prepended to the effects of whichever leaf
+#   runs, which is once in the text per leaf and exactly once in any run.
 #   A module attribute holding a literal (`@max 3`) is substituted into
 #   every later read of it in the module body, so a defstruct default, a
 #   guard or a state expression may name one.
@@ -2895,18 +2896,21 @@ defmodule ToLean do
   # the rest of a body after a blocking call may be a single `if`/`case`
   defp body_stmts(ctx, mod, env, [{:if, _, _} = e]), do: body(ctx, mod, env, e)
   defp body_stmts(ctx, mod, env, [{:case, _, _} = e]), do: body(ctx, mod, env, e)
-  # Bindings followed by an `if`/`case` body: the bindings become `let`s
-  # around the whole branch. A statement with an effect of its own cannot be
-  # lifted like that (it would have to be pushed into every branch), so it is
-  # an error here.
+  # Statements followed by an `if`/`case` body. The bindings become `let`s
+  # around the whole branch, so the condition and every branch see them. A
+  # statement with an effect of its own cannot be lifted like that, because
+  # the branch is what produces the effect list: it is carried in the
+  # environment as `:__pre_effects__` and prepended to the effects of
+  # whichever leaf runs -- which is pushing it into every branch, once per
+  # leaf in the text and exactly once in any run. The spawn and ETS counters
+  # advance in `env2`, so a leaf that spawns continues the numbering.
   defp body_stmts(ctx, mod, env, stmts)
        when length(stmts) > 1 do
     {pre, [last]} = Enum.split(stmts, -1)
     if match?({tag, _, _} when tag in [:if, :case], last) and not Enum.any?(stmts, &blocking_call?/1) do
       {effs, ctx, env2} = sends(ctx, env, pre)
-      effs == [] ||
-        fail("#{mod}: a statement with an effect before an `if`/`case` body is not supported: #{Macro.to_string(hd(pre))}")
-      {s, ctx} = body(ctx, mod, Map.delete(env2, :__lets__), last)
+      env3 = if effs == [], do: env2, else: Map.update(env2, :__pre_effects__, effs, &(&1 ++ effs))
+      {s, ctx} = body(ctx, mod, Map.delete(env3, :__lets__), last)
       {wrap_lets(env2, s), ctx}
     else
       split_body(ctx, mod, env, stmts)
@@ -2958,8 +2962,9 @@ defmodule ToLean do
     {^tag, [_ | ts]} = List.keyfind(ctx.msg_ctors, tag, 0) || fail("call #{tag} not declared in @type call")
     parts = Enum.zip(args, ts) |> Enum.map(fn {a, t} -> paren_or(expr(env, a, t)) end)
     req = send_str(ctx, const, ".#{tag} me" <> Enum.map_join(parts, "", &(" " <> &1)))
+    pre_effs = Map.get(env, :__pre_effects__, [])
     {send_strs, ctx, env_after} = sends(ctx, Map.put(env, :__mod__, mod), before)
-    this = wrap_lets(env_after, "(.#{await}#{cap_str}, [#{Enum.join(send_strs ++ [req], ", ")}])")
+    this = wrap_lets(env_after, "(.#{await}#{cap_str}, [#{Enum.join(pre_effs ++ send_strs ++ [req], ", ")}])")
     # the continuation, in an environment with the captured vars, v : reply, and me
     env2 = Map.new(captured) |> Map.put(:__self__, true)
     env2 = if lhs_var, do: Map.put(env2, lhs_var, ctx.reply_type), else: env2
@@ -3130,7 +3135,10 @@ defmodule ToLean do
   defp plain_body(ctx, mod, env, stmts) do
     {sends, [last]} = Enum.split(stmts, -1)
     {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(mod), 0)
+    # the effects of the statements that ran before the enclosing if/case
+    pre_effs = Map.get(env, :__pre_effects__, [])
     {send_strs, ctx, env} = sends(ctx, Map.put(env, :__mod__, mod), sends)
+    send_strs = pre_effs ++ send_strs
     # a continuing state of a loop with `after` re-enters the receive at the
     # next generation (an exit, raise or throw keeps the whole state instead)
     next_state = fn e -> state_expr(ctx, env, e, ctor, visible_fields(ctx, mod, fields)) <> hidden_next(ctx, mod, env) end
