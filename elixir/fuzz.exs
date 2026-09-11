@@ -5,12 +5,14 @@
 #   elixir elixir/fuzz.exs --seed 1 --only 17          # replay one run, print everything
 #   elixir elixir/fuzz.exs --seed 1 --runs 50 --example ttl
 #
-# Every run is a random script for one example (even runs bank, odd runs
-# ttl, unless --example fixes one), generated from the seed and the run
+# Every run is a random script for one example (run i is bank, ttl or
+# lock as i mod 3 is 0, 1 or 2, unless --example fixes one), generated
+# from the seed and the run
 # number (`:rand.seed(:exsss, {seed, run, 7})`), so a failure reported as
 # "seed S run N" is reproduced by `--seed S --only N`. The script is
 # replayed twice: in Lean, by piping it into the `replay` executable
-# (`Leanactors/Replay.lean`: `run` for the bank, `runSys` for the cache),
+# (`Leanactors/Replay.lean`: `run` for the bank and the lock, `runSys`
+# for the cache),
 # and on the BEAM, by driving the real modules in elixir/src with the
 # same messages in the same order. Both print the same observables in the
 # same text form; the first byte-for-byte difference stops the fuzzer
@@ -63,10 +65,42 @@
 #                    was handled, so it has no BEAM counterpart at all.
 #          put0      `send(cache, {:put, 0})`, always the last phase: the
 #                    cache raises and dies. BEAM: monitored, wait for DOWN.
+#   lock   tick c    `send(c, :tick)` to one of three clients. What the tick
+#                    does depends on the protocol state, so the generator
+#                    simulates the protocol (holder, FIFO queue, each
+#                    client's phase, deferred ticks) and expands the tick
+#                    into the one line sequence the model can follow, plus
+#                    the exact list of messages the server will receive:
+#                      idle, lock free   run c, run 0, run c       -> c holds
+#                      idle, lock held   run c, run 0              -> c queued,
+#                                        blocked in the call
+#                      waiting           run c: the tick is deferred (model:
+#                                        re-enqueued by the await state; BEAM:
+#                                        left in the mailbox by the call's
+#                                        selective receive)
+#                      holding           run c, run 0: release; then the
+#                                        cascade: the next queued client n
+#                                        gets the reply (run n -> holding);
+#                                        if n had a deferred tick, run n x3
+#                                        (tick deferred, reply, tick ->
+#                                        release), run 0, and so on down
+#                                        the queue.
+#                    BEAM: the server is traced (`:erlang.trace(lock, true,
+#                    [:receive])`); the twin waits for the simulated
+#                    messages (`$gen_call acquire` from c, `$gen_cast
+#                    release`) to arrive in that order, then
+#                    :sys.get_state(lock) (queued behind the last one) and
+#                    :sys.get_state(c) for each client the phase leaves
+#                    unblocked. Each message in the cascade is causally
+#                    after the server handled the previous one, so their
+#                    order at the server is not the scheduler's.
 #
 # Restrictions and why: no phase delivers to two different processes (the
 # relative order of their reactions at a shared target would be the
-# scheduler's); `put 0` is terminal, because after the cache dies the
+# scheduler's); a waiting client is ticked at most once (a second deferred
+# tick would make it re-acquire right after its release, and whether that
+# acquire reaches the server before the next holder's release is the
+# scheduler's choice); `put 0` is terminal, because after the cache dies the
 # model drops sends to pid 0 while `send(Cache, ...)` by registered name
 # raises ArgumentError on the BEAM and would kill the reader on its next
 # ask (registration is static in the model, a constant pid); no message
@@ -84,6 +118,9 @@
 #   ttl:   cache none|some v|dead / reader <count> /
 #          values <each value the reader received, oldest first> /
 #          pending <messages left in the two mailboxes>
+#   lock:  lock none|<holder> / queue <pids oldest first> /
+#          client 1..3 idle|holding|waiting / pending <messages left in
+#          the four mailboxes>
 #
 # On the BEAM the bank observables are :sys.get_state of the three
 # GenServers after the final sync; the cache's value is a {:get, self()}
@@ -95,6 +132,14 @@
 
 Code.require_file("src/bank.ex", __DIR__)
 Code.require_file("src/ttl.ex", __DIR__)
+# lock.ex also defines a `Client`; load it under its own name.
+Code.compiler_options(ignore_module_conflict: true)
+{lock_mods, _} = Code.eval_string(
+  File.read!(Path.join(__DIR__, "src/lock.ex"))
+  |> String.replace("defmodule Client do", "defmodule LockClient do"),
+  [], file: "lock.ex")
+_ = lock_mods
+Code.compiler_options(ignore_module_conflict: false)
 
 defmodule Fuzz do
   @root Path.expand("..", __DIR__)
@@ -136,6 +181,65 @@ defmodule Fuzz do
       end)
 
     if :rand.uniform(4) == 1, do: phases ++ [:put0], else: phases
+  end
+
+  # Three clients. A tick is expanded through a simulation of the protocol
+  # (see the header); a waiting client that already has a deferred tick is
+  # never ticked again. Each phase is %{c, lines, lock, sync}: the Lean
+  # lines, the messages the server will receive, the clients to sync.
+  @lock_clients 3
+
+  def gen(:lock) do
+    sim = %{holder: nil, queue: [], phase: Map.new(1..@lock_clients, &{&1, :idle}), deferred: %{}}
+
+    {phases, _sim} =
+      Enum.map_reduce(1..(:rand.uniform(8) + 2), sim, fn _, sim ->
+        candidates = for c <- 1..@lock_clients, not Map.has_key?(sim.deferred, c), do: c
+        lock_tick(sim, Enum.random(candidates))
+      end)
+
+    phases
+  end
+
+  defp lock_tick(sim, c) do
+    base = %{c: c, lines: ["deliver #{c} tick"], lock: [], sync: []}
+
+    case sim.phase[c] do
+      :idle when sim.holder == nil ->
+        {%{base | lines: base.lines ++ ["run #{c}", "run 0", "run #{c}"], lock: [{:acquire, c}], sync: [c]},
+         %{sim | holder: c, phase: Map.put(sim.phase, c, :holding)}}
+
+      :idle ->
+        {%{base | lines: base.lines ++ ["run #{c}", "run 0"], lock: [{:acquire, c}]},
+         %{sim | queue: sim.queue ++ [c], phase: Map.put(sim.phase, c, :waiting)}}
+
+      :waiting ->
+        {%{base | lines: base.lines ++ ["run #{c}"]}, %{sim | deferred: Map.put(sim.deferred, c, true)}}
+
+      :holding ->
+        ph = %{base | lines: base.lines ++ ["run #{c}", "run 0"], lock: [{:release, c}], sync: [c]}
+        lock_grant(ph, %{sim | holder: nil, phase: Map.put(sim.phase, c, :idle)})
+    end
+  end
+
+  # The server just handled a release: hand the lock down the queue.
+  defp lock_grant(ph, %{queue: []} = sim), do: {ph, sim}
+
+  defp lock_grant(ph, %{queue: [n | rest]} = sim) do
+    sim = %{sim | holder: n, queue: rest}
+
+    if Map.has_key?(sim.deferred, n) do
+      ph = %{
+        ph
+        | lines: ph.lines ++ ["run #{n}", "run #{n}", "run #{n}", "run 0"],
+          lock: ph.lock ++ [{:release, n}],
+          sync: ph.sync ++ [n]
+      }
+
+      lock_grant(ph, %{sim | holder: nil, phase: Map.put(sim.phase, n, :idle), deferred: Map.delete(sim.deferred, n)})
+    else
+      {%{ph | lines: ph.lines ++ ["run #{n}"], sync: ph.sync ++ [n]}, %{sim | phase: Map.put(sim.phase, n, :holding)}}
+    end
   end
 
   defp cast_msg do
@@ -181,6 +285,7 @@ defmodule Fuzz do
   defp lines({:expire, i}), do: ["timer #{i}", "run 0"]
   defp lines({:stale, i}), do: ["timer #{i}", "run 0"]
   defp lines(:put0), do: ["deliver 0 put 0", "run 0"]
+  defp lines(%{lines: l}), do: l
 
   # ── Lean: the replay executable with the script on stdin ────────────
 
@@ -333,6 +438,75 @@ defmodule Fuzz do
     {out, stall}
   end
 
+  def beam(:lock, phases) do
+    {:ok, lock} = Lock.start_link()
+    clients = for _ <- 1..@lock_clients, do: (fn -> {:ok, c} = LockClient.start_link(); c end).()
+    pid = fn i -> Enum.at(clients, i - 1) end
+    num = fn p -> Enum.find_index(clients, &(&1 == p)) + 1 end
+    :erlang.trace(lock, true, [:receive])
+
+    Enum.each(phases, fn %{c: c, lock: msgs, sync: sync} ->
+      send(pid.(c), :tick)
+      await_lock(lock, Enum.map(msgs, fn {tag, i} -> {tag, pid.(i)} end))
+      :sys.get_state(lock)
+      Enum.each(sync, &:sys.get_state(pid.(&1)))
+    end)
+
+    {holder, queue} = :sys.get_state(lock)
+    holder = if holder, do: num.(elem(holder, 0))
+    queue = Enum.map(queue, &num.(elem(&1, 0)))
+
+    client_lines =
+      for i <- 1..@lock_clients do
+        st = if i in queue, do: :waiting, else: :sys.get_state(pid.(i))
+        "client #{i} #{st}"
+      end
+
+    pending = Enum.sum(for p <- [lock | clients], do: queue_len(p))
+
+    out =
+      Enum.join(
+        ["lock #{holder || "none"}", Enum.join(["queue" | Enum.map(queue, &Integer.to_string/1)], " ")] ++
+          client_lines ++ ["pending #{pending}"],
+        "\n"
+      ) <> "\n"
+
+    :erlang.trace(lock, false, [:receive])
+    # a queued client is blocked in its call and cannot be stopped; unlink, then kill
+    Enum.each(clients, fn c ->
+      Process.unlink(c)
+      Process.exit(c, :kill)
+    end)
+
+    GenServer.stop(lock)
+    wait_unregistered(Lock, 200)
+    flush()
+    {out, 0}
+  end
+
+  # Wait for the server to receive exactly these messages, in order. Its
+  # own :sys traffic (the driver's get_state) is skipped; anything else
+  # arriving out of turn is a protocol mismatch.
+  defp await_lock(_lock, []), do: :ok
+
+  defp await_lock(lock, [{tag, from} | rest] = expected) do
+    receive do
+      {:trace, ^lock, :receive, {:system, _, _}} ->
+        await_lock(lock, expected)
+
+      {:trace, ^lock, :receive, {:"$gen_call", {^from, _}, :acquire}} when tag == :acquire ->
+        await_lock(lock, rest)
+
+      {:trace, ^lock, :receive, {:"$gen_cast", {:release, ^from}}} when tag == :release ->
+        await_lock(lock, rest)
+
+      {:trace, ^lock, :receive, other} ->
+        raise "lock: the server received #{inspect(other)} while #{inspect(tag)} from #{inspect(from)} was expected"
+    after
+      1000 -> raise "lock: the server did not receive #{inspect(tag)} from #{inspect(from)} within 1s"
+    end
+  end
+
   defp fmt_seen(nil), do: "none"
   defp fmt_seen(v), do: "some #{v}"
   defp fmt_value(nil), do: "none"
@@ -393,7 +567,8 @@ defmodule Fuzz do
         nil -> nil
         "bank" -> :bank
         "ttl" -> :ttl
-        other -> die("unknown example #{other} (bank or ttl)")
+        "lock" -> :lock
+        other -> die("unknown example #{other} (bank, ttl or lock)")
       end
 
     unless File.exists?(@replay) do
@@ -408,8 +583,8 @@ defmodule Fuzz do
     t0 = System.monotonic_time(:millisecond)
 
     stats =
-      Enum.reduce(ids, %{bank: 0, ttl: 0, phases: 0, expiries: 0, crashes: 0, retries: 0}, fn i, st ->
-        example = fixed || (if rem(i, 2) == 0, do: :bank, else: :ttl)
+      Enum.reduce(ids, %{bank: 0, ttl: 0, lock: 0, phases: 0, expiries: 0, crashes: 0, retries: 0}, fn i, st ->
+        example = fixed || Enum.at([:bank, :ttl, :lock], rem(i, 3))
         :rand.seed(:exsss, {seed, i, 7})
         phases = gen(example)
         script = script(example, phases)
@@ -441,7 +616,7 @@ defmodule Fuzz do
     secs = Float.round((System.monotonic_time(:millisecond) - t0) / 1000, 1)
 
     IO.puts(
-      "fuzz OK: seed #{seed}, #{length(ids)} scripts (#{stats.bank} bank, #{stats.ttl} ttl), " <>
+      "fuzz OK: seed #{seed}, #{length(ids)} scripts (#{stats.bank} bank, #{stats.ttl} ttl, #{stats.lock} lock), " <>
         "#{stats.phases} phases, #{stats.expiries} expiries, #{stats.crashes} crashes, " <>
         "#{stats.retries} timing retries, Lean and BEAM agree, #{secs}s"
     )
@@ -450,7 +625,12 @@ defmodule Fuzz do
   # Runs the BEAM twin and compares. Returns the number of timing retries
   # it took; halts on a real mismatch.
   defp run_beam(seed, i, example, phases, script, lean_out, attempt) do
-    {beam_out, stall} = beam(example, phases)
+    {beam_out, stall} =
+      try do
+        beam(example, phases)
+      rescue
+        e -> {"(BEAM twin failed: #{Exception.message(e)})\n", 0}
+      end
 
     cond do
       beam_out == lean_out ->

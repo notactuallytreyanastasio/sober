@@ -1,5 +1,6 @@
 import Leanactors.Examples.Bank
 import Leanactors.Examples.Ttl
+import Leanactors.Examples.Lock
 /-!
 # Leanactors.Replay
 
@@ -16,7 +17,7 @@ skipped. The first command names the example; the rest are the
 scheduler's choices, in order:
 
 ```
-example bank | example ttl
+example bank | example ttl | example lock
 deliver <pid> <msg>     the environment sends <msg> to <pid> (Config.deliver)
 run <pid>               <pid> handles the head of its mailbox
 signal                  deliver the oldest pending exit signal   (ttl only)
@@ -26,9 +27,9 @@ timer <i>               fire the i-th pending timer               (ttl only)
 
 Messages are the environment's vocabulary of each example, exactly the
 messages the BEAM twin can send from outside: `deposit <n>`, `withdraw
-<n>`, `tick`, `audit` for the bank; `put <n>`, `ask` for the TTL cache.
-Internal messages (`balance`, `reply`, `get`, `value`, `after_run`) are
-refused. A choice that is not enabled (`run` on an empty mailbox, `timer`
+<n>`, `tick`, `audit` for the bank; `put <n>`, `ask` for the TTL cache;
+`tick` for the lock. Internal messages (`balance`, `reply`, `get`,
+`value`, `after_run`, `acquire`, `release`) are refused. A choice that is not enabled (`run` on an empty mailbox, `timer`
 out of range, ...) is an error, unlike `runSys` which would silently
 stop: a script is a schedule, and a schedule the model cannot follow is
 a bug in the script, not a result.
@@ -60,6 +61,18 @@ pending <messages left in the two mailboxes>
 `value v` appended to the reader's mailbox by another actor's `run` step
 (the reader's own steps only re-enqueue what it already had). On the
 BEAM the twin traces the reader's receives, which is the same event.
+
+Lock (`Examples/Lock.lean`, start `Lock.initCfg 3`: the server at pid 0,
+free, idle clients at 1, 2 and 3):
+
+```
+lock none | <holder pid>
+queue <queued pids, oldest first>
+client 1 idle | holding | waiting        (waiting = the await state of the blocking call)
+client 2 ...
+client 3 ...
+pending <messages left in the four mailboxes>
+```
 
 Exit status 0 with the observables on stdout, or 2 with a message on
 stderr for a malformed script or a disabled choice.
@@ -204,6 +217,58 @@ def replay (cmds : List (Nat × Cmd)) : Except String String := do
 
 end Ttl
 
+/-! ## Lock: the `Config` layer, `run`, blocking calls -/
+
+namespace Lock
+
+open Leanactors.Examples.Lock
+
+/-- The environment's messages: `send(client, :tick)` in `elixir/fuzz.exs`. -/
+def parseMsg : List String → Option Msg
+  | ["tick"] => some .tick
+  | _ => none
+
+/-- Server at 0, clients 1, 2, 3. -/
+def numClients : Nat := 3
+
+def numPids : Nat := numClients + 1
+
+def init : Config St Msg := initCfg numClients
+
+def serverLines (c : Config St Msg) : List String :=
+  match c.stateOf server with
+  | some (.lock h q) =>
+    [(match h with | none => "lock none" | some h => s!"lock {h}"),
+     " ".intercalate ("queue" :: q.map toString)]
+  | _ => ["lock dead", "queue"]
+
+def clientLine (c : Config St Msg) (p : Pid) : String :=
+  match c.stateOf p with
+  | some (.client .idle) => s!"client {p} idle"
+  | some (.client .holding) => s!"client {p} holding"
+  | some .client_await0 => s!"client {p} waiting"
+  | some _ => s!"client {p} other"
+  | none => s!"client {p} dead"
+
+def pending (c : Config St Msg) : Nat :=
+  (List.range numPids).foldl (fun n p => n + ((c.get p).map (·.mailbox.length)).getD 0) 0
+
+def step (c : Config St Msg) (ln : Nat) : Cmd → Except String (Config St Msg)
+  | .deliver p ws => match parseMsg ws with
+    | some m => .ok (c.deliver p m)
+    | none => .error s!"line {ln}: not a lock environment message: {" ".intercalate ws}"
+  | .run p => match c.get p with
+    | some ⟨_, _ :: _⟩ => .ok (run beh c [p])
+    | _ => .error s!"line {ln}: run {p} is not enabled"
+  | _ => .error s!"line {ln}: the lock has no signals, DOWNs or timers"
+
+def replay (cmds : List (Nat × Cmd)) : Except String String := do
+  let c ← cmds.foldlM (fun c (ln, cmd) => step c ln cmd) init
+  return "\n".intercalate (serverLines c ++ (List.range numClients).map (fun i => clientLine c (i + 1))
+    ++ [s!"pending {pending c}"]) ++ "\n"
+
+end Lock
+
 /-! ## Driver -/
 
 /-- Read the script: numbered word lists, without blank lines and
@@ -226,14 +291,15 @@ def readScript (h : IO.FS.Stream) : IO (List (Nat × List String)) := do
 
 def replay (script : List (Nat × List String)) : Except String String := do
   match script with
-  | [] => throw "empty script; the first line must be `example bank` or `example ttl`"
+  | [] => throw "empty script; the first line must be `example bank`, `example ttl` or `example lock`"
   | (ln, ["example", name]) :: rest =>
     let cmds ← rest.mapM fun (ln, ws) => (parseCmd ln ws).map (ln, ·)
     match name with
     | "bank" => Bank.replay cmds
     | "ttl" => Ttl.replay cmds
-    | _ => throw s!"line {ln}: unknown example `{name}` (bank or ttl)"
-  | (ln, _) :: _ => throw s!"line {ln}: the first line must be `example bank` or `example ttl`"
+    | "lock" => Lock.replay cmds
+    | _ => throw s!"line {ln}: unknown example `{name}` (bank, ttl or lock)"
+  | (ln, _) :: _ => throw s!"line {ln}: the first line must be `example bank`, `example ttl` or `example lock`"
 
 def main : IO UInt32 := do
   let script ← readScript (← IO.getStdin)
