@@ -117,4 +117,44 @@ def freed : Sys St Msg :=
 #eval (taken.cfg.stateOf 0, taken.cfg.stateOf 1, taken.cfg.stateOf 2, taken.monitors)
 #eval (freed.cfg.stateOf 0, freed.cfg.stateOf 1, freed.cfg.stateOf 2, freed.monitors, freed.downs)
 
+/-! ## Toward a proof
+
+The registry's own step is the only one that changes the map. The two
+facts an `Inv.run` for the property would rest on, proved from the
+`AssocList` membership lemmas: a registration monitors exactly the pid it
+inserts, and every entry after a step is an old entry or the caller of
+the `register` just processed. The full invariant proof would follow
+`TaskProof.lean` with these in the run case. -/
+
+/-- The registry's map, empty for a client. -/
+def entries : St → List (Name × Pid)
+  | .reg m => m
+  | _ => []
+
+theorem register_monitors (me fresh : Pid) (m : List (Name × Pid)) (n : Name) (p : Pid)
+    (h : AssocList.hasKey m n = false) :
+    beh me fresh (.reg m) (.register p n) =
+      (.reg (AssocList.insert m n p), [.monitor p, .send p (.reply .ok)]) := by
+  simp [beh, h]
+
+theorem entry_of_run (me fresh : Pid) (m : List (Name × Pid)) (msg : Msg) {n : Name} {p : Pid}
+    (h : (n, p) ∈ entries (beh me fresh (.reg m) msg).1) :
+    (n, p) ∈ m ∨ ∃ n', msg = .register p n' := by
+  cases msg with
+  | register q n' =>
+    simp only [beh] at h
+    split at h
+    · exact Or.inl h
+    · rcases AssocList.mem_insert h with ⟨_, rfl⟩ | h
+      · exact Or.inr ⟨n', rfl⟩
+      · exact Or.inl h
+  | lookup q n' =>
+    simp only [beh] at h
+    split at h <;> exact Or.inl h
+  | unregister n' => exact Or.inl (AssocList.mem_erase (by simpa [beh, entries] using h)).1
+  | DOWN q r => exact Or.inl (AssocList.mem_reject (by simpa [beh, entries] using h)).1
+  | reply r => exact Or.inl (by simpa [beh, entries] using h)
+  | claim n' => exact Or.inl (by simpa [beh, entries] using h)
+  | crash => exact Or.inl (by simpa [beh, entries] using h)
+
 end Leanactors.Examples.Registry
