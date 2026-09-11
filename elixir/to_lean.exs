@@ -1063,6 +1063,29 @@ defmodule ToLean do
 
   # ---------- rendering ----------
 
+  # Lean has no forward references, so every declaration is emitted after the
+  # ones its field types mention; within one batch the source order is kept.
+  # A cycle would need a `mutual` block, which the model does not use.
+  defp order_decls(decls) do
+    names = Enum.map(decls, &elem(&1, 0))
+    order_loop(for({n, ts, txt} <- decls, do: {n, decl_deps(ts, names) -- [n], txt}), [], [])
+  end
+
+  defp order_loop([], _done, acc), do: Enum.reverse(acc)
+  defp order_loop(pending, done, acc) do
+    case Enum.split_with(pending, fn {_n, deps, _} -> deps -- done == [] end) do
+      {[], [{n, _, _} | _]} ->
+        fail("#{n} and the types its fields mention are mutually recursive; Lean would need a `mutual` block")
+      {ready, rest} ->
+        order_loop(rest, done ++ Enum.map(ready, &elem(&1, 0)),
+                   Enum.reverse(Enum.map(ready, &elem(&1, 2))) ++ acc)
+    end
+  end
+
+  # the declared type names a list of Lean types mentions
+  defp decl_deps(types, names),
+    do: for(n <- names, Enum.any?(types, &Regex.match?(~r/\b#{n}\b/, &1)), do: n)
+
   defp render(ctx, clauses) do
     enums =
       for {{mod, name}, t} <- ctx.types,
@@ -1078,10 +1101,11 @@ defmodule ToLean do
     # tagged unions, after the enums their fields may mention
     unions =
       for {name, ctors} <- Process.get(:to_lean_unions, %{}) |> Enum.sort() do
-        "inductive #{name}\n" <>
-          Enum.map_join(ctors, "\n", fn {tag, ts} ->
-            String.trim_trailing("  | #{tag} " <> (ts |> Enum.with_index() |> Enum.map_join(" ", fn {t, i} -> "(a#{i} : #{t})" end)))
-          end) <> "\n  deriving Repr, DecidableEq\n"
+        {name, Enum.flat_map(ctors, &elem(&1, 1)),
+         "inductive #{name}\n" <>
+           Enum.map_join(ctors, "\n", fn {tag, ts} ->
+             String.trim_trailing("  | #{tag} " <> (ts |> Enum.with_index() |> Enum.map_join(" ", fn {t, i} -> "(a#{i} : #{t})" end)))
+           end) <> "\n  deriving Repr, DecidableEq\n"}
       end
     # structs, in source order, when some message, state field, union or
     # other struct mentions them as a value type (a struct that is only
@@ -1103,11 +1127,12 @@ defmodule ToLean do
     used_structs = Enum.filter(struct_names, &(&1 in used_structs))
     structs =
       for name <- used_structs do
-        "structure #{name} where\n" <>
-          Enum.map_join(ctx.structs[name], "\n", fn {f, t, d} -> "  #{f} : #{t} := #{expr(%{}, d, t)}" end) <>
-          "\n  deriving Repr, DecidableEq\n"
+        {name, Enum.map(ctx.structs[name], &elem(&1, 1)),
+         "structure #{name} where\n" <>
+           Enum.map_join(ctx.structs[name], "\n", fn {f, t, d} -> "  #{f} : #{t} := #{expr(%{}, d, t)}" end) <>
+           "\n  deriving Repr, DecidableEq\n"}
       end
-    enums = enums ++ unions ++ structs
+    enums = enums ++ order_decls(unions ++ structs)
 
     # a map anywhere in the types needs the association-list helpers
     all_types = base_types ++ Enum.flat_map(used_structs, fn n -> Enum.map(ctx.structs[n], &elem(&1, 1)) end)
@@ -1216,6 +1241,17 @@ defmodule ToLean do
     end
   end
 
+  # A whole-state part the clause's right-hand side never mentions (a struct
+  # state whose every field is replaced, say) would trip Lean's unused
+  # variable linter, so it is renamed `_part` in the state pattern.
+  defp hide_unused_parts(env, sp, rhs) do
+    parts =
+      for {k, v} <- env, is_binary(k), String.starts_with?(k, "__whole__"), is_list(v), p <- v, plain?(p), do: p
+    Enum.reduce(Enum.uniq(parts), sp, fn p, acc ->
+      if Regex.match?(~r/\b#{p}\b/, rhs), do: acc, else: Regex.replace(~r/\b#{p}\b/, acc, "_" <> p)
+    end)
+  end
+
   defp render_clauses(ctx, clauses) do
     indexed = Enum.with_index(clauses)
     # A clause subsumed by an earlier clause of the same module is unreachable
@@ -1262,6 +1298,7 @@ defmodule ToLean do
           else: c
       # a deferring fallback re-enqueues the whole message: name the pattern
       {me, mp} = if deferred, do: {"me", "#{msg_name(env)}@(#{mp})"}, else: {self_name(env), mp}
+      sp = hide_unused_parts(env, sp, rhs)
       header = "  | #{me}, #{fresh_name(env)}, #{sp}, #{mp}"
       {{cl, {env[:__sparts__] || [], env[:__mparts__] || []}, "#{header} => #{rhs}"}, c}
     end)
@@ -1978,7 +2015,26 @@ defmodule ToLean do
   # the rest of a body after a blocking call may be a single `if`/`case`
   defp body_stmts(ctx, mod, env, [{:if, _, _} = e]), do: body(ctx, mod, env, e)
   defp body_stmts(ctx, mod, env, [{:case, _, _} = e]), do: body(ctx, mod, env, e)
-  defp body_stmts(ctx, mod, env, stmts) do
+  # Bindings followed by an `if`/`case` body: the bindings become `let`s
+  # around the whole branch. A statement with an effect of its own cannot be
+  # lifted like that (it would have to be pushed into every branch), so it is
+  # an error here.
+  defp body_stmts(ctx, mod, env, stmts)
+       when length(stmts) > 1 do
+    {pre, [last]} = Enum.split(stmts, -1)
+    if match?({tag, _, _} when tag in [:if, :case], last) and not Enum.any?(stmts, &blocking_call?/1) do
+      {effs, ctx, env2} = sends(ctx, env, pre)
+      effs == [] ||
+        fail("#{mod}: a statement with an effect before an `if`/`case` body is not supported: #{Macro.to_string(hd(pre))}")
+      {s, ctx} = body(ctx, mod, Map.delete(env2, :__lets__), last)
+      {wrap_lets(env2, s), ctx}
+    else
+      split_body(ctx, mod, env, stmts)
+    end
+  end
+  defp body_stmts(ctx, mod, env, stmts), do: split_body(ctx, mod, env, stmts)
+
+  defp split_body(ctx, mod, env, stmts) do
     case Enum.split_while(stmts, fn s -> not blocking_call?(s) end) do
       {before, [call | rest]} when rest != [] -> cps_split(ctx, mod, env, before, call, rest)
       {_, [_]} -> fail("a blocking call must be followed by the rest of the body")
