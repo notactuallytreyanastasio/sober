@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "510d808d-3ee3-4877-bd5a-93c5421b6a78",
+  "created_at": "2026-09-11T02:03:30.159885-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80,
+    "prompt": "Round 9: finish LiveView. Implement assign_new/3, update/3, socket rebinding; keep computed keys an error; and either model handle_event/3 or make the translator explicitly record unmodelled event transitions (the honesty fix for RadioLive's false property)."
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Finish the LiveView family: assign_new/update/socket-rebinding, and handle_event honesty",
+  "updated_at": "2026-09-11T02:03:30.159885-04:00"
+}

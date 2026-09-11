@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "6c2834a2-f153-433a-ad8f-a3dd2ae97157",
+  "created_at": "2026-09-11T06:21:01.418767-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90,
+    "prompt": "Make every claim in the repo earn its keep: mutant-audit ~12 bounded checks, ship CheckAudit.lean, write LogStoreProof.lean"
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Audit every bounded check with mutants; prove LogStore invariants",
+  "updated_at": "2026-09-11T06:21:01.418767-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "6892726c-2b29-4005-bfc4-66814dab4d99",
+  "created_at": "2026-09-11T02:06:28.111255-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "CheckAudit.lean asserts every audit verdict with #guard: a check that stops catching its mutant breaks the build",
+  "updated_at": "2026-09-11T02:06:28.111255-04:00"
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e4586184-d5bf-4305-8937-1badb8c57270",
+  "created_at": "2026-09-11T03:18:31.799786-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85,
+    "prompt": "Give the landed real modules proofs (LogStore ring-buffer invariant over reachability, LogsLive conservation lifted to reachability) and audit EVERY bounded check in Leanactors/Examples with a mutant each; strengthen or replace vacuous checks. Deliver audit as observation + Leanactors/Examples/CheckAudit.lean."
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "wf9/proofs: proofs for landed real modules + audit every bounded check",
+  "updated_at": "2026-09-11T03:18:31.799786-04:00"
+}

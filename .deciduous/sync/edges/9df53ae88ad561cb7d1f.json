@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-11T02:03:33.535943-04:00",
+  "edge_id": "9df53ae88ad561cb7d1f",
+  "edge_type": "leads_to",
+  "from_change_id": "f138ae45-e0f9-42e9-986c-bea2fe00d3b1",
+  "rationale": "wf9 frontier piece: application-level modelling",
+  "to_change_id": "cd282dd3-2c55-4b88-896e-48126366be1e",
+  "weight": 1.0
+}

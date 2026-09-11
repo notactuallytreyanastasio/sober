@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-11T04:46:06.395474-04:00",
+  "edge_id": "dae6139921f73f0477b0",
+  "edge_type": "leads_to",
+  "from_change_id": "f138ae45-e0f9-42e9-986c-bea2fe00d3b1",
+  "rationale": "round 9: the frontier piece",
+  "to_change_id": "84b01fa5-763d-47b5-8732-e62dbb95abeb",
+  "weight": 1.0
+}

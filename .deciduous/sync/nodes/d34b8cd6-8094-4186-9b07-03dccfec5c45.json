@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "d34b8cd6-8094-4186-9b07-03dccfec5c45",
+  "created_at": "2026-09-11T02:02:19.061844-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 65
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Four builders: supervision tree (new frontier), cross-module calls, LiveView completion, proofs for landed real modules",
+  "updated_at": "2026-09-11T02:02:19.061844-04:00"
+}

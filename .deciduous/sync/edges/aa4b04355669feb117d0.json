@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-11T06:21:01.111842-04:00",
+  "edge_id": "aa4b04355669feb117d0",
+  "edge_type": "leads_to",
+  "from_change_id": "f138ae45-e0f9-42e9-986c-bea2fe00d3b1",
+  "rationale": "round 9 piece: whole-application modelling",
+  "to_change_id": "f0fb0f0e-d49b-456e-8393-15af7c05d75f",
+  "weight": 1.0
+}

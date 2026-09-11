@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-11T02:02:18.638792-04:00",
+  "edge_id": "93348ffdb8bff7761b02",
+  "edge_type": "leads_to",
+  "from_change_id": "b8285b21-8df5-4ce7-8754-e38d4ec35d7d",
+  "rationale": "batch-c landed 0 of 12: the cheap tail is exhausted, the frontier is applications",
+  "to_change_id": "a32ac513-540b-438f-b98d-9135439cb079",
+  "weight": 1.0
+}

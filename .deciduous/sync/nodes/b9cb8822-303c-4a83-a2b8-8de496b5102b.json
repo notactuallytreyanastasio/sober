@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b9cb8822-303c-4a83-a2b8-8de496b5102b",
+  "created_at": "2026-09-11T04:45:57.096004-04:00",
+  "description": "Fix for the next round: write a short ORIENTATION.md (one page: what exists, where, the five invariants an agent must respect) and point builders at it instead of the full README plus readiness report; have them read the large files only when their piece needs them. Also worth having builders commit a skeleton early so an interruption does not lose all context.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Round 9 stalled and restarted: the three largest agent transcripts all end in '[Request interrupted by user]', and 10 transcripts exist for a 4-builder round. Fresh agents are re-reading README, docs/readiness.md and to_lean.exs from scratch, so ~3 hours produced no commits. Root cause of the expense: the COMMON prompt makes every agent onboard through a repo that has grown to a 900-line README, an 1800-line readiness report and a 2000-line translator, and that cost is paid again on every restart",
+  "updated_at": "2026-09-11T04:45:57.096004-04:00"
+}

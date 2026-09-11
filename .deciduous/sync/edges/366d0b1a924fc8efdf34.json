@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-11T02:06:29.584004-04:00",
+  "edge_id": "366d0b1a924fc8efdf34",
+  "edge_type": "leads_to",
+  "from_change_id": "b65fef4c-ca0d-4eba-8cdc-5b854cab58a3",
+  "rationale": "rejected: an #eval print is read by a human, not by check.sh",
+  "to_change_id": "6892726c-2b29-4005-bfc4-66814dab4d99",
+  "weight": 1.0
+}

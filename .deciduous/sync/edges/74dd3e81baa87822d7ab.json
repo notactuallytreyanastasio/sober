@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-11T04:19:22.657249-04:00",
+  "edge_id": "74dd3e81baa87822d7ab",
+  "edge_type": "leads_to",
+  "from_change_id": "f138ae45-e0f9-42e9-986c-bea2fe00d3b1",
+  "rationale": "wf9 frontier piece: the application tree",
+  "to_change_id": "efc6ba58-443d-4d42-b516-63116227ba64",
+  "weight": 1.0
+}

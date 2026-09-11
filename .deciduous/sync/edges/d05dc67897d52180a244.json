@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-11T02:06:29.558453-04:00",
+  "edge_id": "d05dc67897d52180a244",
+  "edge_type": "leads_to",
+  "from_change_id": "3d747d72-cc5d-4104-8176-a4cd41a89355",
+  "rationale": "chosen: #guard fails elaboration, so lake build fails",
+  "to_change_id": "6892726c-2b29-4005-bfc4-66814dab4d99",
+  "weight": 1.0
+}

@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-11T02:02:19.206694-04:00",
+  "edge_id": "7a9113d6fe426a1a6301",
+  "edge_type": "leads_to",
+  "from_change_id": "0e0db921-7f7d-4036-9c97-e48c2a3bb723",
+  "rationale": "rejected: batch-c attempted 12 modules and landed none",
+  "to_change_id": "d34b8cd6-8094-4186-9b07-03dccfec5c45",
+  "weight": 1.0
+}

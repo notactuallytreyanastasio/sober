@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "11f78dba-ab07-400c-8fac-0aa3ab57e5a9",
+  "created_at": "2026-09-11T06:47:59.432414-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "Cross-module calls in the translator: resolve OtherModule.fun via source-root search",
+  "updated_at": "2026-09-11T06:47:59.432414-04:00"
+}

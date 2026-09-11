@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5c0aed24-42d9-4962-b6ca-65befe8a8a19",
+  "created_at": "2026-09-11T02:03:27.456687-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85,
+    "prompt": "Give LogStore and LogsLive real proofs (SysProps recipe, reachability), and audit every bounded check in Leanactors/Examples with a mutant each; vacuous checks get strengthened or replaced by proofs."
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "wf9/proofs: prove the landed real modules and audit every bounded check",
+  "updated_at": "2026-09-11T02:03:27.456687-04:00"
+}

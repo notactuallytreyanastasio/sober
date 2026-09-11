@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-11T06:21:03.440555-04:00",
+  "edge_id": "c2aeb5a5f27e6eeb1213",
+  "edge_type": "leads_to",
+  "from_change_id": "f138ae45-e0f9-42e9-986c-bea2fe00d3b1",
+  "rationale": "wf9b piece: audit bounded checks, prove LogStore",
+  "to_change_id": "6c2834a2-f153-433a-ad8f-a3dd2ae97157",
+  "weight": 1.0
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "11a4c23f-f296-4d92-ad63-8ceadca4c393",
+  "created_at": "2026-09-11T02:02:56.744791-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80,
+    "prompt": "Build a general mechanism for cross-module calls (same-project OtherModule.fun(args)): resolve by reading the callee source via --source-root, translate pure functions as Lean defs, GenServer client wrappers as message sends, process starts as spawns, else a clear error. Cycle/depth guards, fixtures per case, then land ConfigListener/SearchLive with property+mutant."
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "wf9/xmod: general cross-module call resolution in the Elixir->Lean translator",
+  "updated_at": "2026-09-11T02:02:56.744791-04:00"
+}

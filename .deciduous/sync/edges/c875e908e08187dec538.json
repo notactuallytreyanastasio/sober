@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-11T06:48:16.184963-04:00",
+  "edge_id": "c875e908e08187dec538",
+  "edge_type": "leads_to",
+  "from_change_id": "b9cb8822-303c-4a83-a2b8-8de496b5102b",
+  "rationale": "the actual cause of the round 9 stall",
+  "to_change_id": "84b01fa5-763d-47b5-8732-e62dbb95abeb",
+  "weight": 1.0
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "cd282dd3-2c55-4b88-896e-48126366be1e",
+  "created_at": "2026-09-11T02:03:31.364865-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80,
+    "prompt": "Translate BobsBroadcast.Application start/2 + children list into an initial Sys configuration, carry broadcaster + radio_live in one St/Msg/beh across files, land Leanactors/Examples/RadioApp.lean with beh_eq_gen and an application-level delivery property under PROPERTY DISCIPLINE."
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "wf9/app: model a whole OTP application (supervision tree) not a single module",
+  "updated_at": "2026-09-11T02:03:31.364865-04:00"
+}

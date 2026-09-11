@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "53ab0af8-6b14-4a6e-a75f-345127fb2874",
+  "created_at": "2026-09-11T06:48:16.157658-04:00",
+  "description": "Consequence for the method: do not run a short-interval /loop over a session that is orchestrating long-running workflow agents. Either let the workflow run undisturbed and check on it when it reports, or use a fallback heartbeat measured in hours. ORIENTATION.md plus commit-early remain the right fixes for restart cost, but they cannot help if the restarts are caused by the supervisor waking up.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "The /loop wakeups were killing the workflow: four round-9 agents ended in '[Request interrupted by user]', two of them at exactly 06:47, the minute a loop wakeup fired. Waking this session interrupts its in-flight subagents, so a ~25-minute loop cadence repeatedly destroyed builders mid-work (15 transcripts, 0 commits in round 9's first attempt; 7 transcripts, 1 commit in the relaunch). The commit-early rule worked where an agent survived: the audit builder had committed a skeleton and kept it",
+  "updated_at": "2026-09-11T06:48:16.157658-04:00"
+}
