@@ -20,6 +20,7 @@ import Leanactors.Examples.SupervisorLive
 import Leanactors.Gen.Task
 import Leanactors.Examples.Task
 import Leanactors.Examples.TaskProof
+import Leanactors.Examples.TaskLive
 import Leanactors.Gen.Watchdog
 import Leanactors.Examples.Watchdog
 import Leanactors.Examples.WatchdogProof

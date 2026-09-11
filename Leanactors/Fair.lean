@@ -9,7 +9,9 @@ combinators `Eventually`/`Always`/`LeadsTo`, and the two workhorse lemmas
 liveness proofs are built from: `stable_until` (one fair choice establishes
 the goal) and `rank_leads_to` (a `Nat` measure drops at every fair-taken
 step). Everything is proved once over an abstract run `ρ : Nat → α` and
-instantiated for the `Config` layer (`CRun`) and the `Sys` layer (`SysRun`).
+instantiated for the `Config` layer (`CRun`), the closed `Sys` layer
+(`SysRun`) and the open `Sys` layer (`SysRunE`, system steps plus a
+parameter environment relation, mirroring `CRun`'s `env`).
 A run is infinite; at each time it takes a labelled step or an idle step
 (`ch t = none`, the state repeats), so every finite execution extends to a
 run and a theorem over runs is never vacuous. Weak fairness of a choice
@@ -193,6 +195,52 @@ Sys layer (`beh : EBehavior σ μ`, `sig : Signals σ μ`, choices are `SysChoic
      (hen : ∀ {a}, SysReach beh sig (ρ.st 0) a → P a → ¬ Q a → SysEnabled a c)
      (hdec : ∀ {a b}, SysReach beh sig (ρ.st 0) a → SysStepL beh sig c a b → P a → ¬ Q a → P b → f b < f a) :
      LeadsTo ρ.st P Q`
+
+Open Sys layer (`env : Sys σ μ → Sys σ μ → Prop`; the task uses `env := Sys.Deliver`):
+* `inductive SysChoiceE | sys (c : SysChoice) | env`
+* `inductive SysStepLE beh sig env : SysChoiceE → Sys σ μ → Sys σ μ → Prop` with
+  `| sys (c) (a b) (h : SysStepL beh sig c a b) : SysStepLE beh sig env (.sys c) a b`
+  `| env (a b) (h : env a b) : SysStepLE beh sig env .env a b`
+* `SysStepLE.cases (h : SysStepLE beh sig env ch a b) : SysStep beh sig a b ∨ env a b`
+* `SysStepLE.of_sys (h : SysStepLE beh sig env (.sys c) a b) : SysStepL beh sig c a b`
+* `SysStepLE.of_env (h : SysStepLE beh sig env .env a b) : env a b`
+* `inductive Sys.Deliver : Sys σ μ → Sys σ μ → Prop` with
+  `| deliver (s) (p) (m) : Sys.Deliver s { s with cfg := s.cfg.deliver p m }` (the canonical environment)
+* `inductive SysReachE beh sig env : Sys σ μ → Sys σ μ → Prop`
+  `| refl (s) | step (SysStep beh sig a b) (SysReachE beh sig env b c) | env (env a b) (SysReachE beh sig env b c)`
+* `SysReachE.trans`, `SysReachE.single (h : SysStepLE beh sig env ch a b)`, `SysReachE.of_reach (h : SysReach beh sig a b)`
+* `SysReachE.inv (hstep : ∀ {a b}, SysStep beh sig a b → I a → I b) (henv : ∀ {a b}, env a b → I a → I b)
+     (h : SysReachE beh sig env c c') (hc : I c) : I c'`
+* `SysReachE.toReachEnv (h : SysReachE beh sig Sys.Deliver a b) : SysReachEnv beh sig a b` and
+  `SysReachEnv.toReachE (h : SysReachEnv beh sig a b) : SysReachE beh sig Sys.Deliver a b`
+* `def SysEnabledE (s : Sys σ μ) : SysChoiceE → Prop` (`.sys c ↦ SysEnabled s c`, `.env ↦ True`)
+* `inductive SysStepIE beh sig env : Option SysChoiceE → Sys σ μ → Sys σ μ → Prop` with
+  `| step (c) (a b) (h : SysStepLE beh sig env c a b) : SysStepIE beh sig env (some c) a b`
+  `| idle (a) : SysStepIE beh sig env none a a`
+* `SysStepIE.of_some`, `SysStepIE.cases (h : SysStepIE beh sig env oc a b) : (∃ c, SysStepLE beh sig env c a b) ∨ b = a`
+* `structure SysRunE beh sig env where st : Nat → Sys σ μ; ch : Nat → Option SysChoiceE;
+     step : ∀ t, SysStepIE beh sig env (ch t) (st t) (st (t+1))`
+* `def SysRunE.idle (beh) (sig) (env) (s) : SysRunE beh sig env` (idles forever in `s`)
+* `SysRunE.step_at (ρ) (h : ρ.ch t = some c) : SysStepLE beh sig env c (ρ.st t) (ρ.st (t+1))`
+* `SysRunE.step_or (ρ) (t) : SysStep beh sig (ρ.st t) (ρ.st (t+1)) ∨ env (ρ.st t) (ρ.st (t+1)) ∨ ρ.st (t+1) = ρ.st t`
+* `SysRunE.reach (ρ) (t) : SysReachE beh sig env (ρ.st 0) (ρ.st t)`
+* `SysRunE.reach_from (ρ) (h : t ≤ t') : SysReachE beh sig env (ρ.st t) (ρ.st t')`
+* `SysRunE.inv (ρ) (hstep) (henv) (h0 : I (ρ.st 0)) (t) : I (ρ.st t)`
+* `def SysRunE.WeakFair (ρ) (c : SysChoice) : Prop :=
+     (∀ t, ∃ t' ≥ t, ¬ SysEnabled (ρ.st t') c) ∨ (∀ t, ∃ t' ≥ t, ρ.ch t' = some (.sys c))`
+  with `SysRunE.WeakFair.weakFairOn`, `SysRunE.WeakFair.taken`, `SysRunE.WeakFair.of_taken` as for `SysRun`
+* `def SysRunE.EnvFair (ρ) (P : Sys σ μ → Prop) (e : Sys σ μ → Sys σ μ → Prop) : Prop :=
+     ∀ t, (∀ t' ≥ t, P (ρ.st t')) → ∃ t' ≥ t, ρ.ch t' = some .env ∧ e (ρ.st t') (ρ.st (t'+1))`
+  with `SysRunE.EnvFair.weakFairOn`
+* `SysRunE.stable_until_sys (ρ) (c) (hfair : ρ.WeakFair c) (hstable) (henv) (hen) (htaken) : LeadsTo ρ.st P Q`,
+  `SysRunE.stable_until_env (ρ) (hfair : ρ.EnvFair P₀ e) (hstable) (henv) (hen) (htaken) : LeadsTo ρ.st P Q`,
+  `SysRunE.rank_leads_to_sys (ρ) (c) (f) (hfair : ρ.WeakFair c) (hstable) (henv) (hnoinc) (hen) (hdec) : LeadsTo ρ.st P Q`,
+  `SysRunE.rank_leads_to_env (ρ) (f) (hfair : ρ.EnvFair P₀ e) (hstable) (henv) (hnoinc) (hen) (hdec) : LeadsTo ρ.st P Q`
+  (the `CRun` signatures with `ReachE beh env` replaced by `SysReachE beh sig env`, `Step beh` by
+  `SysStep beh sig`, `CStepL beh env` by `SysStepLE beh sig env` / `SysStepL beh sig`, `CEnabled` by `SysEnabled`)
+* `def SysRun.toE (ρ : SysRun beh sig) (env) : SysRunE beh sig env` (never takes an `env` step), with
+  `SysRun.toE_st : (ρ.toE env).st = ρ.st`, `SysRun.toE_ch_iff`, and
+  `SysRun.toE_weakFair (env) (h : ρ.WeakFair c) : (ρ.toE env).WeakFair c`
 
 `FairDemo` at the end is a two-state sanity check of the `Config` API: an
 actor that switches from `off` to `on` on any message, an environment that
@@ -1017,6 +1065,354 @@ theorem rank_leads_to (ρ : SysRun beh sig) (c : SysChoice) (f : Sys σ μ → N
     exact hen (ρ.reach u) hp hq
   · intro u hp hq htk hp'
     exact hdec (ρ.reach u) (ρ.step_at htk) hp hq hp'
+
+end SysRun
+
+/-! ## Open `Sys` layer: runs with environment steps
+
+A `SysRun` is closed: nothing enters from outside. `SysRunE` is the `Sys`
+analogue of `CRun`: at each time a system choice or one step of a
+parameter relation `env` (for the examples `Sys.Deliver`, any message to
+any pid). The wrappers are the same two workhorses; a `SysRun` embeds as a
+`SysRunE` that never takes an environment step (`SysRun.toE`). -/
+
+/-- A scheduler choice in an open `Sys`-layer run: a system choice, or one
+step of the environment. -/
+inductive SysChoiceE
+  | sys (c : SysChoice)
+  | env
+  deriving Repr, DecidableEq
+
+/-- Labelled step of an open run: a `SysStepL`, or an `env` step. -/
+inductive SysStepLE (beh : EBehavior σ μ) (sig : Signals σ μ) (env : Sys σ μ → Sys σ μ → Prop) :
+    SysChoiceE → Sys σ μ → Sys σ μ → Prop
+  | sys (c : SysChoice) (a b : Sys σ μ) (h : SysStepL beh sig c a b) :
+      SysStepLE beh sig env (.sys c) a b
+  | env (a b : Sys σ μ) (h : env a b) : SysStepLE beh sig env .env a b
+
+theorem SysStepLE.cases {beh : EBehavior σ μ} {sig : Signals σ μ} {env : Sys σ μ → Sys σ μ → Prop}
+    {ch : SysChoiceE} {a b : Sys σ μ} (h : SysStepLE beh sig env ch a b) :
+    SysStep beh sig a b ∨ env a b := by
+  cases h with
+  | sys c _ _ h => exact Or.inl h.toSysStep
+  | env _ _ h => exact Or.inr h
+
+theorem SysStepLE.of_sys {beh : EBehavior σ μ} {sig : Signals σ μ} {env : Sys σ μ → Sys σ μ → Prop}
+    {c : SysChoice} {a b : Sys σ μ} (h : SysStepLE beh sig env (.sys c) a b) :
+    SysStepL beh sig c a b := by
+  cases h with
+  | sys _ _ _ h => exact h
+
+theorem SysStepLE.of_env {beh : EBehavior σ μ} {sig : Signals σ μ} {env : Sys σ μ → Sys σ μ → Prop}
+    {a b : Sys σ μ} (h : SysStepLE beh sig env .env a b) : env a b := by
+  cases h with
+  | env _ _ h => exact h
+
+/-- The canonical environment of a `Sys`: deliver any message to any pid
+(a delivery to a dead pid is the identity). `SysReachE beh sig Deliver` is
+`SysReachEnv`. -/
+inductive Sys.Deliver : Sys σ μ → Sys σ μ → Prop
+  | deliver (s : Sys σ μ) (p : Pid) (m : μ) : Sys.Deliver s { s with cfg := s.cfg.deliver p m }
+
+/-- Reachability by system steps and `env` steps: the `Sys` analogue of
+`ReachE`. -/
+inductive SysReachE (beh : EBehavior σ μ) (sig : Signals σ μ) (env : Sys σ μ → Sys σ μ → Prop) :
+    Sys σ μ → Sys σ μ → Prop
+  | refl (s) : SysReachE beh sig env s s
+  | step {a b c} : SysStep beh sig a b → SysReachE beh sig env b c → SysReachE beh sig env a c
+  | env {a b c} : env a b → SysReachE beh sig env b c → SysReachE beh sig env a c
+
+namespace SysReachE
+
+variable {beh : EBehavior σ μ} {sig : Signals σ μ} {env : Sys σ μ → Sys σ μ → Prop}
+
+theorem trans {a b c : Sys σ μ} (h₁ : SysReachE beh sig env a b) (h₂ : SysReachE beh sig env b c) :
+    SysReachE beh sig env a c := by
+  induction h₁ with
+  | refl => exact h₂
+  | step hs _ ih => exact .step hs (ih h₂)
+  | env he _ ih => exact .env he (ih h₂)
+
+theorem single {ch : SysChoiceE} {a b : Sys σ μ} (h : SysStepLE beh sig env ch a b) :
+    SysReachE beh sig env a b := by
+  rcases h.cases with hs | he
+  · exact .step hs (.refl b)
+  · exact .env he (.refl b)
+
+theorem inv {I : Sys σ μ → Prop}
+    (hstep : ∀ {a b}, SysStep beh sig a b → I a → I b) (henv : ∀ {a b}, env a b → I a → I b)
+    {c c' : Sys σ μ} (h : SysReachE beh sig env c c') (hc : I c) : I c' := by
+  induction h with
+  | refl => exact hc
+  | step hs _ ih => exact ih (hstep hs hc)
+  | env he _ ih => exact ih (henv he hc)
+
+theorem of_reach {a b : Sys σ μ} (h : SysReach beh sig a b) : SysReachE beh sig env a b := by
+  induction h with
+  | refl => exact .refl _
+  | step hs _ ih => exact .step hs ih
+
+/-- With deliveries as the environment this is exactly `SysReachEnv`. -/
+theorem toReachEnv {a b : Sys σ μ} (h : SysReachE beh sig Sys.Deliver a b) :
+    SysReachEnv beh sig a b := by
+  induction h with
+  | refl => exact .refl _
+  | step hs _ ih => exact .step hs ih
+  | env he _ ih => cases he with | deliver p m => exact .env p m ih
+
+end SysReachE
+
+theorem SysReachEnv.toReachE {beh : EBehavior σ μ} {sig : Signals σ μ} {a b : Sys σ μ}
+    (h : SysReachEnv beh sig a b) : SysReachE beh sig Sys.Deliver a b := by
+  induction h with
+  | refl => exact .refl _
+  | step hs _ ih => exact .step hs ih
+  | env p m _ ih => exact .env (.deliver _ p m) ih
+
+/-- Which choices can move: a system choice iff `SysEnabled`; `env` always
+(environment fairness is a separate assumption, `SysRunE.EnvFair`). -/
+def SysEnabledE (s : Sys σ μ) : SysChoiceE → Prop
+  | .sys c => SysEnabled s c
+  | .env => True
+
+/-- One step of an open run: a labelled step, or an idle step. -/
+inductive SysStepIE (beh : EBehavior σ μ) (sig : Signals σ μ) (env : Sys σ μ → Sys σ μ → Prop) :
+    Option SysChoiceE → Sys σ μ → Sys σ μ → Prop
+  | step (c : SysChoiceE) (a b : Sys σ μ) (h : SysStepLE beh sig env c a b) :
+      SysStepIE beh sig env (some c) a b
+  | idle (a : Sys σ μ) : SysStepIE beh sig env none a a
+
+theorem SysStepIE.of_some {beh : EBehavior σ μ} {sig : Signals σ μ} {env : Sys σ μ → Sys σ μ → Prop}
+    {c : SysChoiceE} {a b : Sys σ μ} (h : SysStepIE beh sig env (some c) a b) :
+    SysStepLE beh sig env c a b := by
+  cases h with
+  | step _ _ _ h => exact h
+
+theorem SysStepIE.cases {beh : EBehavior σ μ} {sig : Signals σ μ} {env : Sys σ μ → Sys σ μ → Prop}
+    {oc : Option SysChoiceE} {a b : Sys σ μ} (h : SysStepIE beh sig env oc a b) :
+    (∃ c, SysStepLE beh sig env c a b) ∨ b = a := by
+  cases h with
+  | step c _ _ h => exact Or.inl ⟨c, h⟩
+  | idle _ => exact Or.inr rfl
+
+/-- An infinite open `Sys`-layer run. -/
+structure SysRunE (beh : EBehavior σ μ) (sig : Signals σ μ) (env : Sys σ μ → Sys σ μ → Prop) where
+  st : Nat → Sys σ μ
+  ch : Nat → Option SysChoiceE
+  step : ∀ t, SysStepIE beh sig env (ch t) (st t) (st (t+1))
+
+namespace SysRunE
+
+variable {beh : EBehavior σ μ} {sig : Signals σ μ} {env : Sys σ μ → Sys σ μ → Prop}
+
+/-- The run that idles forever in `s`: a run exists from every system. -/
+def idle (beh : EBehavior σ μ) (sig : Signals σ μ) (env : Sys σ μ → Sys σ μ → Prop) (s : Sys σ μ) :
+    SysRunE beh sig env := ⟨fun _ => s, fun _ => none, fun _ => .idle s⟩
+
+theorem step_at (ρ : SysRunE beh sig env) {t : Nat} {c : SysChoiceE} (h : ρ.ch t = some c) :
+    SysStepLE beh sig env c (ρ.st t) (ρ.st (t+1)) := by
+  have hs := ρ.step t
+  rw [h] at hs
+  exact hs.of_some
+
+theorem step_or (ρ : SysRunE beh sig env) (t : Nat) :
+    SysStep beh sig (ρ.st t) (ρ.st (t+1)) ∨ env (ρ.st t) (ρ.st (t+1)) ∨ ρ.st (t+1) = ρ.st t := by
+  rcases (ρ.step t).cases with ⟨_, hs⟩ | heq
+  · rcases hs.cases with h | h
+    · exact Or.inl h
+    · exact Or.inr (Or.inl h)
+  · exact Or.inr (Or.inr heq)
+
+theorem reach (ρ : SysRunE beh sig env) (t : Nat) : SysReachE beh sig env (ρ.st 0) (ρ.st t) := by
+  induction t with
+  | zero => exact .refl _
+  | succ t ih =>
+    rcases (ρ.step t).cases with ⟨_, hs⟩ | heq
+    · exact ih.trans (.single hs)
+    · rw [heq]; exact ih
+
+theorem reach_from (ρ : SysRunE beh sig env) {t t' : Nat} (h : t ≤ t') :
+    SysReachE beh sig env (ρ.st t) (ρ.st t') := by
+  induction t' with
+  | zero =>
+    have : t = 0 := Nat.le_zero.mp h
+    subst this; exact .refl _
+  | succ t' ih =>
+    rcases Nat.lt_or_eq_of_le h with hlt | heq
+    · rcases (ρ.step t').cases with ⟨_, hs⟩ | heq'
+      · exact (ih (Nat.le_of_lt_succ hlt)).trans (.single hs)
+      · rw [heq']; exact ih (Nat.le_of_lt_succ hlt)
+    · subst heq; exact .refl _
+
+theorem inv (ρ : SysRunE beh sig env) {I : Sys σ μ → Prop}
+    (hstep : ∀ {a b}, SysStep beh sig a b → I a → I b) (henv : ∀ {a b}, env a b → I a → I b)
+    (h0 : I (ρ.st 0)) (t : Nat) : I (ρ.st t) :=
+  (ρ.reach t).inv hstep henv h0
+
+/-- Weak fairness of the system choice `c`: disabled infinitely often, or
+taken infinitely often. -/
+def WeakFair (ρ : SysRunE beh sig env) (c : SysChoice) : Prop :=
+  (∀ t, ∃ t' ≥ t, ¬ SysEnabled (ρ.st t') c) ∨ (∀ t, ∃ t' ≥ t, ρ.ch t' = some (.sys c))
+
+theorem WeakFair.weakFairOn {ρ : SysRunE beh sig env} {c : SysChoice} (h : ρ.WeakFair c) :
+    WeakFairOn (fun t => SysEnabled (ρ.st t) c) (fun t => ρ.ch t = some (.sys c)) := h
+
+theorem WeakFair.taken {ρ : SysRunE beh sig env} {c : SysChoice} (h : ρ.WeakFair c) {t : Nat}
+    (hen : ∀ t' ≥ t, SysEnabled (ρ.st t') c) : ∃ t' ≥ t, ρ.ch t' = some (.sys c) :=
+  h.weakFairOn.taken hen
+
+theorem WeakFair.of_taken {ρ : SysRunE beh sig env} {c : SysChoice}
+    (h : ∀ t, (∀ t' ≥ t, SysEnabled (ρ.st t') c) → ∃ t' ≥ t, ρ.ch t' = some (.sys c)) :
+    ρ.WeakFair c :=
+  WeakFairOn.of_taken h
+
+/-- Environment fairness: if `P` holds from `t` on, an environment step
+satisfying `e` happens at some `t' ≥ t`. -/
+def EnvFair (ρ : SysRunE beh sig env) (P : Sys σ μ → Prop) (e : Sys σ μ → Sys σ μ → Prop) : Prop :=
+  ∀ t, (∀ t' ≥ t, P (ρ.st t')) → ∃ t' ≥ t, ρ.ch t' = some .env ∧ e (ρ.st t') (ρ.st (t'+1))
+
+theorem EnvFair.weakFairOn {ρ : SysRunE beh sig env} {P : Sys σ μ → Prop}
+    {e : Sys σ μ → Sys σ μ → Prop} (h : ρ.EnvFair P e) :
+    WeakFairOn (fun t => P (ρ.st t)) (fun t => ρ.ch t = some .env ∧ e (ρ.st t) (ρ.st (t+1))) :=
+  WeakFairOn.of_taken h
+
+/-- `stable_until` for a fair system choice `c`. -/
+theorem stable_until_sys (ρ : SysRunE beh sig env) (c : SysChoice) (hfair : ρ.WeakFair c)
+    {P Q : Sys σ μ → Prop}
+    (hstable : ∀ {a b}, SysReachE beh sig env (ρ.st 0) a → SysStep beh sig a b →
+      P a → ¬ Q a → P b ∨ Q b)
+    (henv : ∀ {a b}, SysReachE beh sig env (ρ.st 0) a → env a b → P a → ¬ Q a → P b ∨ Q b)
+    (hen : ∀ {a}, SysReachE beh sig env (ρ.st 0) a → P a → ¬ Q a → SysEnabled a c)
+    (htaken : ∀ {a b}, SysReachE beh sig env (ρ.st 0) a → SysStepL beh sig c a b →
+      P a → ¬ Q a → Q b) :
+    LeadsTo ρ.st P Q := by
+  apply stable_until_leadsTo hfair.weakFairOn
+  · intro u hp hq
+    rcases ρ.step_or u with hs | he | heq
+    · exact hstable (ρ.reach u) hs hp hq
+    · exact henv (ρ.reach u) he hp hq
+    · rw [heq]; exact Or.inl hp
+  · intro u hp hq
+    exact hen (ρ.reach u) hp hq
+  · intro u hp hq htk
+    exact htaken (ρ.reach u) (ρ.step_at htk).of_sys hp hq
+
+/-- `stable_until` for a fair environment (`ρ.EnvFair P₀ e`). -/
+theorem stable_until_env (ρ : SysRunE beh sig env) {P₀ : Sys σ μ → Prop}
+    {e : Sys σ μ → Sys σ μ → Prop} (hfair : ρ.EnvFair P₀ e) {P Q : Sys σ μ → Prop}
+    (hstable : ∀ {a b}, SysReachE beh sig env (ρ.st 0) a → SysStep beh sig a b →
+      P a → ¬ Q a → P b ∨ Q b)
+    (henv : ∀ {a b}, SysReachE beh sig env (ρ.st 0) a → env a b → P a → ¬ Q a → P b ∨ Q b)
+    (hen : ∀ {a}, SysReachE beh sig env (ρ.st 0) a → P a → ¬ Q a → P₀ a)
+    (htaken : ∀ {a b}, SysReachE beh sig env (ρ.st 0) a → env a b → e a b → P a → ¬ Q a → Q b) :
+    LeadsTo ρ.st P Q := by
+  apply stable_until_leadsTo hfair.weakFairOn
+  · intro u hp hq
+    rcases ρ.step_or u with hs | he | heq
+    · exact hstable (ρ.reach u) hs hp hq
+    · exact henv (ρ.reach u) he hp hq
+    · rw [heq]; exact Or.inl hp
+  · intro u hp hq
+    exact hen (ρ.reach u) hp hq
+  · intro u hp hq ⟨hch, he⟩
+    exact htaken (ρ.reach u) (ρ.step_at hch).of_env he hp hq
+
+/-- `rank_leads_to` for a fair system choice `c`. -/
+theorem rank_leads_to_sys (ρ : SysRunE beh sig env) (c : SysChoice) (f : Sys σ μ → Nat)
+    (hfair : ρ.WeakFair c) {P Q : Sys σ μ → Prop}
+    (hstable : ∀ {a b}, SysReachE beh sig env (ρ.st 0) a → SysStep beh sig a b →
+      P a → ¬ Q a → P b ∨ Q b)
+    (henv : ∀ {a b}, SysReachE beh sig env (ρ.st 0) a → env a b → P a → ¬ Q a → P b ∨ Q b)
+    (hnoinc : ∀ {ch a b}, SysReachE beh sig env (ρ.st 0) a → SysStepLE beh sig env ch a b →
+      P a → ¬ Q a → P b → f b ≤ f a)
+    (hen : ∀ {a}, SysReachE beh sig env (ρ.st 0) a → P a → ¬ Q a → SysEnabled a c)
+    (hdec : ∀ {a b}, SysReachE beh sig env (ρ.st 0) a → SysStepL beh sig c a b →
+      P a → ¬ Q a → P b → f b < f a) :
+    LeadsTo ρ.st P Q := by
+  apply Leanactors.rank_leads_to f hfair.weakFairOn
+  · intro u hp hq
+    rcases ρ.step_or u with hs | he | heq
+    · exact hstable (ρ.reach u) hs hp hq
+    · exact henv (ρ.reach u) he hp hq
+    · rw [heq]; exact Or.inl hp
+  · intro u hp hq hp'
+    rcases (ρ.step u).cases with ⟨_, hs⟩ | heq
+    · exact hnoinc (ρ.reach u) hs hp hq hp'
+    · rw [heq]; exact Nat.le_refl _
+  · intro u hp hq
+    exact hen (ρ.reach u) hp hq
+  · intro u hp hq htk hp'
+    exact hdec (ρ.reach u) (ρ.step_at htk).of_sys hp hq hp'
+
+/-- `rank_leads_to` for a fair environment. -/
+theorem rank_leads_to_env (ρ : SysRunE beh sig env) (f : Sys σ μ → Nat) {P₀ : Sys σ μ → Prop}
+    {e : Sys σ μ → Sys σ μ → Prop} (hfair : ρ.EnvFair P₀ e) {P Q : Sys σ μ → Prop}
+    (hstable : ∀ {a b}, SysReachE beh sig env (ρ.st 0) a → SysStep beh sig a b →
+      P a → ¬ Q a → P b ∨ Q b)
+    (henv : ∀ {a b}, SysReachE beh sig env (ρ.st 0) a → env a b → P a → ¬ Q a → P b ∨ Q b)
+    (hnoinc : ∀ {ch a b}, SysReachE beh sig env (ρ.st 0) a → SysStepLE beh sig env ch a b →
+      P a → ¬ Q a → P b → f b ≤ f a)
+    (hen : ∀ {a}, SysReachE beh sig env (ρ.st 0) a → P a → ¬ Q a → P₀ a)
+    (hdec : ∀ {a b}, SysReachE beh sig env (ρ.st 0) a → env a b → e a b → P a → ¬ Q a → P b →
+      f b < f a) :
+    LeadsTo ρ.st P Q := by
+  apply Leanactors.rank_leads_to f hfair.weakFairOn
+  · intro u hp hq
+    rcases ρ.step_or u with hs | he | heq
+    · exact hstable (ρ.reach u) hs hp hq
+    · exact henv (ρ.reach u) he hp hq
+    · rw [heq]; exact Or.inl hp
+  · intro u hp hq hp'
+    rcases (ρ.step u).cases with ⟨_, hs⟩ | heq
+    · exact hnoinc (ρ.reach u) hs hp hq hp'
+    · rw [heq]; exact Nat.le_refl _
+  · intro u hp hq
+    exact hen (ρ.reach u) hp hq
+  · intro u hp hq ⟨hch, he⟩ hp'
+    exact hdec (ρ.reach u) (ρ.step_at hch).of_env he hp hq hp'
+
+end SysRunE
+
+/-! ### A closed run is an open run with no environment steps -/
+
+namespace SysRun
+
+variable {beh : EBehavior σ μ} {sig : Signals σ μ}
+
+/-- Embed a closed run as an open one that never takes an `env` step. -/
+def toE (ρ : SysRun beh sig) (env : Sys σ μ → Sys σ μ → Prop) : SysRunE beh sig env where
+  st := ρ.st
+  ch := fun t => (ρ.ch t).map .sys
+  step := fun t => by
+    have hs := ρ.step t
+    revert hs
+    generalize ρ.ch t = oc
+    generalize ρ.st t = a
+    generalize ρ.st (t+1) = b
+    intro hs
+    cases hs with
+    | step c _ _ h => exact .step (.sys c) _ _ (.sys c _ _ h)
+    | idle _ => exact .idle _
+
+@[simp] theorem toE_st (ρ : SysRun beh sig) (env : Sys σ μ → Sys σ μ → Prop) :
+    (ρ.toE env).st = ρ.st := rfl
+
+theorem toE_ch_iff (ρ : SysRun beh sig) (env : Sys σ μ → Sys σ μ → Prop) (t : Nat)
+    (c : SysChoice) : (ρ.toE env).ch t = some (.sys c) ↔ ρ.ch t = some c := by
+  show (ρ.ch t).map SysChoiceE.sys = some (.sys c) ↔ _
+  cases ρ.ch t with
+  | none => simp
+  | some c' => simp
+
+/-- Weak fairness transfers along the embedding. -/
+theorem toE_weakFair {ρ : SysRun beh sig} (env : Sys σ μ → Sys σ μ → Prop) {c : SysChoice}
+    (h : ρ.WeakFair c) : (ρ.toE env).WeakFair c := by
+  rcases h with h | h
+  · exact Or.inl h
+  · right
+    intro t
+    obtain ⟨t', ht', hc⟩ := h t
+    exact ⟨t', ht', (toE_ch_iff ρ env t' c).mpr hc⟩
 
 end SysRun
 
