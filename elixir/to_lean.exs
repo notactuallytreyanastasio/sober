@@ -115,6 +115,51 @@
 #   `@type reply :: :ok | {:error, err()} | {:found, pid()} | :not_found`
 #   is `inductive Reply`; a tagged tuple at that type, in a pattern or an
 #   expression, is the constructor applied to its fields.
+#   Structs: `defstruct f: d, ..` with `@type t :: %__MODULE__{f: T, ..}`
+#   is a Lean `structure` with the same fields, each defaulting to `d`
+#   (a field with no declared type takes Nat/Int/Bool from its default;
+#   anything else must be declared). `%Mod{f: e}` is
+#   `({ f := e } : Mod)` with the other fields at their defaults, `%{s | f:
+#   e}` is `{ s with f := e }`, `x.f` is the projection, and a pattern
+#   `%Mod{f: p}` is the anonymous constructor `⟨.., p, ..⟩` with a wildcard
+#   for every field not named (`%Mod{..} = v` binds the whole value as
+#   `v@⟨..⟩`). A GenServer whose `@type state` is its own struct (`t()` or
+#   `%__MODULE__{}`) has it flattened into the state constructor, one field
+#   per defstruct field in order and under the struct's own names: `state.f`
+#   is then the part the clause's pattern bound to f, `%{state | f: e}`
+#   rebuilds the constructor with the named parts replaced, and a whole-state
+#   value cannot be bound to a variable (it does not exist in the model).
+#   Such a module's own struct is not emitted as a Lean `structure` unless
+#   some other type mentions it. Declarations are emitted in dependency
+#   order; a cycle would need a `mutual` block and is an error.
+#   Enum over lists: Enum.filter/reject are `List.filter` (reject of the
+#   negated predicate), map `List.map`, count `List.length` (of the filtered
+#   list when a predicate is given), any?/all? `List.any`/`List.all`,
+#   member? `∈`, reverse/take/drop the same names, at `l[i]?` (an Option),
+#   empty? `List.isEmpty`; `length` is `List.length`, `tl` `List.tail`,
+#   `++` `++`, and `hd` is `List.headD` at the element type's default (it
+#   raises on the BEAM, which an expression here cannot; an element type
+#   with no default value is an error). The predicate is a literal
+#   `fn x -> e end` or a capture `&(&1..)`, whose argument is the Lean
+#   binder `x1` (so `x1` is reserved, and only `&1` may appear). A
+#   comprehension `for x <- l, c, .., do: e` is `List.map` of the body over
+#   the list filtered by each condition in source order.
+#   :queue is the list, oldest first: `:queue.queue(T)` is `List T`,
+#   `:queue.new()` is `[]`, `:queue.in(x, q)` is `q ++ [x]`,
+#   `:queue.to_list(q)` is `q`, `:queue.len`/`:queue.is_empty` are the List
+#   functions, `:queue.peek(q)` is `List.head?` (matched with `{:value, x}`
+#   and `:empty`), `{_, q} = :queue.out(q0)` is `let q := List.tail q0` (out
+#   of an empty queue gives it back, as `tail` does), and
+#   `case :queue.out(q)` matches the list: `{{:value, x}, rest}` is
+#   `x :: rest` and `{:empty, q}` is `[]` with q aliased to it.
+#   A local binding `v = e` is a Lean `let` wrapped around the clause's
+#   result. Statements may be followed by an if/case body, in which case the
+#   bindings wrap the whole branch; a statement with an effect of its own
+#   (a send, a spawn) there is an error, because it would have to be pushed
+#   into every branch.
+#   A module attribute holding a literal (`@max 3`) is substituted into
+#   every later read of it in the module body, so a defstruct default, a
+#   guard or a state expression may name one.
 #   After a blocking call the rest of the body may be a single if/case.
 #
 # Registered names: `send(Mod, m)`, `GenServer.cast(Mod, m)` and
