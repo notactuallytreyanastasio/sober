@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T22:27:08.305003-04:00",
+  "edge_id": "a651121cdba1433e12f9",
+  "edge_type": "leads_to",
+  "from_change_id": "8da907e7-d1ad-4d92-95a7-458f2c98516b",
+  "rationale": "docs this branch cannot write itself",
+  "to_change_id": "5a4cf7b6-eb2b-4878-9aa7-839dd40bb27a",
+  "weight": 1.0
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "18175316-740d-4a17-9d8e-7b42c5020b3d",
+  "created_at": "2026-09-10T22:47:48.305986-04:00",
+  "description": "No file under Leanactors/ was touched on wf7/control: SysProps.lean, Fair.lean and AssocList.lean are unchanged, and the ten committed Gen files regenerate byte for byte. The generated Lean the new expression compiler emits uses only what was already there -- Lean's own if/then/else, match, let, min/max, Int.natAbs, List membership -- plus AssocList for maps. Siblings have nothing to reuse or clash with from this branch on the Lean side; the only shared files are elixir/to_lean.exs, elixir/readiness.exs and elixir/test.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "wf7/control added no generic Lean lemmas",
+  "updated_at": "2026-09-10T22:47:48.305986-04:00"
+}

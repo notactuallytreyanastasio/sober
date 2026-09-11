@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "8da907e7-d1ad-4d92-95a7-458f2c98516b",
+  "created_at": "2026-09-10T22:17:50.154091-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 88,
+    "prompt": "Prove the TableRegistry invariant as a standalone proof file; add a --json readiness baseline + check.sh gate; add a distance column and closest-to-translatable section to the harness report."
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "wf7/gate: real-file proof + readiness regression gate",
+  "updated_at": "2026-09-10T22:17:50.154091-04:00"
+}

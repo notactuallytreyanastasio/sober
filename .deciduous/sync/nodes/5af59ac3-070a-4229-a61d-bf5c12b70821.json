@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5af59ac3-070a-4229-a61d-bf5c12b70821",
+  "created_at": "2026-09-10T22:19:56.806980-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 87
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Named Lean defs for reachable locals; local calls rewritten to a private __local_call__ AST node so expr needs one new clause and shadows nothing",
+  "updated_at": "2026-09-10T22:19:56.806980-04:00"
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e98bf26a-f19a-4b15-9dbd-380ad45ad7f8",
+  "created_at": "2026-09-10T22:17:42.994705-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90,
+    "prompt": "Blockers to close: string literal 147/25, string interpolation 85/18, keyword list literal 67/12, Keyword.get 37, Access.get 24, Logger 40/15, MapSet 11, DateTime/System.monotonic_time 17, module alias as a value 11. Structure remote-call support as ONE data table (module, function, arity -> rendering | :noop | :error)."
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "wf7/stdlib: values and remote calls (strings, keyword lists, Logger, MapSet, time, module names)",
+  "updated_at": "2026-09-10T22:17:42.994705-04:00"
+}

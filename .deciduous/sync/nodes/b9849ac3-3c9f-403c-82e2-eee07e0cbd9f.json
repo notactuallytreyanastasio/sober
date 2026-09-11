@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b9849ac3-3c9f-403c-82e2-eee07e0cbd9f",
+  "created_at": "2026-09-10T22:24:33.136372-04:00",
+  "description": "Also found: duplicate builder goals under a round root when orchestrator-created goals coexist with builder-created ones arriving via sync, three of which reached no outcome (now rejoined: 641->588, 636->589, 633->597). And a correction to my own report: elixir/real/table_registry.ex is byte-identical to the loom original with NO module-name change at all; the translator handles the dotted name Loom.Teams.TableRegistry itself.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Round 6 verifier refused to run the instructed 'git checkout -- .deciduous/deciduous.db' because it detected a concurrent round-7 session's nodes 647-666 in the live db; restoring would have destroyed in-flight graph work. Correct judgment over instruction. Protocol fix: verifiers must never restore the graph db, and read-only deciduous commands should not dirty it",
+  "updated_at": "2026-09-10T22:24:33.136372-04:00"
+}

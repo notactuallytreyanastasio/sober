@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "d5617973-1f0f-454d-b244-6709bc14a949",
+  "created_at": "2026-09-10T22:22:05.270782-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 88
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Real Lean models for each value family, plus one @remote table (module, function, arity -> rendering | :noop | :error) as the single extension point",
+  "updated_at": "2026-09-10T22:22:05.270782-04:00"
+}

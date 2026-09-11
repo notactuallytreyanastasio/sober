@@ -1,0 +1,15 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "6ee7d0f0-f85e-4c0b-9539-decd7d9b68d0",
+  "created_at": "2026-09-10T22:43:04.189815-04:00",
+  "deleted_at": "2026-09-10T22:43:14.090629-04:00",
+  "description": "wf7/locals touched four functions another builder may own. All four edits are additive and none changes behaviour for inputs without a local helper.\n\n1) fail/1 (elixir/to_lean.exs, bottom of the module). It used to IO.puts + System.halt(2) unconditionally. It now checks Process.get(:to_lean_dry) first and, when set, throws {:to_lean_dry, msg} instead. The dry flag is set only inside collect_local_uses/2, the pass that renders everything once with unknown helper signatures purely to see the types the helpers are called at; the real pass reports whatever it finds. Outside that pass the behaviour is byte-identical. Merge note: keep the guard, take whatever else the other branch does to the message.\n\n2) expr/3 gained ONE clause, placed immediately after  and BEFORE the  clause:\n     defp expr(env, {:__local_call__, _, [id | args]}, t), do: local_call_str(env, id, args, t)\n   It must stay before the Option clause, which would otherwise wrap an Option-returning helper in a spurious . The head :__local_call__ is a private node this branch introduces (see rewrite_local_calls/4), so the clause cannot shadow any real Elixir form: a builder adding <>, &&, || or  clauses anywhere in expr/3 is unaffected.\n\n3) type_of/2 gained ONE clause just before the final , returning the helper's result type for a :__local_call__ node. Same argument: private head, shadows nothing.\n\n4) render/2: one interpolation added to the output heredoc,  between #{pids} and #{sig}. ctx.local_decls is \"\" for every file with no reachable helper, so all ten Gen files regenerate byte for byte.\n\nAlso, Ctx gained three fields (locals, local_specs, local_decls) and main/1 now rewrites the module bodies before collect_raw_types and calls local_sigs/2 + render_locals/1 just before render/2. init_of/3 returns a 4-tuple {param, expr, subs, notes} instead of a 3-tuple; the only callers are main/1 and infer_types/2 (which reads elem(init, 1) and is unaffected).",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "cross-area edit: fail/1, expr/3, type_of/2, render/2",
+  "updated_at": "2026-09-10T22:43:04.189815-04:00"
+}

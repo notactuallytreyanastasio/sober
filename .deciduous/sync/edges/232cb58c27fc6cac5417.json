@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T22:26:47.548076-04:00",
+  "edge_id": "232cb58c27fc6cac5417",
+  "edge_type": "leads_to",
+  "from_change_id": "8da907e7-d1ad-4d92-95a7-458f2c98516b",
+  "rationale": "options for where the gate learns which projects to measure",
+  "to_change_id": "1135200c-1276-4d93-8d17-dca0530aa01b",
+  "weight": 1.0
+}

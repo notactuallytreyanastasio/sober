@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "d7586508-fc5b-4896-8ebf-63d9a54956ea",
+  "created_at": "2026-09-10T22:26:45.783711-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 88
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "readiness.exs: --json/--update-baseline/--check-baseline, parallel walk, distance + closest section; check.sh gate step",
+  "updated_at": "2026-09-10T22:26:45.783711-04:00"
+}

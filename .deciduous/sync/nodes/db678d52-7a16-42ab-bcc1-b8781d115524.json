@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "db678d52-7a16-42ab-bcc1-b8781d115524",
+  "created_at": "2026-09-10T22:26:46.437765-04:00",
+  "description": "main/1: one line changed, strip_resource_noops(mod, subst_attrs(stmts(body))) became strip_resource_noops(mod, desugar(subst_attrs(stmts(body)))). sends/3: one new statement clause for a pattern binding {a,b} = e, placed after the plain-variable binding and guarded 'when not is_atom(lhs)' so that ':ok = Phoenix.PubSub.subscribe(..)' still falls through to the pubsub_call catch-all (that guard is load-bearing -- without it the pubsub fixture fails). body/4's generic case clause lost 12 inline lines to the new shared case_arm_pat/6; its behaviour is unchanged (all ten Gen files and all 49 fixtures are byte-identical). expr/3 gained new clauses only, never edits to existing ones, except that the control-form dispatch clause is inserted between 'expr(_env, nil, nil)' and the 'Option' clause -- that position matters, so a branch is wrapped in some/none on its own rather than the whole if.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "cross-area edit: main/1 and sends/3",
+  "updated_at": "2026-09-10T22:26:46.437765-04:00"
+}

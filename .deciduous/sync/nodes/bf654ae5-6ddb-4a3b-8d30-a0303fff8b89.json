@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "bf654ae5-6ddb-4a3b-8d30-a0303fff8b89",
+  "created_at": "2026-09-10T22:19:31.173789-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Split the proof out as Examples/TableRegistryProof.lean, matching the Lock/Task/Ttl convention",
+  "updated_at": "2026-09-10T22:19:31.173789-04:00"
+}

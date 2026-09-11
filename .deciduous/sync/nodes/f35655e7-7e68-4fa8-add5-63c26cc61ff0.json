@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "f35655e7-7e68-4fa8-add5-63c26cc61ff0",
+  "created_at": "2026-09-10T22:16:51.222063-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 65
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Three translator builders with declared ownership (control flow / values and remote calls / local functions and init), one Lean+tooling builder; headline metric is the readiness count",
+  "updated_at": "2026-09-10T22:16:51.222063-04:00"
+}

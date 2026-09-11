@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "8dc9b9c1-9168-4810-b8ff-6430df7ed651",
+  "created_at": "2026-09-10T23:07:17.280281-04:00",
+  "description": "Blockers fell 1621 -> 848 but no module crossed the line. The nearest, Ensemble.LogStore, is now at distance 0: the walker finds nothing unsupported in it at all. It is still not translated because the translator refuses it for a TYPE reason the walker does not model -- 'the reply :queue.to_list(state.entries) has type List Term, but the reply type was inferred as the opaque term()'. Untyped mode infers a reply union only when every reply in the file is a literal atom or tagged tuple; otherwise the reply is term(), and a reply that does have a model type cannot be carried by it. Fixing this is inferring the reply type from the reply EXPRESSION, which needs the clause environment and so cannot happen in infer_types/2 where the other inferences live. That is a round-8 item and it is worth one module on its own. The next four are one family each: two are Phoenix assign/2-3 (EnsembleWeb.LogsLive, BobsBroadcastWeb.RadioLive), one is a call into a sibling module (Loom.LSP.ConfigListener), one is a local helper that is not pure (LoomWeb.CostDashboardLive).",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "why the count is still 1/55, and what the nearest module actually needs",
+  "updated_at": "2026-09-10T23:07:17.280281-04:00"
+}

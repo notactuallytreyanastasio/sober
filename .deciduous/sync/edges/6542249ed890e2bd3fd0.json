@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T22:19:33.555663-04:00",
+  "edge_id": "6542249ed890e2bd3fd0",
+  "edge_type": "leads_to",
+  "from_change_id": "75a60bc4-0b77-4c53-aa5c-a9c5eda2e7c1",
+  "rationale": "chosen: every other example already has a separate XProof.lean",
+  "to_change_id": "bf654ae5-6ddb-4a3b-8d30-a0303fff8b89",
+  "weight": 1.0
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "6e6d1dc1-6dd7-479e-9c96-986a3fdb0fb1",
+  "created_at": "2026-09-10T23:09:17.879563-04:00",
+  "description": "The merged docs/readiness.md ranks untranslatable modules by distance (distinct blocker families). Distance 0: Ensemble.LogStore -- zero walker blockers, refused by the translator for a type reason (reply expression typed, reply type inferred term()). Distance 1, four modules: EnsembleWeb.LogsLive and BobsBroadcastWeb.RadioLive (Phoenix assign/2-3, 123 of the 144 imported/macro calls), Loom.LSP.ConfigListener (one call into a sibling module), LoomWeb.CostDashboardLive (one local helper that is not pure). Distance 2, five more, three of them sharing the same pair: 'no @type state and no init/1 to infer one from' plus 'receive not the whole body of a one-argument def'.\n\nReading the table as a work list, the four features that would move the count furthest are: (1) infer a reply type from the reply expression, not only from literals; (2) Phoenix assign/2 and assign/3 as a state update (144 occurrences in 17 modules, the second-largest family); (3) a receive nested inside a larger def; (4) calls into a sibling module in another file. The largest family, 'local helper is not a pure expression' (242/40), is a long tail rather than one feature -- it is 40 different helpers each stopped by its own construct, and the report now names the construct.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "round-8 planning input from the merged report",
+  "updated_at": "2026-09-10T23:09:17.879563-04:00"
+}

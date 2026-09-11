@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "fe2026bf-2d4c-477d-8b19-7d91a0596a2e",
+  "created_at": "2026-09-10T22:27:08.335084-04:00",
+  "description": "wf7/gate added no lemma to SysProps.lean, Fair.lean or AssocList.lean: TableRegistryProof.lean reuses AssocList.mem_of_get?, Uniq.key_inj, Uniq.val_inj, Uniq.insert_fresh, Uniq.erase and Term.ne_of_id_ne, all of which already existed. The only shared-file edits are elixir/readiness.exs (no @supported change -- the allowlist belongs to the translator builders) and check.sh (one new step inserted between the readiness self-check and == prove).",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "No generic Lean helpers added; no SysProps/Fair/AssocList change",
+  "updated_at": "2026-09-10T22:27:08.335084-04:00"
+}

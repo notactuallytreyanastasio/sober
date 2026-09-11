@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "54c1cd26-a737-4432-a34c-5fb44974587c",
+  "created_at": "2026-09-10T22:26:50.857304-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 92
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "check.sh passes end to end (2m11s); gate 16s after parallelising the walk (was 78s); all ten Gen files byte-identical",
+  "updated_at": "2026-09-10T22:26:50.857304-04:00"
+}

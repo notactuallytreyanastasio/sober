@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5a4cf7b6-eb2b-4878-9aa7-839dd40bb27a",
+  "created_at": "2026-09-10T22:27:05.589932-04:00",
+  "description": "Three README edits this branch needs.\n\n(1) Status paragraph, first sentence: \"33 files\" becomes \"34 files\" and the line/theorem totals move (measured here: 14,477 hand-written lines across 34 files under Leanactors/ outside Gen/, and four new theorems -- refs_distinct, refs_below_counter, refs_distinct_gen, refs_below_counter_gen -- so 796 becomes 800 if that count was over the same set; re-measure with whatever produced 796). Also: \"the registry and the feed have theirs checked but not proved\" is unchanged, but the table registry sentence in that paragraph should now point at TableRegistryProof.\n\n(2) The file table, replacing the Leanactors/Examples/TableRegistry.lean row with two rows:\n\n| `Leanactors/Examples/TableRegistry.lean` | `Loom.Teams.TableRegistry` with no annotations at all: hand `beh`, `beh_eq_gen`, the bounded uniqueness check, the no-counter-bump mutant and two traces |\n| `Leanactors/Examples/TableRegistryProof.lean` | The proof for the first file copied unmodified out of a real project: the `Bounded`/`Uniq` invariant over every reachable configuration, `Inv.step` over all four `SysStep` cases, and `refs_distinct` (distinct team ids, distinct ETS references), `refs_below_counter`, `team_has_one_ref`, each also through `beh_eq_gen`; the docstring says what the abstraction does not cover -- ETS itself is opaque fresh values and `:ets.delete/1` is dropped, so these are properties of the registry map |\n\n(3) The tooling rows: extend the `elixir/readiness.exs` row with \", --json --update-baseline writes docs/readiness-baseline.json and --check-baseline re-measures and fails on a regression; each module gets a distance (how many distinct blocker families it still hits)\" and add a row after docs/readiness.md:\n\n| `docs/readiness-baseline.json` | The per-project readiness numbers as check.sh reads them; refreshed whenever a round beats them |\n\nand in the Build block, the check.sh comment gains \"the readiness regression gate over the five real projects,\" after \"the readiness self-check over elixir/src,\". The readiness prose section (around line 719) should add: the same numbers are committed as a baseline that check.sh re-measures, and docs/readiness.md now leads with a \"Closest to translatable\" table -- the nearest untranslatable module, Loom.LSP.ConfigListener, is one family (one call) away.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "README replacement text for wf7/gate (README not edited, per instructions)",
+  "updated_at": "2026-09-10T22:27:05.589932-04:00"
+}

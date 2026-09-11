@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "443445a6-23d1-48b4-b803-03c25401b963",
+  "created_at": "2026-09-10T22:26:40.992815-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 88
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Compile expressions properly: ctl_expr for if/case/block/binding inside expr/3, a desugar/1 prepass for pipes, cond and unless, and case_arm_pat shared with the body compiler",
+  "updated_at": "2026-09-10T22:26:40.992815-04:00"
+}

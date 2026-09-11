@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T22:43:26.368554-04:00",
+  "edge_id": "70c05e09560101183f5b",
+  "edge_type": "leads_to",
+  "from_change_id": "ebb69ec3-57af-47b7-acc6-10b25f93fc8b",
+  "rationale": "what siblings must know about the generated shape",
+  "to_change_id": "3a2ff2ce-98cc-4246-aaab-430779a46fa8",
+  "weight": 1.0
+}

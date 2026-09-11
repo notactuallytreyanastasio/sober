@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5c3289b3-9b30-4777-a1c5-ff57caeeadf8",
+  "created_at": "2026-09-10T22:50:15.520493-04:00",
+  "description": "Found while writing the mapset fixture, NOT fixed (it is outside this branch's area and it fails loudly, so it is not a soundness hole).\n\ncovered_tags/3 returns a list of message tags and prepends the ATOM :all as a sentinel meaning \"the bare-message clauses alone cover every state\". insert_crashes/2 then asks `:all in total`. A module that declares a message tag literally named :all -- for instance @type call :: ... | :all, which is an ordinary name for \"give me everything\" -- makes that test true for the wrong reason. The module is then recorded as exhaustive, the global catch-all clause is suppressed, and Lean rejects the generated file with \"Missing cases: ... Msg.reply ...\".\n\nReproduce: any GenServer whose message union contains :all and whose @type reply produces an unhandled `reply` constructor. The mapset fixture had exactly that before its call was renamed from :all to :list.\n\nThe failure is always at Lean compile time, never a silently ignored message, so nothing proved is wrong. The fix is to stop using an atom that a source file can also use: have covered_tags return {tags, all_bare?} (or use a tuple sentinel), and change the two `:all in ...` tests in insert_crashes and covered_tags accordingly. Three call sites.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "translator bug (not fixed): the :all sentinel of covered_tags collides with a message tag named :all",
+  "updated_at": "2026-09-10T22:50:15.520493-04:00"
+}

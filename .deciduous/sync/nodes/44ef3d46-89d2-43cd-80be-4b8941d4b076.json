@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "44ef3d46-89d2-43cd-80be-4b8941d4b076",
+  "created_at": "2026-09-10T22:47:45.799955-04:00",
+  "description": "README, the to_lean.exs row of the Layout table, replace with:\n| `elixir/to_lean.exs` | The translator: `@type`-directed (`msg`, `cast`, `info`, `call`, `reply`, `state`), small subset, unverified; `handle_continue` is inlined, not sent; the pure fragment is compiled as a language, so any sub-expression may be an `if`, a `case`, a block or a binding (pipes, `cond` and `unless` are desugared away first) |\n\nREADME, a new paragraph for the Readiness section (numbers are wf7/control alone, to be re-counted after the round is integrated):\nRound 7 made the pure fragment a language rather than a body shape. An\nexpression may now be an `if`/`case`/`cond`, a block `(a; b; c)` (nested\n`let`s) or a binding, `a |> f(b)` is rewritten to `f(a, b)` before anything\nelse looks at the module, and the Kernel type tests are decided statically\nfrom the modelled type (`is_pid` on a `pid()` is `true`; an opaque `term()`\nor a tagged union is an error, not a guess). A statement with an effect\nbefore an `if`/`case` body is pushed into every branch instead of being\nrefused. Over the five real projects that took the blocker count from 1621\nto 1421 and emptied eleven families outright, among them `if/case not at\nbody level` (98 occurrences in 28 modules), `pipe |>` (38) and `block as a\nsub-expression` (26).\n\nNOTES.md, a paragraph for the round-7 section:\nThe interesting constraint was totality. Lean's `let` has nothing to fall\nthrough to, so a pattern binding is accepted only when the pattern is total\nat its type -- a variable, `_`, a pair at a product type, a struct pattern\n-- and `{:ok, v} = Map.fetch(m, k)` is a clear error telling you to match\ninstead. A `cond` must end in `true ->`, because falling off the end raises\nCondClauseError and an expression in the model cannot raise. An `if` with\nno `else` is nil, which the model has only at an Option type. The Kernel\ntype tests fall out of the same discipline from the other side: a value of\nthe model has exactly one type, so the test is a compile-time constant, and\nwhere it is not (an opaque `Term`, a tagged union with both atom and tuple\nalternatives, any binary) the translator says so rather than guessing.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Integrator record for wf7/control: README and NOTES replacement text",
+  "updated_at": "2026-09-10T22:47:45.799955-04:00"
+}

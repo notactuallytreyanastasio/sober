@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "3a2ff2ce-98cc-4246-aaab-430779a46fa8",
+  "created_at": "2026-09-10T22:43:18.631324-04:00",
+  "description": "No Lean files were touched by wf7/locals: nothing was added to SysProps.lean, Fair.lean or AssocList.lean, and no example file changed. The four new ok fixtures carry \"lean: check\" and compile against the existing library only. Siblings have nothing to reuse or clash with on the Lean side.\n\nWhat a sibling DOES need to know is the new shape the translator can now emit into a generated file, because a hand-written example that proves things about such a module will see it:\n\n  * Zero or more \"def <module>_<function> (x : T) .. : R := ...\" definitions between the pid constants and \"def sig\". They are ordinary total Lean definitions over the file's own inductives, and \"beh\" applies them.\n  * When some helper is recursive in a way Lean does not see as structural, one extra definition ahead of them:\n        def localFuel : Nat := 64\n    and that helper takes a leading \"(fuel : Nat)\", returning the default value of its result type at fuel 0. A proof about such a module is a proof about the fuel-limited function, not about the Elixir one for inputs deeper than 64; the generated file says so in a doc comment. If an example needs the unbounded function it should state its own Lean definition and prove the generated one agrees up to the depth it cares about.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "No generic Lean lemmas added by wf7/locals; what the new generated shape looks like",
+  "updated_at": "2026-09-10T22:43:18.631324-04:00"
+}

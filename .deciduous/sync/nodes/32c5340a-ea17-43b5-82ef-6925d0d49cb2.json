@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "32c5340a-ea17-43b5-82ef-6925d0d49cb2",
+  "created_at": "2026-09-10T22:26:43.751592-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Baseline records its own paths; a missing checkout skips the gate instead of failing it",
+  "updated_at": "2026-09-10T22:26:43.751592-04:00"
+}

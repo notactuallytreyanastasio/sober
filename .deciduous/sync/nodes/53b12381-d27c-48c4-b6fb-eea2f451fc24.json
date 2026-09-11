@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "53b12381-d27c-48c4-b6fb-eea2f451fc24",
+  "created_at": "2026-09-10T22:26:50.888358-04:00",
+  "description": "docs/readiness-baseline.json was measured on main (bde000c): 55 candidate modules, 1 translatable, 1621 blockers, 117 blocker families. Round 7's three translator builders are all adding supported forms, so at integration time the gate will report 'baseline met, and beaten' and print the refresh command. The integrator must run BOTH refreshes, in this order, after the merge: (1) elixir elixir/readiness.exs --json --update-baseline docs/readiness-baseline.json /Users/bg/code/loom/lib /Users/bg/code/ensemble/lib /Users/bg/code/blinks_backend/lib /Users/bg/code/big_bill/lib /Users/bg/code/bobs_broadcast/lib   (2) the same paths with --markdown > docs/readiness.md. The gate never fails on an improvement, so a forgotten refresh costs nothing except a stale number; it fails only on a real regression.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Baseline is stale by design: the three translator builders will beat it",
+  "updated_at": "2026-09-10T22:26:50.888358-04:00"
+}

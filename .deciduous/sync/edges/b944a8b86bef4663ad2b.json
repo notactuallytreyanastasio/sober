@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T22:18:18.677379-04:00",
+  "edge_id": "b944a8b86bef4663ad2b",
+  "edge_type": "leads_to",
+  "from_change_id": "81aa1f00-de55-4253-b53b-758a2aad4dc5",
+  "rationale": "wf7/control is one of the three translator builders of round 7",
+  "to_change_id": "1853f39c-5d52-41f1-9be3-3464db0e2805",
+  "weight": 1.0
+}

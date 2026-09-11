@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T22:26:47.586849-04:00",
+  "edge_id": "6609f751077531d70bd9",
+  "edge_type": "leads_to",
+  "from_change_id": "1135200c-1276-4d93-8d17-dca0530aa01b",
+  "rationale": "chosen: the baseline is the one place the five projects are named",
+  "to_change_id": "32c5340a-ea17-43b5-82ef-6925d0d49cb2",
+  "weight": 1.0
+}

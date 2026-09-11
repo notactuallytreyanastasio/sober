@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "bbf98655-5eb2-4591-88eb-a1eb6f0f9102",
+  "created_at": "2026-09-10T22:52:48.618529-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90,
+    "prompt": "Integrate round 7: merge four wf7 branches with --no-ff, regenerate Gen files and fixture expectations, get check.sh green, refresh the readiness baseline and docs, write README/NOTES, sync the graph and push."
+  },
+  "node_type": "goal",
+  "status": "pending",
+  "title": "wf7 integration: merge gate + stdlib + locals + control onto main",
+  "updated_at": "2026-09-10T22:52:48.618529-04:00"
+}

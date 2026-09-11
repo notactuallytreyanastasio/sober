@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "b58ffaca-406c-4a1d-ac70-4a4fb5a96c32",
+  "created_at": "2026-09-10T23:02:34.481060-04:00",
+  "description": "Found while chasing Ensemble.LogStore (the one module the merged walker reports with zero blockers). All six are in elixir/to_lean.exs on main, each byte-identical on the ten Gen files and green on the fixture suite.\n\n1. reg_name/2: 'name: Keyword.get(opts, :name, N)' in start_link is N, with a warning -- the same 'the option list is not modelled' rule wf7/locals gave init/1, applied to the registered name.\n2. collect_structs: a struct field with no @type t reads String from a binary default and 'List Term' from ':queue.new()' (it already read Nat/Int/Bool from a numeric or boolean default).\n3. infer_type/1: a struct literal '%__MODULE__{..}' infers that struct's type, so untyped mode can read a struct state off init/1.\n4. sent_msgs/1: a 'Phoenix.PubSub.broadcast(_, _, m)' literal is a message of the file, exactly as a send/2 is -- untyped mode inferred nothing from broadcasts before.\n5. block_let/2: '{_, q} = :queue.out(q0)' inside a block expression is 'let q := List.tail ..', the rule the statement form already had. Only reachable because wf7/control made a block an expression while :queue came from round 6.\n6. type_of/2: a pair of two typed expressions is 'A x B', which is what lets '{a, b} = if .. do {x, y} else {u, v} end' bind.\n\nAlso one honesty guard, not a feature: reply_str/3 now refuses a reply whose expression has a model type when the reply type was INFERRED as the opaque term(), naming '@type reply'. Without it LogStore translated 'successfully' into a Lean file Lean rejects (Msg.reply expects Term, got List Term) and the readiness harness -- which never Lean-checks -- would have counted it as the round's second translatable module. It is not one.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "integration fixes: six small translator gaps that only appear once the three branches are together",
+  "updated_at": "2026-09-10T23:02:34.481060-04:00"
+}

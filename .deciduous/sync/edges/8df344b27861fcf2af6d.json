@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T22:24:33.061205-04:00",
+  "edge_id": "8df344b27861fcf2af6d",
+  "edge_type": "leads_to",
+  "from_change_id": "70512e38-4b4b-4005-a18f-1775d9cca601",
+  "rationale": "this action produced that outcome (duplicate goal chain rejoined)",
+  "to_change_id": "1d47b5f3-7198-4e6e-be3e-a523f8c9aee6",
+  "weight": 1.0
+}

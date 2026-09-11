@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "0dc9de86-885b-4999-9ff6-58f50352a947",
+  "created_at": "2026-09-10T22:52:09.196706-04:00",
+  "description": "check.sh green at 2667817 in /Users/bg/code/lean_analysis-wf/wf7-stdlib: ten Gen files up to date (all ten byte-identical to main), 58/58 fixtures (the 49 existing expectations byte-identical, 9 new), readiness self-check 18/18 translatable, lake build zero errors, zero warnings, no sorry, ten BEAM drivers OK, fuzz 200/200.\n\nReadiness over the five real projects (elixir/readiness.exs --markdown over loom, ensemble, blinks_backend, big_bill, bobs_broadcast):\n  translated modules 1/55 -> 1/55\n  blockers 1621 -> 1164 (-457, -28%)\n\nGone from the planning table entirely: string literal (147 in 25 modules), string interpolation / binary (85 in 18), keyword list literal (67 in 12), call to Logger (40 in 15), call to Keyword (37 in 11), call to Access (24 in 9), call to DateTime (17 in 9), call to MapSet (11 in 3), module alias as a value (11 in 6), unsupported type String.t() (9 in 5), string pattern (9 in 4), operator <> (8 in 5), and the monotonic_time part of call to System.\nKernel function or guard fell 33 -> 25 (inspect/1 and to_string/1 are supported now).\nA few families rose slightly, because a construct that used to hide its own arguments now lets the walker inside them: call to a helper in the same module 271 -> 273, if/case not at body level 98 -> 99, operator || 10 -> 20, call to Enum 26 -> 27, call to Map 16 -> 17.\n\nNo module crossed into translated on this branch alone. The seven closest are each held up by one or two blockers from the other builders' areas: Loom.LSP.ConfigListener by one call into another module; Loom.Session.Architect, Loom.Tools.Shell, Ensemble.AI.TextGenerator and BobsBroadcastWeb.StreamController by no @type state plus a receive that is not the whole body of a def; LoomWeb.CostDashboardLive and EnsembleWeb.LogsLive by no @type state plus one local or imported call.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "check.sh green at 2667817; blockers over the five real projects 1621 -> 1164, thirteen value families off the planning table, translated modules unchanged at 1/55",
+  "updated_at": "2026-09-10T22:52:09.196706-04:00"
+}

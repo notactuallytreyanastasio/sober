@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "bfb4b6a0-35e4-432a-9b25-fadd4c1a9e55",
+  "created_at": "2026-09-10T22:27:11.563540-04:00",
+  "deleted_at": "2026-09-10T22:27:17.771071-04:00",
+  "description": "docs/readiness.md now ends the planning section with the ten nearest untranslatable modules. Distance 1: Loom.LSP.ConfigListener (one blocker, one call into Loom.LSP.Supervisor). Distance 2: BobsBroadcastWeb.StreamController, EnsembleWeb.LogsLive, Loom.Session.Architect, Loom.Tools.Shell, LoomWeb.CostDashboardLive, EnsembleWeb.DecisionGraphLive. Distance 3: Ensemble.AI.TextGenerator, BobsBroadcastWeb.RadioLive, Ensemble.IssueOrchestrator. Four of the top seven share one family: 'no @type state and no init/1 to infer one from' -- untyped mode needs an init/1 to read the state literal from, and these modules have none (init is a callback of a LiveView or the state comes from somewhere else). The other recurring one, 'receive not the whole body of a one-argument def', is a receive nested inside a larger function. Two families together would take the count from 1 translatable module to something like 5.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Planning input for round 8, from the new closest-to-translatable table",
+  "updated_at": "2026-09-10T22:27:11.563540-04:00"
+}

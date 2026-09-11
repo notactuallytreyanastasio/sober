@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T22:22:07.148669-04:00",
+  "edge_id": "8a3d0bbc081f1891f574",
+  "edge_type": "leads_to",
+  "from_change_id": "30e1d8a0-b329-4bc8-97ee-d349f5b15a8a",
+  "rationale": "rejected: an opaque Term cannot carry a string literal, and a set as a Term loses size/membership, which is what the properties need",
+  "to_change_id": "d5617973-1f0f-454d-b244-6709bc14a949",
+  "weight": 1.0
+}

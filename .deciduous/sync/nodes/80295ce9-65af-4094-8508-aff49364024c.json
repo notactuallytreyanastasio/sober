@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "80295ce9-65af-4094-8508-aff49364024c",
+  "created_at": "2026-09-10T22:50:01.398221-04:00",
+  "description": "Five edits outside 'values and remote calls' that the integrator should expect in the merge of wf7/stdlib.\n\n1. strip_resource_noops/resource_noop? (elixir/to_lean.exs, 'external resources' section). Added one clause:\n     defp resource_noop?(_mod, e) when is_tuple(e) and tuple_size(e) == 3, do: remote_noop?(e)\n   placed immediately before the existing catch-all. This is how every Logger call disappears (the @remote :noop rows), including inside init/1, and it is why a Logger argument never has to be translated. Keep both clauses in that order.\n\n2. hide_unused_parts/3 (render_clauses). It used to hide only the parts of a __whole__ state variable; it now also hides any other pattern variable of the state that the rendered right-hand side does not mention. Needed because a clause whose only use of its state variable was a dropped Logger call would otherwise trip Lean's unused-variable linter, which check.sh treats as a failure. The '_'-prefix test moved from the comprehension into the reduce. No existing output changed (ten Gen files and 49 expectations byte-identical).\n\n3. pat/5. Two changes: a new clause for a binary pattern (a Lean string literal pattern, rejected at a non-String position), and the atom clause now renders an atom at type Atom through atom_ctor/1 (which registers the key in the file's Atom inductive) before falling back to the enum reading. enum_type?/1 also excludes \"String\" so a string literal pattern never counts towards coverage.\n\n4. expr/3, the binary-operator clause. It now fails with a message when either operand has type Instant and the operator is one of + - < > <= >=: the model has no clock, and the refusal should name that rather than surface as a missing Lean instance.\n\n5. type_of/2 for . The struct branch used to return nil when the variable is not a struct; it now falls back to var_type/2, which knows the type of a record-state field. This is what makes  usable as a case scrutinee on a record state. Strictly a widening: it only turns nil into a type.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "cross-area edit: resource_noop?/2, hide_unused_parts/3, pat/5 atom+string clauses, expr/3 operator clause, type_of/2 field clause",
+  "updated_at": "2026-09-10T22:50:01.398221-04:00"
+}

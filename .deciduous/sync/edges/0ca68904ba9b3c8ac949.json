@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T22:26:47.567665-04:00",
+  "edge_id": "0ca68904ba9b3c8ac949",
+  "edge_type": "leads_to",
+  "from_change_id": "2bc0c610-890e-482d-a645-9494c12d01a7",
+  "rationale": "rejected: check.sh would carry absolute paths to checkouts nobody else has",
+  "to_change_id": "32c5340a-ea17-43b5-82ef-6925d0d49cb2",
+  "weight": 1.0
+}

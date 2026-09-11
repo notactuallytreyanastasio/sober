@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "1999185d-1e47-4a95-afc0-a292a9f9addf",
+  "created_at": "2026-09-10T22:43:32.335800-04:00",
+  "description": "Things found while building the local-function facility that a sibling or the integrator will hit.\n\n1) A tagged union with exactly one alternative is not recognised. A file whose only reply literal is {:size, n} infers @type reply :: {:size, term()}, and lean_type/3 then fails with \"unsupported type {:size, term()}\" because a bare tuple type is only allowed at state level. Two alternatives work. This is pre-existing (untyped mode, infer_types/2), not something this branch introduced; worth a fix in the union-building code, which this branch does not own.\n\n2) An unused `fresh` binder trips Lean's linter. A clause whose only spawn binds its pid to an unused variable (\"{:ok, _p} = GenServer.start_link(..)\") still renders the second beh binder as `fresh`, and Lean reports \"Variable name `fresh` is not explicitly referenced\" -- a warning, so check.sh fails. fresh_name/1 keys off :__fresh__ being in the env rather than off the pid actually being used. Worked around in the init_stmts fixture by using the pid.\n\n3) A local binding whose right-hand side type is unknown gets no env entry. In a helper body, \"let x := ...\" with an untypable right-hand side leaves x untyped, so a later use of x at a typed position renders without the conversion. It does not misrender today (Lean infers the let), but a case scrutinee over such an x fails with \"untyped scrutinee\".\n\n4) `[k | l]` is not an expression form. List cons is supported in patterns but not in expressions, so a handler that prepends has to write \"l ++ [k]\". Cheap to add, in the expression builder's area.\n\n5) Elixir parses \"def foo do .. end\" with args = nil, not []. Both local_defs/2 in the translator and in the harness normalise with \"args || []\" so a zero-arity helper is found; a bare \"foo\" without parentheses is still a variable reference as far as the AST goes and is not rewritten to a call.\n\n6) A pipe hides a local call's arity. \"socket |> reload_prs()\" is the node reload_prs/0, so the harness labels it an imported/macro call even though reload_prs/1 is defined in the module. That is why the \"call to an imported function or macro\" family barely moved (156 -> 155): most of it is genuine Phoenix imports (assign/2 and assign/3 are 123 of the 155), and the rest is this pipe artefact, which the pipe feature will absorb.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Translator limits found while building local functions",
+  "updated_at": "2026-09-10T22:43:32.335800-04:00"
+}

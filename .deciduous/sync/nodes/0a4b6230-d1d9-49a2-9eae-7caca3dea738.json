@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "0a4b6230-d1d9-49a2-9eae-7caca3dea738",
+  "created_at": "2026-09-10T22:38:24.876217-04:00",
+  "description": "check.sh's translate stage writes /tmp/Gen.<Name>.lean and diffs it against Leanactors/Gen/<Name>.lean. Every worktree uses the same absolute paths, so two builders running check.sh at the same moment clobber each other's files and one reports a spurious 'Files /tmp/Gen.Ttl.lean and Leanactors/Gen/Ttl.lean differ'. It happened once in wf7-control and did not reproduce on re-run; regenerating Ttl by hand into a private path was byte-identical. Fix for the integrator: write to a per-run directory, e.g. OUT=$(mktemp -d) at the top of check.sh and $OUT/Gen.X.lean throughout (also /tmp/readiness.src.txt in the readiness stage). Not changed on this branch: check.sh is shared and the edit would conflict with the other two builders.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "check.sh races between concurrent worktrees: /tmp/Gen.*.lean is shared",
+  "updated_at": "2026-09-10T22:38:24.876217-04:00"
+}

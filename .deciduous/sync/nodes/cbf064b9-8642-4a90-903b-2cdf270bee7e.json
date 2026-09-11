@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "cbf064b9-8642-4a90-903b-2cdf270bee7e",
+  "created_at": "2026-09-10T22:26:43.217674-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "desugar/1 (pipes, cond, unless) + ctl_expr/if_expr/block_let/bind_pat_let/irrefutable? + case_arm_pat shared with body; Kernel type tests, elem, tuple_size, abs, min, max, div, rem, in, &&, ||, !, *, ===, !==, unary -",
+  "updated_at": "2026-09-10T22:26:43.217674-04:00"
+}

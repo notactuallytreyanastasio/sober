@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "51a1d643-4ef6-4fec-b16f-5ee3097965f4",
+  "created_at": "2026-09-10T23:07:14.031905-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Readiness after the round-7 merge: blockers 1621 -> 848 (-47.7%), families 117 -> 106, translatable modules 1/55 unchanged",
+  "updated_at": "2026-09-10T23:07:14.031905-04:00"
+}
