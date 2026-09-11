@@ -39,9 +39,18 @@
 #   Pattern variables the inlined body no longer uses are renamed `_v`. An
 #   optional `@type continue` is accepted and ignored (no Msg constructor
 #   is generated: the continue never enters a mailbox).
-#   init/1: `def init(p), do: {:ok, e}` (or the block form whose other
-#   statements are all `Process.flag(:trap_exit, true)`), where p is a
-#   variable or a tuple of variables and e is a pure expression of p. At
+#   init/1: `def init(p), do: {:ok, e}` or a block ending in `{:ok, e}`,
+#   where p is a variable or a tuple of variables and e is a pure expression
+#   of p. The statements before the return may be
+#   `Process.flag(:trap_exit, true)`, a PubSub subscribe/unsubscribe, a
+#   `Logger` call (dropped: logging is not modelled), a call to a local
+#   helper, or a binding `v = e` of a pure expression, which is substituted
+#   into the later statements and into the state expression -- init/1 has no
+#   Lean binder of its own, because the state is built at the spawn site. The
+#   option list a real init/1 is handed is not modelled: a parameter used as
+#   one is the empty keyword list, so `Keyword.get(opts, :k, d)` is its
+#   literal default `d` and `Keyword.get(opts, :k)` is nil. That is an
+#   approximation of the running system and the translator warns about it. At
 #   `{:ok, pid} = GenServer.start[_link](Mod, arg)` the child's state is e
 #   with p bound to arg (positionally when p is a tuple and arg a tuple
 #   literal). A module without init/1 gets the `use GenServer` default,
@@ -214,7 +223,12 @@
 #     * state: the literal of `init/1`. `%{k: e, ..}` (atom keys) is a
 #       record type (see below), `%{}` a map, an integer `integer()`, a
 #       boolean `boolean()`, `nil` `term() | nil`, a list `[term()]`, a
-#       tuple positional; anything else `term()`.
+#       tuple positional; anything else `term()`. With no init/1 either, the
+#       shape comes from the state patterns of the callbacks, which must
+#       agree: a map pattern anywhere makes it a record whose fields are the
+#       keys the patterns match and the keys the bodies update or return,
+#       tuple patterns of one size make it positional, and patterns that only
+#       bind the state whole leave it `term()`.
 #   Every inferred field type is `term()`, which renders as the opaque
 #   `Term` of Leanactors/Term.lean (a structure over Nat with DecidableEq
 #   and Repr, imported when it occurs); `any()` and `reference()` render
@@ -244,9 +258,33 @@
 #   an error. A blocking call in a module that creates tables is not
 #   supported.
 #
-# Public API. `def`s that are not callbacks (init, handle_*, start,
-#   start_link, terminate, child_spec, or the receive loop) are not
-#   translated: they are the module's own API wrappers around
+# Module-local functions. A `def`/`defp` that is not a callback and that a
+#   callback reaches, directly or through another helper, becomes a Lean
+#   definition emitted before `beh`, named `<module>_<function>`; a call to
+#   it renders as a call. Its body must be in the pure fragment: `if`, `cond`
+#   (with a final `true ->`) and `case` as expressions, a block of bindings
+#   `v = e` ending in a value (a Lean `let`), and everything `expr` renders.
+#   A helper that sends, spawns or logs has no effect the model could carry,
+#   so it is an error naming the helper -- once, not once per call site.
+#   Multiple clauses become a `match` over the arguments; a `when` guard is
+#   an error (use `if` in the body). Default arguments are filled in at the
+#   call site.
+#   Types come from the helper's `@spec f(T..) :: R` when it has one, and
+#   otherwise from the types it is called at: the arguments and the expected
+#   result at its call sites, which must agree, and `Term` for what use does
+#   not fix. Two different types in one position is an error asking for a
+#   @spec.
+#   Recursion: a helper that recurses on the tail of a list argument is
+#   emitted as an ordinary `def` (Lean sees the structural recursion);
+#   anything else self-recursive takes a leading `fuel : Nat`, returns the
+#   default value of its result type when the fuel runs out, and is called
+#   with the constant `localFuel` (64), which the generated file documents as
+#   an approximation. Two helpers that call each other would need a Lean
+#   `mutual` block and are an error naming both.
+#
+# Public API. `def`s that are not callbacks and that no callback reaches
+#   (init, handle_*, start, start_link, terminate, child_spec, the receive
+#   loop) are not translated: they are the module's own API wrappers around
 #   GenServer.call/cast, and `raise` inside one is not a callback body. The
 #   generated file names them in a comment under its header.
 #
@@ -309,7 +347,8 @@ defmodule ToLean do
               covered: [], inits: %{}, mods: [], kinds: %{}, loops: %{}, defers: [], afters: %{},
               pubsub: [[:Phoenix, :PubSub], [:PubSub]], attrs: %{}, init_subs: %{},
               structs: %{}, struct_states: %{}, struct_order: [],
-              records: %{}, ets: [], ignored: []
+              records: %{}, ets: [], ignored: [],
+              locals: %{}, local_specs: %{}, local_decls: ""
   end
 
   # ---------- entry ----------
@@ -339,7 +378,17 @@ defmodule ToLean do
     # registered names: the --pid flags if any are given, else derived from
     # the source (name: __MODULE__ in start_link/start, Process.register/2)
     pids = if map_size(pids) == 0, do: register_names(mods), else: pids
-    ctx = %Ctx{ns: ns, pids: pids}
+    # module-local helpers: the def/defp that are not callbacks. The ones a
+    # callback reaches are translated into Lean definitions emitted before
+    # `beh`, and every call to one is rewritten to the private node
+    # `{:__local_call__, meta, [id | args]}` before anything else runs.
+    ldefs = for {name, body} <- mods, into: %{}, do: {name, local_defs(name, body)}
+    lreach = for {name, body} <- mods, into: %{}, do: {name, reachable_locals(ldefs[name], body)}
+    mods = for {name, body} <- mods, do: {name, rewrite_def_bodies(ldefs[name], lreach[name], name, body)}
+    ldefs = for {name, body} <- mods, into: %{}, do: {name, local_defs(name, body)}
+    locals = for {name, _} <- mods, k <- lreach[name], into: %{}, do: {local_id(name, k), ldefs[name][k]}
+    specs = for {name, body} <- mods, {id, sp} <- local_specs(name, body), into: %{}, do: {id, sp}
+    ctx = %Ctx{ns: ns, pids: pids, locals: locals, local_specs: specs}
     ctx = %{ctx | pubsub: ctx.pubsub ++ pubsubs}
     # every module's @type declarations and defstruct first (a struct or a
     # remote type `Mod.t()` may be used before the module that declares it),
@@ -356,7 +405,8 @@ defmodule ToLean do
     ctx = Enum.reduce(mods, ctx, fn {name, body}, c -> collect_types(c, name, body) end)
     # modules that create ETS tables carry a hidden counter field `ets`
     ctx = %{ctx | ets: for({name, body} <- mods, ets_new?(body), do: name),
-                  ignored: for({name, body} <- mods, f <- ignored_defs(body), do: "#{name}.#{f}")}
+                  ignored: for({name, body} <- mods, f <- ignored_defs(body),
+                                not Map.has_key?(locals, "#{name}.#{f}"), do: "#{name}.#{f}")}
     # the tagged unions and structs by Lean name, for the expression and
     # pattern renderers (which do not carry the context)
     Process.put(:to_lean_unions, tagged_unions(ctx))
@@ -369,9 +419,10 @@ defmodule ToLean do
     clauses = for {name, body} <- mods, cl <- ordered(clauses(name, body)), do: cl
     traps = for {name, body} <- mods, traps?(body), into: %{}, do: {name, true}
     inits0 = for {name, body} <- mods, init = init_of(ctx, name, body), init != nil, do: {name, init}
-    inits = for {name, {p, e, _}} <- inits0, into: %{}, do: {name, {p, e}}
+    inits = for {name, {p, e, _, _}} <- inits0, into: %{}, do: {name, {p, e}}
     # the PubSub subscriptions init/1 makes, attributed to the child at its spawn site
-    init_subs = for {name, {_, _, subs}} <- inits0, subs != [], into: %{}, do: {name, subs}
+    init_subs = for {name, {_, _, subs, _}} <- inits0, subs != [], into: %{}, do: {name, subs}
+    init_notes = for {_, {_, _, _, notes}} <- inits0, n <- notes, uniq: true, do: n
     # raw receive loops: module -> loop function; those without a catch-all
     # clause defer (re-enqueue) unmatched messages; those with an `after`
     # clause arm a self-timer for the message after_<loop>
@@ -382,7 +433,7 @@ defmodule ToLean do
           not Enum.any?(clauses, fn cl -> cl.mod == name and cl.guard == nil and bare?(cl.mpat) end),
           do: name
     ctx = %{ctx | traps: traps, inits: inits, init_subs: init_subs, mods: Enum.map(mods, &elem(&1, 0)),
-                  loops: loops, defers: defers, afters: afters}
+                  loops: loops, defers: defers, afters: afters, warnings: ctx.warnings ++ init_notes}
     # a module whose init/1 subscribes but that nothing in this file spawns:
     # the effect has no spawn site to hang on, so the model would show no
     # subscription at all. Warn; the hand-written example that places such an
@@ -402,6 +453,10 @@ defmodule ToLean do
     ctx = %{ctx | kinds: classify(ctx, clauses)}
     if map_size(traps) > 0 and not List.keymember?(ctx.msg_ctors, :EXIT, 0),
       do: fail("a trapping module must declare {:EXIT, pid(), term()} in @type msg")
+    # the local helpers: their signatures come from a @spec or from the types
+    # they are called at, so this runs once everything else is known
+    ctx = local_sigs(ctx, clauses)
+    ctx = %{ctx | local_decls: render_locals(ctx)}
     {out, ctx} = render(ctx, clauses)
     IO.puts(out)
     Enum.each(ctx.warnings, &IO.puts(:stderr, "warning: " <> &1))
@@ -558,9 +613,80 @@ defmodule ToLean do
         end
       end
     states =
-      for {mod, body} <- mods, not declared.(mod, body, :state), init = init_of(ctx, mod, body), init != nil,
-          into: %{}, do: {{mod, :state}, infer_type(elem(init, 1))}
+      for {mod, body} <- mods, not declared.(mod, body, :state),
+          t = inferred_state(ctx, mod, body), t != nil,
+          into: %{}, do: {{mod, :state}, t}
     Map.merge(msgs, replies) |> Map.merge(states)
+  end
+
+  # the state type of a module that does not declare one: the literal of its
+  # init/1, or -- when it has no init/1 either -- the shape its callbacks
+  # match the state at (`state_from_clauses`)
+  defp inferred_state(ctx, mod, body) do
+    case init_of(ctx, mod, body) do
+      nil -> state_from_clauses(mod, body)
+      init -> infer_type(elem(init, 1))
+    end
+  end
+
+  # A module with neither `@type state` nor an init/1 to infer one from: the
+  # shape is read off the callbacks' state patterns, which must agree. A map
+  # pattern anywhere makes it a record whose fields are the keys the patterns
+  # match and the keys the bodies update or return; tuple patterns of one
+  # size make it positional; patterns that only bind the state whole leave it
+  # opaque (`term()`). Anything else is nil: the module keeps the error.
+  defp state_from_clauses(mod, body) do
+    case clauses(mod, body) do
+      [] -> nil
+      cls ->
+        pats = Enum.map(cls, & &1.spat)
+        keys = Enum.uniq(Enum.flat_map(pats, &state_pat_keys/1) ++ Enum.flat_map(cls, &state_keys_in(&1.body)))
+        sizes = pats |> Enum.map(&state_pat_size/1) |> Enum.uniq()
+        cond do
+          Enum.any?(pats, &(state_pat_keys(&1) != [])) ->
+            if keys != [] and Enum.all?(sizes, &(&1 in [:var, :map])),
+              do: {:%{}, [], for(k <- keys, do: {k, {:term, [], []}})},
+              else: nil
+          sizes == [:var] -> {:term, [], []}
+          true ->
+            case Enum.reject(sizes, &(&1 == :var)) do
+              [n] when is_integer(n) and n > 1 -> {:{}, [], List.duplicate({:term, [], []}, n)}
+              _ -> nil
+            end
+        end
+    end
+  end
+
+  # the atom keys a state pattern matches (`%{f: p, ..}`, optionally `= s`)
+  defp state_pat_keys({:=, _, [{:%{}, _, _} = p, {v, _, nil}]}) when is_atom(v), do: state_pat_keys(p)
+  defp state_pat_keys({:%{}, _, kvs}) when is_list(kvs), do: for({k, _} <- kvs, atom_key?(k), do: k)
+  defp state_pat_keys(_), do: []
+
+  defp atom_key?(k), do: is_atom(k) and k not in [nil, true, false]
+
+  # :var (binds the state whole), :map (a map pattern), a tuple size, or nil
+  defp state_pat_size({v, _, nil}) when is_atom(v), do: :var
+  defp state_pat_size({:=, _, [{:%{}, _, _}, {v, _, nil}]}) when is_atom(v), do: :map
+  defp state_pat_size({:%{}, _, kvs}) when is_list(kvs), do: :map
+  defp state_pat_size({:{}, _, xs}), do: length(xs)
+  defp state_pat_size({_, _}), do: 2
+  defp state_pat_size(_), do: nil
+
+  # the record keys a body mentions: a map update `%{s | k: e}` and a map
+  # literal returned as the new state
+  defp state_keys_in(body) do
+    {_, keys} =
+      Macro.prewalk(body, [], fn
+        {:%{}, _, [{:|, _, [_, kvs]}]} = n, acc when is_list(kvs) ->
+          {n, acc ++ for({k, _} <- kvs, atom_key?(k), do: k)}
+        {:noreply, {:%{}, _, kvs}} = n, acc when is_list(kvs) ->
+          {n, acc ++ for({k, _} <- kvs, atom_key?(k), do: k)}
+        {:{}, _, [:reply, _, {:%{}, _, kvs}]} = n, acc when is_list(kvs) ->
+          {n, acc ++ for({k, _} <- kvs, atom_key?(k), do: k)}
+        n, acc -> {n, acc}
+      end)
+
+    Enum.uniq(keys)
   end
 
   # {kind name, alternatives} for an undeclared module: the clause patterns
@@ -680,40 +806,595 @@ defmodule ToLean do
         uniq: true, do: "#{f}/#{length(args || [])}"
   end
 
+  # ---------- module-local functions ----------
+  #
+  # A `def`/`defp` of a module that is not a callback and that a callback
+  # reaches (directly or through another helper) becomes a Lean definition
+  # emitted before `beh`; every call to it is rewritten, before translation,
+  # to the private node `{:__local_call__, meta, [id | args]}` so that no
+  # other expression form can be confused with it.
+
+  # names the translator gives its own meaning to: a def of one of them is
+  # not a helper the model may call
+  @local_reserved [:send, :spawn, :spawn_link, :spawn_monitor, :exit, :raise, :throw, :self,
+                   :receive, :not, :and, :or, :length, :hd, :tl, :is_map_key, :map_size, :for]
+
+  defp strip_default({:\\, _, [p, _]}), do: p
+  defp strip_default(p), do: p
+
+  # every non-callback def/defp of a module, by {name, arity}:
+  # %{mod, name, arity, min_arity, defaults, clauses: [{params, guard, body}]}.
+  # Default arguments make the function callable at every arity from
+  # min_arity up; the missing arguments are filled in at the call site.
+  defp local_defs(mod, body) do
+    loop =
+      case loop_of(body) do
+        {f, _, _, _} -> f
+        nil -> nil
+      end
+
+    for {d, _, [head | rest]} <- body, d in [:def, :defp],
+        {f, args, guard} = head_parts(head),
+        f not in @callbacks, f != loop, f not in @local_reserved,
+        reduce: %{} do
+      acc ->
+        args = args || []
+        blocks =
+          case rest do
+            [kw] when is_list(kw) -> kw
+            _ -> []
+          end
+        params = Enum.map(args, &strip_default/1)
+        defaults = for {:\\, _, [_, dv]} <- args, do: dv
+        key = {f, length(params)}
+        e =
+          Map.get(acc, key, %{mod: mod, name: f, arity: length(params), min_arity: length(params),
+                              defaults: [], clauses: [], blocks: [], id: local_id(mod, key)})
+        e = if defaults == [], do: e, else: %{e | defaults: defaults, min_arity: length(params) - length(defaults)}
+        e =
+          if blocks[:do] == nil,
+            do: e,
+            else: %{e | clauses: e.clauses ++ [{params, guard, blocks[:do]}],
+                        blocks: e.blocks ++ (Keyword.keys(blocks) -- [:do])}
+        Map.put(acc, key, e)
+    end
+  end
+
+  defp local_id(mod, {f, n}), do: "#{mod}.#{f}/#{n}"
+
+  defp local_lname(id) do
+    [m, rest] = String.split(id, ".", parts: 2)
+    [f, _] = String.split(rest, "/", parts: 2)
+    ctor_name(String.to_atom(m)) <> "_" <> lean_ident(f)
+  end
+
+  # the {name, arity} of the local a bare call `f(a1, .., an)` resolves to
+  defp local_key(defs, f, n) do
+    Enum.find(Map.keys(defs), fn {g, m} -> g == f and n <= m and n >= defs[{g, m}].min_arity end)
+  end
+
+  # the bodies a local helper may be reached from
+  defp local_roots(body) do
+    loop =
+      case loop_of(body) do
+        {f, _, _, _} -> f
+        nil -> nil
+      end
+
+    for {:def, _, [head | rest]} <- body,
+        {f, _, _} = head_parts(head),
+        f in [:init, :handle_cast, :handle_info, :handle_call, :handle_continue] or f == loop,
+        [kw] <- [rest],
+        is_list(kw),
+        kw[:do] != nil,
+        do: kw[:do]
+  end
+
+  defp local_calls_in(defs, ast) do
+    {_, acc} =
+      Macro.prewalk(ast, [], fn
+        {f, _, args} = n, acc when is_atom(f) and is_list(args) ->
+          case local_key(defs, f, length(args)) do
+            nil -> {n, acc}
+            k -> {n, [k | acc]}
+          end
+
+        n, acc -> {n, acc}
+      end)
+
+    Enum.uniq(acc)
+  end
+
+  # the helpers a callback reaches, transitively
+  defp reachable_locals(defs, body) do
+    seed = body |> local_roots() |> Enum.flat_map(&local_calls_in(defs, &1)) |> Enum.uniq()
+    close_locals(defs, seed, seed)
+  end
+
+  defp close_locals(_defs, [], acc), do: acc
+
+  defp close_locals(defs, frontier, acc) do
+    next =
+      for k <- frontier, e = defs[k], {_, _, b} <- e.clauses, c <- local_calls_in(defs, b),
+          c not in acc, uniq: true, do: c
+
+    close_locals(defs, next, acc ++ next)
+  end
+
+  # rewrite the calls to reachable helpers inside every def body of a module
+  defp rewrite_def_bodies(defs, reach, mod, body) do
+    Enum.map(body, fn
+      {d, m, [head | rest]} when d in [:def, :defp] ->
+        rest =
+          Enum.map(rest, fn
+            kw when is_list(kw) -> for {k, v} <- kw, do: {k, rewrite_local_calls(defs, reach, mod, v)}
+            other -> other
+          end)
+
+        {d, m, [head | rest]}
+
+      other -> other
+    end)
+  end
+
+  defp rewrite_local_calls(defs, reach, mod, ast) do
+    Macro.prewalk(ast, fn
+      {f, m, args} = n when is_atom(f) and is_list(args) ->
+        case local_key(defs, f, length(args)) do
+          nil -> n
+          k ->
+            if k in reach do
+              e = defs[k]
+              {:__local_call__, m, [local_id(mod, k) | args ++ Enum.drop(e.defaults, length(args) - e.min_arity)]}
+            else
+              n
+            end
+        end
+
+      n -> n
+    end)
+  end
+
+  # `@spec f(T, ..) :: R`, the type oracle for a helper when it is given
+  defp local_specs(mod, body) do
+    for {:@, _, [{:spec, _, [{:"::", _, [{f, _, argts}, rt]}]}]} <- body, is_list(argts), is_atom(f),
+        into: %{}, do: {local_id(mod, {f, length(argts)}), {argts, rt}}
+  end
+
+  defp local_callees(ast) do
+    {_, acc} =
+      Macro.prewalk(ast, [], fn
+        {:__local_call__, _, [id | _]} = n, acc -> {n, [id | acc]}
+        n, acc -> {n, acc}
+      end)
+
+    Enum.uniq(acc)
+  end
+
+  defp local_callees_of(entry), do: Enum.flat_map(entry.clauses, fn {_, _, b} -> local_callees(b) end) |> Enum.uniq()
+
+  # dependency order: a helper is emitted after the helpers it calls. A cycle
+  # between two helpers is mutual recursion, which Lean would need a `mutual`
+  # block for; self-recursion is not a cycle here.
+  defp order_locals(locals) do
+    order_locals(locals, locals |> Map.keys() |> Enum.sort(), [])
+  end
+
+  defp order_locals(_locals, [], done), do: done
+
+  defp order_locals(locals, pending, done) do
+    {ready, rest} =
+      Enum.split_with(pending, fn id ->
+        Enum.all?(local_callees_of(locals[id]) -- [id], &(&1 in done or not Map.has_key?(locals, &1)))
+      end)
+
+    ready == [] &&
+      fail("mutually recursive local helpers #{Enum.join(pending, ", ")}: a helper may call itself, " <>
+             "but a cycle would need a Lean `mutual` block")
+
+    order_locals(locals, rest, done ++ ready)
+  end
+
+  # ---- signatures ----
+
+  # {argument types, result type} of a helper: its @spec when it has one,
+  # otherwise the types it is used at (the arguments and the expected result
+  # at its call sites, which must agree) and `Term` for what use does not fix.
+  defp local_sigs(ctx, clauses) do
+    ctx = %{ctx | locals: for({id, e} <- ctx.locals, into: %{}, do: {id, Map.merge(e, %{ptypes: nil, rtype: nil, fuel: false})})}
+    Process.put(:to_lean_local_sigs, sig_table(ctx))
+    uses = collect_local_uses(ctx, clauses, %{})
+    ctx = assign_sigs(ctx, uses)
+    Process.put(:to_lean_local_sigs, sig_table(ctx))
+    # a second round: the helpers' own bodies now render, so the calls they
+    # make to each other are seen at their real types
+    uses = collect_local_uses(ctx, clauses, uses)
+    ctx = assign_sigs(ctx, uses)
+    Process.put(:to_lean_local_sigs, sig_table(ctx))
+    ctx
+  end
+
+  defp sig_table(ctx) do
+    for {id, e} <- ctx.locals, into: %{} do
+      {id, %{lname: local_lname(id), ptypes: e.ptypes, rtype: e.rtype, fuel: e.fuel}}
+    end
+  end
+
+  # render everything once with the signatures known so far, only to record
+  # how each helper is called (`record_local_use`). Errors are swallowed: the
+  # real pass reports them.
+  defp collect_local_uses(ctx, clauses, uses) do
+    Process.put(:to_lean_local_uses, uses)
+    Process.put(:to_lean_dry, true)
+
+    try do
+      render_clauses(ctx, clauses)
+      for id <- order_locals(ctx.locals), do: local_decl(ctx, ctx.locals[id])
+    catch
+      _, _ -> :ok
+    end
+
+    Process.delete(:to_lean_dry)
+    Process.get(:to_lean_local_uses, uses)
+  end
+
+  defp record_local_use(id, argtypes, rtype) do
+    case Process.get(:to_lean_local_uses) do
+      nil -> :ok
+      uses -> Process.put(:to_lean_local_uses, Map.update(uses, id, [{argtypes, rtype}], &[{argtypes, rtype} | &1]))
+    end
+  end
+
+  defp assign_sigs(ctx, uses) do
+    Enum.reduce(order_locals(ctx.locals), ctx, fn id, c ->
+      %{c | locals: Map.put(c.locals, id, sig_of(c, c.locals[id], Map.get(uses, id, [])))}
+    end)
+  end
+
+  defp sig_of(ctx, entry, uses) do
+    entry.clauses == [] && fail("#{entry.id} is called but has no body in this module")
+    entry.blocks == [] ||
+      fail("#{entry.id}: a local helper with a #{Enum.join(Enum.uniq(entry.blocks), "/")} block is not supported")
+
+    {ptypes, rtype} =
+      case Map.get(ctx.local_specs, entry.id) do
+        {argts, rt} when length(argts) == entry.arity ->
+          {Enum.map(argts, &lean_type(ctx, entry.mod, &1)), lean_type(ctx, entry.mod, rt)}
+
+        _ ->
+          ps = for i <- 0..(entry.arity - 1)//1, do: agreed(entry, uses, i) || "Term"
+          {ps, agreed(entry, uses, :result)}
+      end
+
+    env = local_env(entry, ptypes)
+    {_, _, first_body} = hd(entry.clauses)
+    rtype = rtype || local_rtype(env, first_body) || "Term"
+    fuel = entry.id in local_callees_of(entry) and not structural?(entry)
+    # a fuel-limited helper must have a default value to return at fuel 0
+    _ = if fuel, do: default_of(ctx, rtype)
+    %{entry | ptypes: ptypes, rtype: rtype, fuel: fuel}
+  end
+
+  # the single type a helper is used at in one argument position (or at its
+  # result); two different ones mean the helper is not monomorphic here
+  defp agreed(entry, uses, pos) do
+    ts =
+      for {argtypes, rt} <- uses,
+          t = if(pos == :result, do: rt, else: Enum.at(argtypes, pos)),
+          t != nil,
+          uniq: true,
+          do: t
+
+    case ts do
+      [] -> nil
+      [t] -> t
+      many ->
+        where = if pos == :result, do: "its result", else: "argument #{pos + 1}"
+        fail("#{entry.id} is used with #{where} at #{Enum.join(many, " and ")}: " <>
+               "give it a @spec, or use one type")
+    end
+  end
+
+  defp local_env(entry, ptypes) do
+    {params, _, _} = hd(entry.clauses)
+
+    if Enum.all?(params, &local_var_pat?/1) do
+      for {p, t} <- Enum.zip(params, ptypes), into: %{:__mod__ => entry.mod, :__in_local__ => entry.id} do
+        {lean_ident(Atom.to_string(elem(p, 0))), t}
+      end
+    else
+      %{:__mod__ => entry.mod, :__in_local__ => entry.id}
+    end
+  end
+
+  defp local_var_pat?({v, _, nil}) when is_atom(v), do: true
+  defp local_var_pat?(_), do: false
+
+  # the result type of a helper body, when the source fixes it
+  defp local_rtype(env, {:if, _, [_, [do: a, else: _]]}), do: local_rtype(env, a)
+  defp local_rtype(env, {:cond, _, [[do: [{:->, _, [[_], b]} | _]]]}), do: local_rtype(env, b)
+  defp local_rtype(env, {:case, _, [_, [do: [{:->, _, [[_], b]} | _]]]}), do: local_rtype(env, b)
+  defp local_rtype(env, {:__block__, _, stmts}) when stmts != [], do: local_rtype(env, List.last(stmts))
+  defp local_rtype(env, e), do: type_of(env, e)
+
+  # Lean accepts a helper that recurses on the tail of a list argument as
+  # structural; anything else gets a fuel parameter.
+  defp structural?(entry) do
+    entry.arity > 0 and
+      Enum.any?(0..(entry.arity - 1)//1, fn i ->
+        Enum.all?(entry.clauses, fn {params, _, b} ->
+          case Enum.at(params, i) do
+            [{:|, _, [_, {t, _, nil}]}] when is_atom(t) ->
+              recursive_args(entry.id, b, i) in [[], [{t, [], nil}]]
+
+            _ -> recursive_args(entry.id, b, i) == []
+          end
+        end)
+      end)
+  end
+
+  defp recursive_args(id, ast, i) do
+    {_, acc} =
+      Macro.prewalk(ast, [], fn
+        {:__local_call__, _, [^id | args]} = n, acc -> {n, [Enum.at(args, i) | acc]}
+        n, acc -> {n, acc}
+      end)
+
+    acc |> Enum.map(fn {v, _, nil} when is_atom(v) -> {v, [], nil}; x -> x end) |> Enum.uniq()
+  end
+
+  # ---- rendering ----
+
+  defp local_fuel_name, do: "localFuel"
+
+  @local_fuel 64
+
+  defp render_locals(ctx) do
+    order = order_locals(ctx.locals)
+
+    if order == [] do
+      ""
+    else
+      fuel =
+        if Enum.any?(order, &ctx.locals[&1].fuel) do
+          "/-- Fuel for the local helpers whose recursion Lean does not see as structural.\n" <>
+            "    A call that would need more than `#{local_fuel_name()}` steps returns the default\n" <>
+            "    value of its result type, so such a helper models the Elixir function only up\n" <>
+            "    to that depth. -/\ndef #{local_fuel_name()} : Nat := #{@local_fuel}\n\n"
+        else
+          ""
+        end
+
+      fuel <> Enum.map_join(order, "\n", &local_decl(ctx, ctx.locals[&1])) <> "\n"
+    end
+  end
+
+  defp local_decl(ctx, entry) do
+    fuelb = if entry.fuel, do: ["(fuel : Nat)"], else: []
+
+    {binders, inner} =
+      case entry.clauses do
+        [{params, nil, body}] ->
+          if Enum.all?(params, &local_var_pat?/1) do
+            names = for p <- params, do: lean_ident(Atom.to_string(elem(p, 0)))
+            env = local_env(entry, entry.ptypes)
+            {for({n, t} <- Enum.zip(names, entry.ptypes), do: "(#{n} : #{t})"),
+             local_expr(ctx, env, body, entry.rtype)}
+          else
+            {local_binders(entry), local_match(ctx, entry)}
+          end
+
+        _ -> {local_binders(entry), local_match(ctx, entry)}
+      end
+
+    rhs =
+      if entry.fuel,
+        do: "match fuel with | 0 => #{paren_or(default_of(ctx, entry.rtype))} | fuel + 1 => (#{inner})",
+        else: inner
+
+    head = Enum.join([local_lname(entry.id) | fuelb ++ binders], " ")
+    "/-- `#{entry.id}` -/\ndef #{head} : #{entry.rtype} :=\n  #{rhs}\n"
+  end
+
+  defp local_binders(entry) do
+    for {t, i} <- Enum.with_index(entry.ptypes), do: "(a#{i} : #{t})"
+  end
+
+  defp local_match(ctx, entry) do
+    scruts = Enum.map_join(0..(entry.arity - 1)//1, ", ", &"a#{&1}")
+    entry.arity > 0 || fail("#{entry.id}: a helper with no arguments needs a single unguarded clause")
+
+    arms =
+      for {params, guard, body} <- entry.clauses do
+        guard == nil || fail("#{entry.id}: a `when` guard on a local helper is not supported (use `if` in the body)")
+        env0 = %{:__mod__ => entry.mod, :__in_local__ => entry.id}
+        {parts, env, gs} = pat_list(ctx, params, entry.ptypes, env0, [])
+        gs == [] || fail("#{entry.id}: this clause pattern needs a guard, which a local helper cannot fall through")
+        "| #{Enum.join(parts, ", ")} => #{local_expr(ctx, env, body, entry.rtype)}"
+      end
+
+    "match #{scruts} with " <> Enum.join(arms, " ")
+  end
+
+  # The pure fragment a helper body may use: `if`, `cond` and `case` as
+  # expressions, a block of bindings ending in a value, and anything `expr`
+  # renders.
+  defp local_expr(ctx, env, e, t) do
+    case e do
+      {:if, _, [c, [do: a, else: b]]} ->
+        "(if #{expr(env, c, "Bool")} then #{local_expr(ctx, env, a, t)} else #{local_expr(ctx, env, b, t)})"
+
+      {:if, _, [_, [do: _]]} ->
+        fail("#{env[:__in_local__]}: `if` without `else` has no value (every branch must return one)")
+
+      {:unless, _, _} ->
+        fail("#{env[:__in_local__]}: `unless` is not supported (use `if`)")
+
+      {:cond, _, [[do: arms]]} -> local_cond(ctx, env, arms, t)
+
+      {:case, _, [scrut, [do: arms]]} ->
+        st = guess_type(env, scrut)
+
+        strs =
+          for {:->, _, [[p], b]} <- arms do
+            {pstr, env2, gs} = pat(ctx, prune_arm_vars(p, b, env), st, env, [])
+            gs == [] || fail("#{env[:__in_local__]}: a pattern needing a guard is not supported in a local helper")
+            "| #{pstr} => #{local_expr(ctx, env2, b, t)}"
+          end
+
+        "(match #{expr(env, scrut, nil)} with " <> Enum.join(strs, " ") <> ")"
+
+      {:__block__, _, stmts} -> local_block(ctx, env, stmts, t)
+      _ -> expr(env, e, t)
+    end
+  end
+
+  defp local_cond(ctx, env, [{:->, _, [[c], b]} | rest], t) do
+    cond do
+      c == true -> local_expr(ctx, env, b, t)
+      rest == [] -> fail("#{env[:__in_local__]}: `cond` needs a final `true ->` branch")
+      true -> "(if #{expr(env, c, "Bool")} then #{local_expr(ctx, env, b, t)} else #{local_cond(ctx, env, rest, t)})"
+    end
+  end
+
+  defp local_block(ctx, env, stmts, t) do
+    {binds, [last]} = Enum.split(stmts, -1)
+
+    {lets, env} =
+      Enum.map_reduce(binds, env, fn
+        {:=, _, [{v, _, nil}, rhs]}, e when is_atom(v) ->
+          vt = type_of(e, rhs) || expr_type(e, rhs)
+          name = lean_ident(Atom.to_string(v))
+          s = "let #{name} := #{local_expr(ctx, e, rhs, vt)}"
+          {s, if(vt, do: Map.put(e, name, vt), else: e)}
+
+        s, _e ->
+          fail("#{env[:__in_local__]}: #{Macro.to_string(s)} is not a binding; a local helper is a pure expression " <>
+                 "(it cannot send, spawn or log)")
+      end)
+
+    "(" <> Enum.join(lets ++ [local_expr(ctx, env, last, t)], "; ") <> ")"
+  end
+
+  # a call to a helper of the same module: its Lean name applied to the
+  # arguments (a fuel-limited helper takes the fuel first)
+  defp local_call_str(env, id, args, t) do
+    sig = Process.get(:to_lean_local_sigs, %{})[id]
+    ptypes = (sig && sig.ptypes) || List.duplicate(nil, length(args))
+    record_local_use(id, Enum.map(args, &type_of(env, &1)), t)
+
+    fuel =
+      cond do
+        sig == nil or not sig.fuel -> []
+        env[:__in_local__] == id -> ["fuel"]
+        true -> [local_fuel_name()]
+      end
+
+    name = (sig && sig.lname) || local_lname(id)
+    s = Enum.join([name | fuel ++ Enum.map(Enum.zip(args, ptypes), fn {a, pt} -> paren_or(expr(env, a, pt)) end)], " ")
+    rt = sig && sig.rtype
+
+    case t do
+      "Option " <> inner when rt != nil and rt != t ->
+        if unparen(inner) == rt, do: "some " <> paren_or(s), else: s
+
+      _ -> s
+    end
+  end
+
   # `init/1` as a pure state expression of its parameter: {param_pattern,
-  # expr, pubsub_subscriptions}. Accepted: `def init(p), do: {:ok, e}` or a
-  # block whose only other statements are `Process.flag(:trap_exit, true)`
-  # and PubSub subscribe/unsubscribe calls (recorded as {:subscribe |
-  # :unsubscribe, topic}, emitted at the spawn site for the child). nil when
-  # undefined (the `use GenServer` default init is the identity).
+  # expr, pubsub_subscriptions, notes}. `def init(p), do: {:ok, e}`, or a
+  # block of statements ending in `{:ok, e}`:
+  #
+  #   * `Process.flag(:trap_exit, true)` (the module traps exits),
+  #   * a PubSub subscribe/unsubscribe (recorded as {:subscribe |
+  #     :unsubscribe, topic}, emitted at the spawn site for the child),
+  #   * a `Logger` call, dropped (logging is not modelled),
+  #   * a binding `v = e` of a pure expression, substituted into the later
+  #     statements and into the state expression (init/1 has no Lean binder
+  #     of its own: the state is built at the spawn site).
+  #
+  # The option list init/1 is usually handed is not modelled: a parameter
+  # used as one is the empty keyword list, so `Keyword.get(opts, :k, d)` is
+  # its literal default `d` and `Keyword.get(opts, :k)` is nil. That is an
+  # approximation of a real init, and it is reported as a warning.
+  #
+  # nil when undefined (the `use GenServer` default init is the identity).
   defp init_of(ctx, mod, body) do
     case for {:def, _, [{:init, _, [p]}, [do: b]]} <- body, do: {p, b} do
       [] -> nil
       [{p, b}] ->
-        {flags, [last]} = Enum.split(stmts(b), -1)
-        subs =
-          Enum.flat_map(flags, fn
-            {{:., _, [{:__aliases__, _, [:Process]}, :flag]}, _, [:trap_exit, true]} -> []
-            other ->
-              case pubsub_call(ctx, mod, other) do
-                {f, topic, nil} when f in [:subscribe, :unsubscribe] -> [{f, topic}]
-                {f, _, _} -> fail("#{mod}.init/1: #{f} is not supported in init/1")
-                nil -> fail("#{mod}.init/1: unsupported statement #{Macro.to_string(other)}")
-              end
-          end)
+        params = init_params(mod, p)
+        {b, opts?} = init_opts(mod, params, b)
+        notes = if opts?, do: ["#{mod}.init/1: the option list is modelled as empty, so every " <>
+                               "Keyword.get takes its default"], else: []
+        {pre, [last]} = Enum.split(stmts(b), -1)
+        {subs, notes, binds} = init_pre(ctx, mod, pre, notes)
         e = case last do
-          {:ok, e} -> e
+          {:ok, e} -> subst_binds(e, binds)
           other -> fail("#{mod}.init/1 must end in {:ok, state}, got #{Macro.to_string(other)}")
         end
-        params = init_params(mod, p)
         Enum.each(free_vars(e), fn v ->
           v in params || fail("#{mod}.init/1: state expression uses #{v}, which is not a parameter")
         end)
         {_, selfs} = Macro.prewalk(e, false, fn {:self, _, []} = n, _ -> {n, true}; n, a -> {n, a} end)
         selfs && fail("#{mod}.init/1: self() in the initial state is not supported")
-        {p, e, subs}
+        {p, e, subs, notes}
       _ -> fail("#{mod}.init/1 must have exactly one clause")
     end
+  end
+
+  # the statements of init/1 before its `{:ok, state}`: {subscriptions,
+  # notes, bindings}
+  defp init_pre(ctx, mod, stmts, notes0) do
+    Enum.reduce(stmts, {[], notes0, %{}}, fn s0, {subs, notes, binds} ->
+      s = subst_binds(s0, binds)
+      case s do
+        {{:., _, [{:__aliases__, _, [:Process]}, :flag]}, _, [:trap_exit, true]} ->
+          {subs, notes, binds}
+        {{:., _, [{:__aliases__, _, [:Logger]}, f]}, _, args} when is_atom(f) and is_list(args) ->
+          {subs, Enum.uniq(notes ++ ["#{mod}.init/1: Logger calls are dropped (logging is not modelled)"]), binds}
+        {:__local_call__, _, [id | _]} ->
+          fail("#{mod}.init/1: #{id} is called for its effect, but a local helper is a pure expression")
+        {:=, _, [{v, _, nil}, rhs]} when is_atom(v) ->
+          {subs, notes, Map.put(binds, v, rhs)}
+        _ ->
+          case pubsub_call(ctx, mod, s) do
+            {f, topic, nil} when f in [:subscribe, :unsubscribe] -> {subs ++ [{f, topic}], notes, binds}
+            {f, _, _} -> fail("#{mod}.init/1: #{f} is not supported in init/1")
+            nil -> fail("#{mod}.init/1: unsupported statement #{Macro.to_string(s0)}")
+          end
+      end
+    end)
+  end
+
+  defp subst_binds(ast, binds) when map_size(binds) == 0, do: ast
+  defp subst_binds(ast, binds) do
+    Macro.postwalk(ast, fn
+      {v, _, nil} = n when is_atom(v) -> Map.get(binds, v, n)
+      n -> n
+    end)
+  end
+
+  # `Keyword.get(opts, :k, d)` where opts is an init/1 parameter: the option
+  # list is not modelled, so the call is its literal default.
+  defp init_opts(mod, params, ast) do
+    out =
+      Macro.prewalk(ast, fn
+        {{:., _, [{:__aliases__, _, [:Keyword]}, :get]}, _, [{v, _, nil}, k, d]} = n when is_atom(v) and is_atom(k) ->
+          if Atom.to_string(v) in params do
+            literal?(d) ||
+              fail("#{mod}.init/1: #{Macro.to_string(n)} needs a literal default " <>
+                     "(the option list is not modelled, so the default is what the state gets)")
+            d
+          else
+            n
+          end
+        {{:., _, [{:__aliases__, _, [:Keyword]}, :get]}, _, [{v, _, nil}, k]} = n when is_atom(v) and is_atom(k) ->
+          if Atom.to_string(v) in params, do: nil, else: n
+        n -> n
+      end)
+    {out, out != ast}
   end
 
   # the variables bound by an init parameter pattern (a variable or a tuple of variables)
@@ -1637,7 +2318,7 @@ defmodule ToLean do
     #{msg}
     #{st}
     #{pids}
-    #{sig}#{beh}
+    #{ctx.local_decls}#{sig}#{beh}
     end #{ctx.ns}
     """
     |> then(&{&1, ctx})
@@ -3103,6 +3784,8 @@ defmodule ToLean do
   # expression -> Lean, with an expected type used only to insert some/none
   defp expr(_env, nil, "Option " <> _), do: "none"
   defp expr(_env, nil, nil), do: "none"
+  # a call to a function defined in the same module (see "module-local functions")
+  defp expr(env, {:__local_call__, _, [id | args]}, t), do: local_call_str(env, id, args, t)
   defp expr(env, e, "Option " <> inner) do
     case e do
       {v, _, nil} when is_atom(v) ->
@@ -3455,6 +4138,12 @@ defmodule ToLean do
   defp type_of(_env, n) when is_integer(n), do: "Int"
   defp type_of(_env, b) when is_boolean(b), do: "Bool"
   defp type_of(_env, {op, _, [_, _]}) when op in [:<=, :>=, :<, :>, :==, :!=, :and, :or], do: "Bool"
+  defp type_of(_env, {:__local_call__, _, [id | _]}) do
+    case Process.get(:to_lean_local_sigs, %{})[id] do
+      nil -> nil
+      sig -> sig.rtype
+    end
+  end
   defp type_of(env, {op, _, [a, b]}) when op in [:+, :-], do: type_of(env, a) || type_of(env, b)
   defp type_of(_env, _), do: nil
 
@@ -3485,8 +4174,14 @@ defmodule ToLean do
   defp elem_type(_), do: nil
 
   defp fail(msg) do
-    IO.puts(:stderr, "error: " <> msg)
-    System.halt(2)
+    # during the dry pass that infers the local helpers' signatures (see
+    # `collect_local_uses`) an error is not final: the real pass reports it.
+    if Process.get(:to_lean_dry) do
+      throw({:to_lean_dry, msg})
+    else
+      IO.puts(:stderr, "error: " <> msg)
+      System.halt(2)
+    end
   end
 end
 
