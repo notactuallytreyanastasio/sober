@@ -43,7 +43,7 @@ defmodule Fixtures do
         _ -> Enum.filter(all, &(Path.basename(&1, ".ex") in names))
       end
     if picked == [], do: die("no fixtures found in #{@fixtures}")
-    if Enum.any?(picked, &(Map.get(directives(&1), "lean") == "check")), do: build_library()
+    build_library(picked)
 
     results = Enum.map(picked, &run_one(&1, scratch, regen?))
     failed = Enum.count(results, &(&1 == :fail))
@@ -156,11 +156,44 @@ defmodule Fixtures do
 
   defp indent(s), do: s |> String.trim_trailing() |> String.split("\n") |> Enum.map_join("\n", &("    " <> &1))
 
-  # the modules generated files import must be built before `lake env lean`
-  # can check a fixture (a no-op when check.sh or lake build already ran)
-  defp build_library do
-    {out, status} = System.cmd("lake", ["build", "Leanactors.Sys"], cd: @root, stderr_to_stdout: true)
-    if status != 0, do: die("lake build Leanactors.Sys failed\n#{indent(out)}")
+  # The modules a generated file imports must be BUILT before `lake env lean`
+  # can check a fixture. Which ones that is comes from the expected files
+  # themselves (Leanactors.Str, .SetList, .AssocList, .Term, .Time, .Sys),
+  # because building only Leanactors.Sys leaves a cold .lake without the
+  # others and every fixture that imports one fails with "object file ...
+  # does not exist" -- which is what a fresh checkout used to see.
+  defp build_library(picked) do
+    mods =
+      picked
+      |> Enum.filter(&(Map.get(directives(&1), "lean") == "check"))
+      |> Enum.flat_map(&expected_imports/1)
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    if mods != [] do
+      {out, status} = System.cmd("lake", ["build" | mods], cd: @root, stderr_to_stdout: true)
+      if status != 0, do: die("lake build #{Enum.join(mods, " ")} failed\n#{indent(out)}")
+    end
+  end
+
+  # `import Leanactors.X` lines of a fixture's committed expectation (with
+  # --regen there may be none yet, and then there is nothing to build for it)
+  defp expected_imports(src) do
+    path = Path.join(@expected, Path.basename(src, ".ex") <> ".lean")
+
+    if File.exists?(path) do
+      path
+      |> File.read!()
+      |> String.split("\n")
+      |> Enum.flat_map(fn line ->
+        case Regex.run(~r/^import\s+(Leanactors\.[A-Za-z0-9_.]+)\s*$/, line) do
+          [_, m] -> [m]
+          nil -> []
+        end
+      end)
+    else
+      ["Leanactors.Sys"]
+    end
   end
 
   defp ensure_lake_on_path do
