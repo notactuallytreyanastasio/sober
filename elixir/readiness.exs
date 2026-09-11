@@ -132,11 +132,28 @@ defmodule Readiness do
     untyped_forms: [
       "no @type msg/cast/info/call -> the unions come from the clause patterns",
       "no @type reply             -> from the literal replies of the file",
-      "no @type state             -> from the literal of init/1 (needs an init/1)",
+      "no @type state             -> from the literal of init/1, or from the callbacks' state patterns",
       "term() | any() | reference() -> the opaque Leanactors/Term.lean"
     ],
     # a module attribute bound to a literal is substituted into its later reads
     attr_forms: ["@name literal, read as @name"],
+    # module-local functions: a def/defp that is not a callback and that a
+    # callback reaches becomes a Lean definition before `beh`. Its body must
+    # be a pure expression; a helper that is not is reported once, at its
+    # definition, rather than at every call site.
+    local_forms: [
+      "defp f(a, b \\\\ d), do: <pure expression>   (calls render as calls)",
+      "if / cond (final `true ->`) / case as expressions, a block of `v = e` bindings ending in a value",
+      "several clauses -> a Lean `match` (a `when` guard is not supported)",
+      "@spec f(T..) :: R, or the types the helper is called at; `Term` otherwise",
+      "recursion on the tail of a list argument, or a `fuel : Nat` parameter (mutual recursion is an error)"
+    ],
+    # statements allowed in init/1 before its `{:ok, state}`
+    init_forms: [
+      "Process.flag(:trap_exit, true)", "Phoenix.PubSub.subscribe/unsubscribe",
+      "Logger.f(..)  (dropped)", "v = <pure expression>", "a local helper call in an expression",
+      "Keyword.get(opts, :k, literal)  (the option list is modelled as empty)"
+    ],
     # `case` scrutinee: a variable, Map.get/2, Map.fetch/2, Map.pop/2, :queue.out/1
     case_scrutinees: ["variable", "Map.get/2", "Map.fetch/2", "Map.pop/2", ":queue.out/1"],
     # patterns (type-directed in the translator; checked by shape here):
@@ -341,6 +358,9 @@ defmodule Readiness do
       name: name, kind: kind, types: types, tags: tags, registered: registered, reply?: reply?,
       loop: loop, after?: loop != nil and elem(loop, 3) != nil,
       defined: defined_funs(body),
+      # the module's own def/defp that are not callbacks, and the ones a
+      # callback reaches (those the translator emits as Lean definitions)
+      locals: local_defs(body),
       atom_key_map?: atom_key_map?(types),
       file_mods: file_mods,
       # module attributes bound to a literal: substituted into their later reads
@@ -353,8 +373,16 @@ defmodule Readiness do
       end),
       struct?: Enum.any?(body, &match?({:defstruct, _, _}, &1)),
       continues: for({:def, _, [head | _]} <- body, {f, args, _} = head_parts(head), f == :handle_continue, length(args || []) == 2, do: true) != [],
-      trapping?: traps?(body)
+      trapping?: traps?(body),
+      # with no @type state and no init/1, the shape comes from the
+      # callbacks' state patterns
+      state_shape?: state_shape?(body)
     }
+    mod = Map.put(mod, :lreach, reachable_locals(mod.locals, body))
+    mod = Map.put(mod, :lmutual, mutual_locals(mod.locals, mod.lreach))
+    # the helpers the pure fragment cannot express: reported once, at their
+    # definition, so neither a call nor a call-as-a-statement repeats them
+    mod = Map.put(mod, :lbad, for(k <- mod.lreach, local_blocked?(mod, k), do: k))
     fs =
       [
         if(length(segs) > 1, do: [finding(:note, first_line, "dotted module name (translated under its last segment)", name)], else: []),
@@ -362,6 +390,7 @@ defmodule Readiness do
         for({tn, l} <- typeps, do: finding(:blocker, l, "@typep/@opaque (only @type is read)", "#{tn}")),
         check_types(mod, first_line),
         check_defs(mod, body),
+        check_locals(mod),
         if(mod.trapping? and not Enum.member?(tags, :EXIT),
           do: [finding(:blocker, first_line, "trap_exit without {:EXIT, pid(), term()} in @type msg/info")], else: [])
       ]
@@ -375,8 +404,11 @@ defmodule Readiness do
   # say whether it is a helper of this module (inlinable) or something else
   # (a Kernel function, an import, a macro)
   defp defined_funs(body) do
-    for {d, _, [head | _]} <- body, d in [:def, :defp], {f, args, _} = head_parts(head), into: MapSet.new() do
-      {f, length(args || [])}
+    for {d, _, [head | _]} <- body, d in [:def, :defp], {f, args, _} = head_parts(head),
+        args = args || [],
+        n <- (length(args) - length(for({:\\, _, _} <- args, do: 1)))..length(args)//1,
+        into: MapSet.new() do
+      {f, n}
     end
   end
 
@@ -389,6 +421,308 @@ defmodule Readiness do
       MapSet.member?(@kernel_funs, {f, n}) -> "Kernel.#{f}/#{n}"
       true -> "imported/macro call #{f}/#{n}"
     end
+  end
+
+  # ---------- module-local helpers ----------
+  #
+  # The translator turns a def/defp that is not a callback and that a
+  # callback reaches into a Lean definition of its own, so a call to one is
+  # not a finding: the helper is checked once, at its definition, and a
+  # helper the pure fragment cannot express is one blocker naming it.
+
+  @local_reserved [:send, :spawn, :spawn_link, :spawn_monitor, :exit, :raise, :throw, :self,
+                   :receive, :not, :and, :or, :length, :hd, :tl, :is_map_key, :map_size, :for]
+
+  defp strip_default({:\\, _, [p, _]}), do: p
+  defp strip_default(p), do: p
+
+  # {name, arity} -> %{name, arity, min_arity, line, clauses, blocks}
+  defp local_defs(body) do
+    loop =
+      case loop_of(body) do
+        {f, _, _, _} -> f
+        nil -> nil
+      end
+
+    callbacks = [:init, :handle_cast, :handle_info, :handle_call, :handle_continue,
+                 :start, :start_link, :terminate, :child_spec]
+
+    for {d, m, [head | rest]} <- body, d in [:def, :defp], reduce: %{} do
+      acc ->
+        {f, args, guard} = head_parts(head)
+        args = args || []
+
+        blocks =
+          case rest do
+            [kw] when is_list(kw) -> kw
+            _ -> []
+          end
+
+        if f in callbacks or f == loop or f in @local_reserved do
+          acc
+        else
+          params = Enum.map(args, &strip_default/1)
+          defaults = for {:\\, _, [_, dv]} <- args, do: dv
+          key = {f, length(params)}
+
+          e =
+            Map.get(acc, key, %{name: f, arity: length(params), min_arity: length(params),
+                                line: ln(m, 1), clauses: [], blocks: []})
+
+          e = if defaults == [], do: e, else: %{e | min_arity: length(params) - length(defaults)}
+
+          e =
+            if blocks[:do] == nil,
+              do: e,
+              else: %{e | clauses: e.clauses ++ [{params, guard, blocks[:do]}],
+                          blocks: e.blocks ++ (Keyword.keys(blocks) -- [:do])}
+
+          Map.put(acc, key, e)
+        end
+    end
+  end
+
+  defp local_key(defs, f, n) do
+    Enum.find(Map.keys(defs), fn {g, m} -> g == f and n <= m and n >= defs[{g, m}].min_arity end)
+  end
+
+  defp local_call?(mod, f, n), do: local_key(mod.locals, f, n) != nil
+
+  # the helper a bare statement calls, if any
+  defp local_stmt_key(mod, {f, _, args}) when is_atom(f) and is_list(args), do: local_key(mod.locals, f, length(args))
+  defp local_stmt_key(_mod, _), do: nil
+
+  defp local_stmt_call(mod, s) do
+    case local_stmt_key(mod, s) do
+      nil -> nil
+      {g, n} -> "#{g}/#{n}"
+    end
+  end
+
+  defp local_roots(body) do
+    loop =
+      case loop_of(body) do
+        {f, _, _, _} -> f
+        nil -> nil
+      end
+
+    for {:def, _, [head | rest]} <- body,
+        {f, _, _} = head_parts(head),
+        f in [:init, :handle_cast, :handle_info, :handle_call, :handle_continue] or f == loop,
+        [kw] <- [rest],
+        is_list(kw),
+        kw[:do] != nil,
+        do: kw[:do]
+  end
+
+  defp local_calls_in(defs, ast) do
+    {_, acc} =
+      Macro.prewalk(ast, [], fn
+        {f, _, args} = n, acc when is_atom(f) and is_list(args) ->
+          case local_key(defs, f, length(args)) do
+            nil -> {n, acc}
+            k -> {n, [k | acc]}
+          end
+
+        n, acc -> {n, acc}
+      end)
+
+    Enum.uniq(acc)
+  end
+
+  defp reachable_locals(defs, body) do
+    seed = body |> local_roots() |> Enum.flat_map(&local_calls_in(defs, &1)) |> Enum.uniq()
+    close_locals(defs, seed, seed)
+  end
+
+  defp close_locals(_defs, [], acc), do: acc
+
+  defp close_locals(defs, frontier, acc) do
+    next =
+      for k <- frontier, e = defs[k], {_, _, b} <- e.clauses, c <- local_calls_in(defs, b),
+          c not in acc, uniq: true, do: c
+
+    close_locals(defs, next, acc ++ next)
+  end
+
+  # every helper that is part of a call cycle with another helper
+  defp mutual_locals(defs, reach) do
+    edges = for k <- reach, e = defs[k], {_, _, b} <- e.clauses, c <- local_calls_in(defs, b), c != k, do: {k, c}
+
+    for k <- reach, reaches?(edges, [k], k, MapSet.new()), do: k
+  end
+
+  defp reaches?(edges, frontier, target, seen) do
+    next = for {a, b} <- edges, a in frontier, b not in seen, uniq: true, do: b
+
+    cond do
+      target in next -> true
+      next == [] -> false
+      true -> reaches?(edges, next, target, MapSet.union(seen, MapSet.new(next)))
+    end
+  end
+
+  # one finding per helper the pure fragment cannot express, at its
+  # definition -- not one per call site
+  # does this helper carry a blocker of its own?
+  defp local_blocked?(mod, k) do
+    e = mod.locals[k]
+
+    k in mod.lmutual or e.clauses == [] or e.blocks != [] or
+      Enum.any?(List.flatten(local_findings(mod, e)), &(&1.sev == :blocker))
+  end
+
+  defp check_locals(mod) do
+    for k <- mod.lreach, e = mod.locals[k] do
+      cond do
+        k in mod.lmutual ->
+          [finding(:blocker, e.line, "mutually recursive local helper", "#{e.name}/#{e.arity}")]
+
+        e.clauses == [] ->
+          [finding(:blocker, e.line, "local helper with no body in this module", "#{e.name}/#{e.arity}")]
+
+        e.blocks != [] ->
+          [finding(:blocker, e.line, "local helper with a #{Enum.join(Enum.uniq(e.blocks), "/")} block",
+                   "#{e.name}/#{e.arity}")]
+
+        true -> local_findings(mod, e)
+      end
+    end
+  end
+
+  defp local_var_pat?({v, _, nil}) when is_atom(v), do: true
+  defp local_var_pat?(_), do: false
+
+  defp local_findings(mod, e) do
+    # clauses that differ only by a `when` guard, all of whose parameters are
+    # variables, become an `if` chain; the last must be unguarded
+    all_vars = Enum.all?(e.clauses, fn {params, _, _} -> Enum.all?(params, &local_var_pat?/1) end)
+    guarded = Enum.any?(e.clauses, fn {_, g, _} -> g != nil end)
+    {_, last_guard, _} = List.last(e.clauses)
+    chain? = all_vars and guarded and last_guard == nil
+
+    guard_fs =
+      cond do
+        not guarded -> []
+        chain? -> []
+        all_vars ->
+          [finding(:blocker, e.line, "local helper whose last clause is guarded", "#{e.name}/#{e.arity}")]
+        true -> [finding(:blocker, e.line, "`when` guard on a local helper", "#{e.name}/#{e.arity}")]
+      end
+
+    fs =
+      (guard_fs ++
+         Enum.flat_map(e.clauses, fn {params, guard, b} ->
+           [if(chain? and guard != nil, do: check_expr(mod, guard, e.line), else: []),
+            Enum.map(params, &check_pattern(mod, &1, e.line)),
+            check_local_body(mod, b, e.line)]
+         end))
+      |> List.flatten()
+
+    case Enum.filter(fs, &(&1.sev == :blocker)) do
+      [] -> Enum.filter(fs, &(&1.sev == :note))
+      [first | _] ->
+        detail = String.trim("#{e.name}/#{e.arity}: #{first.kind} #{first.detail}")
+        [finding(:blocker, e.line, "local helper is not a pure expression", detail)]
+    end
+  end
+
+  # the pure fragment of a helper body (mirrors `local_expr` in the translator)
+  defp check_local_body(mod, e, line) do
+    l = line_of(e, line)
+
+    case e do
+      {:if, _, [c, [do: a, else: b]]} ->
+        [check_expr(mod, c, l), check_local_body(mod, a, l), check_local_body(mod, b, l)]
+
+      {:if, _, [_, [do: _]]} -> [finding(:blocker, l, "if without else in a local helper")]
+      {:unless, _, _} -> [finding(:blocker, l, "unless in a local helper")]
+
+      {:cond, _, [[do: arms]]} ->
+        [if(match?({:->, _, [[true], _]}, List.last(arms)),
+            do: [],
+            else: [finding(:blocker, l, "cond without a final `true ->` branch")]),
+         for({:->, _, [[c], b]} <- arms, do: [check_expr(mod, c, l), check_local_body(mod, b, l)])]
+
+      {:case, _, [scrut, [do: arms]]} ->
+        [check_expr(mod, scrut, l),
+         for({:->, _, [[p], b]} <- arms, do: [check_pattern(mod, p, l), check_local_body(mod, b, l)])]
+
+      {:__block__, _, xs} when xs != [] ->
+        {binds, [last]} = Enum.split(xs, -1)
+        [Enum.map(binds, &check_local_bind(mod, &1, l)), check_local_body(mod, last, l)]
+
+      _ -> check_expr(mod, e, l)
+    end
+  end
+
+  defp check_local_bind(mod, {:=, _, [{v, _, nil}, rhs]}, l) when is_atom(v),
+    do: check_local_body(mod, rhs, l)
+
+  defp check_local_bind(mod, s, l) do
+    ln = line_of(s, l)
+    [finding(:blocker, ln, "statement in a local helper (it is a pure expression)", str(s)) |
+     List.flatten(check_expr(mod, s, ln))]
+  end
+
+  # ---------- the state shape of a module with no @type state and no init/1 ----------
+
+  defp state_pats(body) do
+    loop =
+      case loop_of(body) do
+        {_, p, _, _} -> [p]
+        nil -> []
+      end
+
+    cb =
+      for {:def, _, [head | _]} <- body,
+          {f, args, _} = head_parts(head),
+          is_list(args),
+          p = state_pat_of(f, args),
+          p != nil,
+          do: p
+
+    cb ++ loop
+  end
+
+  defp state_pat_of(:handle_call, [_, _, sp]), do: sp
+  defp state_pat_of(f, [_, sp]) when f in [:handle_cast, :handle_info], do: sp
+  defp state_pat_of(_, _), do: nil
+
+  defp state_pat_size({v, _, nil}) when is_atom(v), do: :var
+  defp state_pat_size({:=, _, [{:%{}, _, _}, {v, _, nil}]}) when is_atom(v), do: :map
+  defp state_pat_size({:%{}, _, kvs}) when is_list(kvs), do: :map
+  defp state_pat_size({:{}, _, xs}), do: length(xs)
+  defp state_pat_size({_, _}), do: 2
+  defp state_pat_size(_), do: nil
+
+  # can the translator read a state shape off the callbacks' state patterns?
+  defp state_shape?(body) do
+    pats = state_pats(body)
+    sizes = pats |> Enum.map(&state_pat_size/1) |> Enum.uniq()
+
+    cond do
+      pats == [] -> false
+      Enum.member?(sizes, :map) -> Enum.all?(sizes, &(&1 in [:var, :map]))
+      sizes == [:var] -> true
+      true -> match?([n] when is_integer(n) and n > 1, Enum.reject(sizes, &(&1 == :var)))
+    end
+  end
+
+  # `Keyword.get(opts, :k, literal)` on an init/1 parameter is its default:
+  # the option list is not modelled
+  defp init_opts(params, ast) do
+    Macro.prewalk(ast, fn
+      {{:., _, [{:__aliases__, _, [:Keyword]}, :get]}, _, [{v, _, nil}, k, d]} = n
+      when is_atom(v) and is_atom(k) ->
+        if Atom.to_string(v) in params and literal_attr?(d), do: d, else: n
+
+      {{:., _, [{:__aliases__, _, [:Keyword]}, :get]}, _, [{v, _, nil}, k]} = n
+      when is_atom(v) and is_atom(k) ->
+        if Atom.to_string(v) in params, do: nil, else: n
+
+      n -> n
+    end)
   end
 
   defp ln(meta, default) when is_list(meta), do: Keyword.get(meta, :line, default)
@@ -503,6 +837,8 @@ defmodule Readiness do
       cond do
         Map.has_key?(types, :state) -> []
         mod.init? -> [finding(:note, first_line, "no @type state (inferred from init/1: untyped mode)")]
+        mod.state_shape? ->
+          [finding(:note, first_line, "no @type state and no init/1 (inferred from the callbacks' state patterns)")]
         true -> [finding(:blocker, first_line, "no @type state and no init/1 to infer one from")]
       end,
       if(msgs == [], do: [finding(:note, first_line, "no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)")], else: []),
@@ -692,15 +1028,33 @@ defmodule Readiness do
         {a, b2} -> if Enum.all?([a, b2], &match?({v, _, nil} when is_atom(v), &1)), do: [], else: [finding(:blocker, line, "init/1 parameter pattern", str(p))]
         _ -> [finding(:blocker, line, "init/1 parameter pattern", str(p))]
       end
+    params =
+      case p do
+        {v, _, nil} when is_atom(v) -> [Atom.to_string(v)]
+        {:{}, _, xs} -> for({v, _, nil} <- xs, is_atom(v), do: Atom.to_string(v))
+        {a, b2} -> for({v, _, nil} <- [a, b2], is_atom(v), do: Atom.to_string(v))
+        _ -> []
+      end
+    # the option list init/1 is handed is modelled as empty
+    b0 = b
+    b = init_opts(params, b)
+    opt_fs = if b == b0, do: [], else: [finding(:note, line, "init/1 option list modelled as empty (Keyword.get takes its default)")]
     {pre, [last]} = Enum.split(stmts(b), -1)
     pre_fs =
       for s <- pre do
         l = line_of(s, line)
         call = case s do {:=, _, [:ok, c]} -> c; _ -> s end
-        case {call, pubsub_call(call)} do
-          {{{:., _, [{:__aliases__, _, [:Process]}, :flag]}, _, [:trap_exit, true]}, _} -> []
-          {_, {f, _, _} = pc} when f in [:subscribe, :unsubscribe] -> check_pubsub(mod, pc, l)
-          _ -> [finding(:blocker, l, "statement in init/1", str(s))] ++ classify_stmt_kinds(mod, s, l)
+        cond do
+          match?({{:., _, [{:__aliases__, _, [:Process]}, :flag]}, _, [:trap_exit, true]}, call) -> []
+          match?({{:., _, [{:__aliases__, _, [:Logger]}, _]}, _, _}, call) ->
+            [finding(:note, l, "Logger call in init/1 (dropped)")]
+          match?({f, _, _} when f in [:subscribe, :unsubscribe], pubsub_call(call)) ->
+            check_pubsub(mod, pubsub_call(call), l)
+          # a binding of a pure expression: substituted into the state
+          match?({:=, _, [{v, _, nil}, _]} when is_atom(v), s) ->
+            {:=, _, [_, rhs]} = s
+            check_local_body(mod, rhs, l)
+          true -> [finding(:blocker, l, "statement in init/1", str(s))] ++ classify_stmt_kinds(mod, s, l)
         end
       end
     last_fs =
@@ -710,7 +1064,7 @@ defmodule Readiness do
           if(selfs, do: [finding(:blocker, line_of(e, line), "self() in the initial state")], else: []) ++ check_expr(mod, e, line_of(e, line))
         _ -> [finding(:blocker, line_of(last, line), "init/1 return form (only {:ok, state})", str(last))]
       end
-    [param_fs, pre_fs, last_fs]
+    [param_fs, opt_fs, pre_fs, last_fs]
   end
 
   # for a rejected init statement, still name what it is (a binding, a call)
@@ -1008,6 +1362,12 @@ defmodule Readiness do
           # dropped before translation, the resource is not modelled
           ets_call?(s) -> []
           resource_try?(s) -> []
+          # a helper of this module has no effects of its own, so calling it
+          # for effect is a blocker naming the helper, not the call
+          # a helper already reported at its definition is not repeated here
+          local_stmt_key(mod, s) != nil and local_stmt_key(mod, s) in mod.lbad -> []
+          local_stmt_call(mod, s) != nil ->
+            [finding(:blocker, l, "local helper called as a statement", local_stmt_call(mod, s))]
           true ->
             case List.flatten(check_expr(mod, s, l)) do
               [] -> [finding(:blocker, l, "unsupported statement", str(s))]
@@ -1272,6 +1632,9 @@ defmodule Readiness do
         n = length(args)
         cond do
           {f, n} in @kernel_calls -> Enum.flat_map(args, &check_expr(mod, &1, l))
+          # a helper of this module: translated as its own Lean definition,
+          # and reported (once) at that definition, not here
+          local_call?(mod, f, n) -> Enum.flat_map(args, &check_expr(mod, &1, l))
           String.starts_with?(Atom.to_string(f), "sigil_") -> blk.("sigil")
           true -> [finding(:blocker, l, call_kind(mod, f, n), str(e)) | Enum.flat_map(args, &check_expr(mod, &1, l))]
         end

@@ -266,9 +266,11 @@
 #   `v = e` ending in a value (a Lean `let`), and everything `expr` renders.
 #   A helper that sends, spawns or logs has no effect the model could carry,
 #   so it is an error naming the helper -- once, not once per call site.
-#   Multiple clauses become a `match` over the arguments; a `when` guard is
-#   an error (use `if` in the body). Default arguments are filled in at the
-#   call site.
+#   Multiple clauses become a `match` over the arguments, or -- when every
+#   clause matches its arguments with variables and some has a `when` guard
+#   -- an `if` chain in source order, whose last clause must be unguarded
+#   because a Lean definition is total. Default arguments are filled in at
+#   the call site.
 #   Types come from the helper's `@spec f(T..) :: R` when it has one, and
 #   otherwise from the types it is called at: the arguments and the expected
 #   result at its call sites, which must agree, and `Term` for what use does
@@ -997,21 +999,24 @@ defmodule ToLean do
 
   # ---- signatures ----
 
+  # how many times the signature inference is iterated (see `local_sigs`)
+  @local_rounds 3
+
   # {argument types, result type} of a helper: its @spec when it has one,
   # otherwise the types it is used at (the arguments and the expected result
   # at its call sites, which must agree) and `Term` for what use does not fix.
   defp local_sigs(ctx, clauses) do
     ctx = %{ctx | locals: for({id, e} <- ctx.locals, into: %{}, do: {id, Map.merge(e, %{ptypes: nil, rtype: nil, fuel: false})})}
     Process.put(:to_lean_local_sigs, sig_table(ctx))
-    uses = collect_local_uses(ctx, clauses, %{})
-    ctx = assign_sigs(ctx, uses)
-    Process.put(:to_lean_local_sigs, sig_table(ctx))
-    # a second round: the helpers' own bodies now render, so the calls they
-    # make to each other are seen at their real types
-    uses = collect_local_uses(ctx, clauses, uses)
-    ctx = assign_sigs(ctx, uses)
-    Process.put(:to_lean_local_sigs, sig_table(ctx))
-    ctx
+    # Three rounds, each starting from the types the last one found: the
+    # first sees only the call sites in the callbacks (the helpers' own
+    # bodies cannot render yet), the next two see the helpers calling each
+    # other at the types they now have.
+    Enum.reduce(1..@local_rounds, ctx, fn _, c ->
+      c = assign_sigs(c, collect_local_uses(c, clauses))
+      Process.put(:to_lean_local_sigs, sig_table(c))
+      c
+    end)
   end
 
   defp sig_table(ctx) do
@@ -1023,8 +1028,8 @@ defmodule ToLean do
   # render everything once with the signatures known so far, only to record
   # how each helper is called (`record_local_use`). Errors are swallowed: the
   # real pass reports them.
-  defp collect_local_uses(ctx, clauses, uses) do
-    Process.put(:to_lean_local_uses, uses)
+  defp collect_local_uses(ctx, clauses) do
+    Process.put(:to_lean_local_uses, %{})
     Process.put(:to_lean_dry, true)
 
     try do
@@ -1035,7 +1040,7 @@ defmodule ToLean do
     end
 
     Process.delete(:to_lean_dry)
-    Process.get(:to_lean_local_uses, uses)
+    Process.get(:to_lean_local_uses, %{})
   end
 
   defp record_local_use(id, argtypes, rtype) do
@@ -1063,12 +1068,15 @@ defmodule ToLean do
 
         _ ->
           ps = for i <- 0..(entry.arity - 1)//1, do: agreed(entry, uses, i) || "Term"
-          {ps, agreed(entry, uses, :result)}
+          {ps, nil}
       end
 
     env = local_env(entry, ptypes)
     {_, _, first_body} = hd(entry.clauses)
-    rtype = rtype || local_rtype(env, first_body) || "Term"
+    # the definition fixes the result type where it can; the call sites only
+    # fill in what it cannot, so an opaque use cannot make a typed helper
+    # opaque
+    rtype = rtype || local_rtype(env, first_body) || agreed(entry, uses, :result) || "Term"
     fuel = entry.id in local_callees_of(entry) and not structural?(entry)
     # a fuel-limited helper must have a default value to return at fuel 0
     _ = if fuel, do: default_of(ctx, rtype)
@@ -1192,21 +1200,65 @@ defmodule ToLean do
         do: "match fuel with | 0 => #{paren_or(default_of(ctx, entry.rtype))} | fuel + 1 => (#{inner})",
         else: inner
 
-    head = Enum.join([local_lname(entry.id) | fuelb ++ binders], " ")
+    head = Enum.join([local_lname(entry.id) | fuelb ++ Enum.map(binders, &hide_unused_binder(&1, rhs))], " ")
     "/-- `#{entry.id}` -/\ndef #{head} : #{entry.rtype} :=\n  #{rhs}\n"
+  end
+
+  # a binder the body never mentions would trip Lean's unused-variable linter
+  defp hide_unused_binder("(" <> rest = b, rhs) do
+    name = rest |> String.split(" ") |> hd()
+    if String.starts_with?(name, "_") or Regex.match?(~r/\b#{name}\b/, rhs), do: b, else: "(_" <> rest
   end
 
   defp local_binders(entry) do
     for {t, i} <- Enum.with_index(entry.ptypes), do: "(a#{i} : #{t})"
   end
 
+  # Clauses that differ only by a `when` guard, all of whose parameters are
+  # variables, become an `if` chain in source order; the last clause must be
+  # unguarded, since a Lean definition is total.
   defp local_match(ctx, entry) do
-    scruts = Enum.map_join(0..(entry.arity - 1)//1, ", ", &"a#{&1}")
+    all_vars = Enum.all?(entry.clauses, fn {params, _, _} -> Enum.all?(params, &local_var_pat?/1) end)
+
+    if all_vars and Enum.any?(entry.clauses, fn {_, g, _} -> g != nil end) do
+      {_, last, _} = List.last(entry.clauses)
+      last == nil ||
+        fail("#{entry.id}: the last clause is guarded, so the helper has no value when every guard fails; " <>
+               "add an unguarded clause")
+      local_guard_chain(ctx, entry, entry.clauses)
+    else
+      local_arms(ctx, entry)
+    end
+  end
+
+  defp local_guard_chain(ctx, entry, [{params, nil, body} | _]),
+    do: local_expr(ctx, local_clause_env(entry, params), body, entry.rtype)
+
+  defp local_guard_chain(ctx, entry, [{params, g, body} | rest]) do
+    env = local_clause_env(entry, params)
+    "(if #{expr(env, g, nil)} then #{local_expr(ctx, env, body, entry.rtype)} " <>
+      "else #{local_guard_chain(ctx, entry, rest)})"
+  end
+
+  # one clause's parameter names, aliased to the definition's binders
+  defp local_clause_env(entry, params) do
+    for {p, {t, i}} <- Enum.zip(params, Enum.with_index(entry.ptypes)),
+        reduce: %{:__mod__ => entry.mod, :__in_local__ => entry.id} do
+      env ->
+        v = Atom.to_string(elem(p, 0))
+        env |> Map.put(lean_ident(v), t) |> Map.put({:alias, v}, "a#{i}")
+    end
+  end
+
+  defp local_arms(ctx, entry) do
     entry.arity > 0 || fail("#{entry.id}: a helper with no arguments needs a single unguarded clause")
+    scruts = Enum.map_join(0..(entry.arity - 1)//1, ", ", &"a#{&1}")
 
     arms =
       for {params, guard, body} <- entry.clauses do
-        guard == nil || fail("#{entry.id}: a `when` guard on a local helper is not supported (use `if` in the body)")
+        guard == nil ||
+          fail("#{entry.id}: a `when` guard is only supported when every clause matches its arguments " <>
+                 "with variables (otherwise use `if` in the body)")
         env0 = %{:__mod__ => entry.mod, :__in_local__ => entry.id}
         {parts, env, gs} = pat_list(ctx, params, entry.ptypes, env0, [])
         gs == [] || fail("#{entry.id}: this clause pattern needs a guard, which a local helper cannot fall through")

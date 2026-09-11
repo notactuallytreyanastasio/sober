@@ -31,12 +31,16 @@ def shelf_clamp (n : Nat) : Nat :=
   (if (n > 10) then 10 else n)
 
 /-- `Shelf.label/1` -/
-def shelf_label (n : Nat) : Level :=
-  (if (n = 0) then .empty else (if (n < 3) then .low else .full))
+def shelf_label (a0 : Nat) : Level :=
+  (if (a0 = 0) then .empty else (if (a0 < 3) then .low else .full))
 
 /-- `Shelf.min_of/2` -/
 def shelf_min_of (a : Nat) (b : Nat) : Nat :=
   (if (a ≤ b) then a else b)
+
+/-- `Shelf.shortfall/1` -/
+def shelf_shortfall (a0 : Nat) : Nat :=
+  (if (a0 ≥ 10) then 0 else (10 - a0))
 
 /-- `Shelf.restock/2` -/
 def shelf_restock (n : Nat) (by_ : Nat) : Nat :=
@@ -52,7 +56,7 @@ def sig : Signals St Msg where
 def beh : EBehavior St Msg
   | _, _, .shelf n, .take k => (.shelf (n - k), [])
   | _, _, .shelf n, .put k => (.shelf (shelf_clamp (n + k)), [])
-  | _, _, .shelf n, .restock => (.shelf (shelf_restock n 4), [])
+  | _, _, .shelf n, .restock => (.shelf (shelf_restock n (shelf_shortfall n)), [])
   | _, _, .shelf n, .level from_ => (.shelf n, [.send from_ (.reply (shelf_label n))])
   -- Unmatched message: GenServer would crash (cast) or ignore (info). Modelled as ignore.
   | _, _, s, _ => (s, [])
