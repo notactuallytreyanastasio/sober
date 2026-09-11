@@ -35,6 +35,26 @@ need a `--pid` flag) do not count against a module.
 
 Other modules seen (not GenServers, no `receive`; skipped): 168 plain module, 28 use Ecto.Schema, 26 use Jido.Action, 24 use EnsembleWeb, 11 use LoomWeb, 10 use Phoenix.Component, 9 use BigBillWeb, 9 use BlinksBackendWeb, 7 use Supervisor, 5 use Application, 5 use BobsBroadcastWeb, 5 use Ecto.Repo, 5 use Phoenix.Endpoint, 4 use Gettext.Backend, 4 use Phoenix.Component, Gettext, 3 use Swoosh.Mailer, 2 use Mix.Task, 1 use DynamicSupervisor, 1 use Jido.AI.Agent, 1 use Jido.MCP.Server, 1 use Phoenix.Presence.
 
+## Landed
+
+The files under `elixir/real/` are modules copied VERBATIM out of the projects measured above and
+translated as they stand, with no annotations and no edits. `elixir/real/MANIFEST.json` records where
+each one came from and its md5 at that moment; `elixir/real_provenance.exs`, which `check.sh` runs
+before it translates anything, fails if a copy is no longer byte-identical to its origin. This table is
+generated from that manifest and from the Lean files themselves, so every column is read off the tree.
+
+| Module | Origin | Lines | Generated | Hand model | Bounded check | Proof |
+|---|---|---:|---|---|---|---|
+| `Loom.Teams.TableRegistry` | loom `lib/loom/teams/table_registry.ex` | 69 | `Leanactors/Gen/TableRegistry.lean` | yes | yes | `Leanactors/Examples/TableRegistryProof.lean` |
+
+*Hand model*: `Leanactors/Examples/<Name>.lean` defines a hand-written `beh` and proves
+`theorem beh_eq_gen` against the generated one, so the readable model and the translation are the same
+behaviour. *Bounded check*: that file runs the explorer of `Leanactors/Explore.lean` over it (`#eval`).
+*Proof*: a `Leanactors/Examples/<Name>Proof.lean` states the property for every reachable configuration.
+`elixir elixir/land_real.exs <path to the module>` does the mechanical part of adding a row -- the copy,
+the translation, the `check.sh` lines, an example skeleton and the manifest entry; the property is the
+part it cannot do.
+
 ## Blocking constructs by family
 
 The same blockers grouped into the feature each one would need: every call into one module is one family,
