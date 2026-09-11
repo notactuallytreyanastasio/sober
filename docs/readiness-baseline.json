@@ -9,7 +9,7 @@
   ],
   "projects": [
     {
-      "blockers": 326,
+      "blockers": 286,
       "candidates": 22,
       "families": 60,
       "files": 117,
@@ -32,16 +32,16 @@
         {"blockers": 16, "distance": 5, "file": "loom/telemetry/metrics.ex", "module": "Loom.Telemetry.Metrics", "translated": false},
         {"blockers": 2, "distance": 2, "file": "loom/tools/shell.ex", "module": "Loom.Tools.Shell", "translated": false},
         {"blockers": 1, "distance": 1, "file": "loom_web/live/cost_dashboard_live.ex", "module": "LoomWeb.CostDashboardLive", "translated": false},
-        {"blockers": 7, "distance": 4, "file": "loom_web/live/team_activity_component.ex", "module": "LoomWeb.TeamActivityComponent", "translated": false},
-        {"blockers": 3, "distance": 2, "file": "loom_web/live/team_cost_component.ex", "module": "LoomWeb.TeamCostComponent", "translated": false},
-        {"blockers": 9, "distance": 4, "file": "loom_web/live/team_dashboard_component.ex", "module": "LoomWeb.TeamDashboardComponent", "translated": false},
-        {"blockers": 65, "distance": 15, "file": "loom_web/live/workspace_live.ex", "module": "LoomWeb.WorkspaceLive", "translated": false}
+        {"blockers": 3, "distance": 3, "file": "loom_web/live/team_activity_component.ex", "module": "LoomWeb.TeamActivityComponent", "translated": false},
+        {"blockers": 2, "distance": 1, "file": "loom_web/live/team_cost_component.ex", "module": "LoomWeb.TeamCostComponent", "translated": false},
+        {"blockers": 6, "distance": 4, "file": "loom_web/live/team_dashboard_component.ex", "module": "LoomWeb.TeamDashboardComponent", "translated": false},
+        {"blockers": 33, "distance": 15, "file": "loom_web/live/workspace_live.ex", "module": "LoomWeb.WorkspaceLive", "translated": false}
       ],
       "name": "loom",
       "translated": 1
     },
     {
-      "blockers": 454,
+      "blockers": 403,
       "candidates": 25,
       "families": 67,
       "files": 145,
@@ -56,63 +56,63 @@
         {"blockers": 17, "distance": 2, "file": "ensemble/issue_orchestrator.ex", "module": "Ensemble.IssueOrchestrator", "translated": false},
         {"blockers": 24, "distance": 14, "file": "ensemble/local_llm/client.ex", "module": "Ensemble.LocalLLM.Client", "translated": false},
         {"blockers": 12, "distance": 9, "file": "ensemble/local_llm/speculator.ex", "module": "Ensemble.LocalLLM.Speculator", "translated": false},
-        {"blockers": 0, "distance": 0, "file": "ensemble/log_store.ex", "module": "Ensemble.LogStore", "translated": false},
+        {"blockers": 0, "distance": 0, "file": "ensemble/log_store.ex", "module": "Ensemble.LogStore", "translated": true},
         {"blockers": 27, "distance": 9, "file": "ensemble/orchestrator.ex", "module": "Ensemble.Orchestrator", "translated": false},
         {"blockers": 16, "distance": 4, "file": "ensemble/pr_monitor.ex", "module": "Ensemble.PRMonitor", "translated": false},
         {"blockers": 12, "distance": 4, "file": "ensemble/sentry_monitor.ex", "module": "Ensemble.SentryMonitor", "translated": false},
         {"blockers": 14, "distance": 3, "file": "ensemble/session_compactor.ex", "module": "Ensemble.SessionCompactor", "translated": false},
-        {"blockers": 8, "distance": 5, "file": "ensemble_web/live/agents_live.ex", "module": "EnsembleWeb.AgentsLive", "translated": false},
-        {"blockers": 18, "distance": 4, "file": "ensemble_web/live/dashboard_live.ex", "module": "EnsembleWeb.DashboardLive", "translated": false},
+        {"blockers": 5, "distance": 4, "file": "ensemble_web/live/agents_live.ex", "module": "EnsembleWeb.AgentsLive", "translated": false},
+        {"blockers": 12, "distance": 4, "file": "ensemble_web/live/dashboard_live.ex", "module": "EnsembleWeb.DashboardLive", "translated": false},
         {"blockers": 2, "distance": 2, "file": "ensemble_web/live/decision_graph_live.ex", "module": "EnsembleWeb.DecisionGraphLive", "translated": false},
-        {"blockers": 11, "distance": 6, "file": "ensemble_web/live/issues_live.ex", "module": "EnsembleWeb.IssuesLive", "translated": false},
-        {"blockers": 1, "distance": 1, "file": "ensemble_web/live/logs_live.ex", "module": "EnsembleWeb.LogsLive", "translated": false},
-        {"blockers": 33, "distance": 4, "file": "ensemble_web/live/pr_dashboard_live.ex", "module": "EnsembleWeb.PRDashboardLive", "translated": false},
-        {"blockers": 33, "distance": 14, "file": "ensemble_web/live/pr_review_live.ex", "module": "EnsembleWeb.PRReviewLive", "translated": false},
-        {"blockers": 16, "distance": 6, "file": "ensemble_web/live/run_detail_live.ex", "module": "EnsembleWeb.RunDetailLive", "translated": false},
-        {"blockers": 19, "distance": 2, "file": "ensemble_web/live/sentry_live.ex", "module": "EnsembleWeb.SentryLive", "translated": false},
-        {"blockers": 21, "distance": 7, "file": "ensemble_web/live/settings_live.ex", "module": "EnsembleWeb.SettingsLive", "translated": false}
+        {"blockers": 6, "distance": 5, "file": "ensemble_web/live/issues_live.ex", "module": "EnsembleWeb.IssuesLive", "translated": false},
+        {"blockers": 0, "distance": 0, "file": "ensemble_web/live/logs_live.ex", "module": "EnsembleWeb.LogsLive", "translated": true},
+        {"blockers": 20, "distance": 4, "file": "ensemble_web/live/pr_dashboard_live.ex", "module": "EnsembleWeb.PRDashboardLive", "translated": false},
+        {"blockers": 27, "distance": 14, "file": "ensemble_web/live/pr_review_live.ex", "module": "EnsembleWeb.PRReviewLive", "translated": false},
+        {"blockers": 10, "distance": 6, "file": "ensemble_web/live/run_detail_live.ex", "module": "EnsembleWeb.RunDetailLive", "translated": false},
+        {"blockers": 12, "distance": 2, "file": "ensemble_web/live/sentry_live.ex", "module": "EnsembleWeb.SentryLive", "translated": false},
+        {"blockers": 17, "distance": 7, "file": "ensemble_web/live/settings_live.ex", "module": "EnsembleWeb.SettingsLive", "translated": false}
       ],
       "name": "ensemble",
-      "translated": 0
+      "translated": 2
     },
     {
-      "blockers": 24,
+      "blockers": 18,
       "candidates": 2,
       "families": 10,
       "files": 33,
       "modules": [
         {"blockers": 6, "distance": 4, "file": "blinks_backend/links/link_check.ex", "module": "BlinksBackend.Links.LinkCheck", "translated": false},
-        {"blockers": 18, "distance": 7, "file": "blinks_backend_web/live/links_live.ex", "module": "BlinksBackendWeb.LinksLive", "translated": false}
+        {"blockers": 12, "distance": 7, "file": "blinks_backend_web/live/links_live.ex", "module": "BlinksBackendWeb.LinksLive", "translated": false}
       ],
       "name": "blinks_backend",
       "translated": 0
     },
     {
-      "blockers": 31,
+      "blockers": 28,
       "candidates": 3,
       "families": 10,
       "files": 60,
       "modules": [
         {"blockers": 10, "distance": 4, "file": "big_bill/search/server.ex", "module": "BigBill.Search.Server", "translated": false},
-        {"blockers": 19, "distance": 7, "file": "big_bill_web/live/drilldown_live.ex", "module": "BigBillWeb.DrilldownLive", "translated": false},
-        {"blockers": 2, "distance": 2, "file": "big_bill_web/live/search_live.ex", "module": "BigBillWeb.SearchLive", "translated": false}
+        {"blockers": 17, "distance": 7, "file": "big_bill_web/live/drilldown_live.ex", "module": "BigBillWeb.DrilldownLive", "translated": false},
+        {"blockers": 1, "distance": 1, "file": "big_bill_web/live/search_live.ex", "module": "BigBillWeb.SearchLive", "translated": false}
       ],
       "name": "big_bill",
       "translated": 0
     },
     {
-      "blockers": 13,
+      "blockers": 12,
       "candidates": 3,
       "families": 8,
       "files": 18,
       "modules": [
         {"blockers": 9, "distance": 5, "file": "bobs_broadcast/radio/broadcaster.ex", "module": "BobsBroadcast.Radio.Broadcaster", "translated": false},
         {"blockers": 2, "distance": 2, "file": "bobs_broadcast_web/controllers/stream_controller.ex", "module": "BobsBroadcastWeb.StreamController", "translated": false},
-        {"blockers": 2, "distance": 1, "file": "bobs_broadcast_web/live/radio_live.ex", "module": "BobsBroadcastWeb.RadioLive", "translated": false}
+        {"blockers": 1, "distance": 1, "file": "bobs_broadcast_web/live/radio_live.ex", "module": "BobsBroadcastWeb.RadioLive", "translated": false}
       ],
       "name": "bobs_broadcast",
       "translated": 0
     }
   ],
-  "total": {"blockers": 848, "candidates": 55, "families": 106, "files": 373, "translated": 1}
+  "total": {"blockers": 747, "candidates": 55, "families": 106, "files": 373, "translated": 3}
 }
