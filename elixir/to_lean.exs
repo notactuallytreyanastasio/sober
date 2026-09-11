@@ -1,6 +1,6 @@
 # Translate typespec-annotated GenServer modules into a Lean actor model.
 #
-#   elixir elixir/to_lean.exs SRC.ex NAMESPACE [--pid Module=const ...] > OUT.lean
+#   elixir elixir/to_lean.exs SRC.ex NAMESPACE [--pid Module=const ...] [--pubsub Module ...] > OUT.lean
 #
 # Supported subset (anything else is a hard error):
 #   @type msg   :: union of atoms and tagged tuples {:tag, T...}
@@ -116,6 +116,24 @@
 #   is `inductive Reply`; a tagged tuple at that type, in a pattern or an
 #   expression, is the constructor applied to its fields.
 #   After a blocking call the rest of the body may be a single if/case.
+#   PubSub: `Phoenix.PubSub.subscribe(server, topic)` is the effect
+#   `.subscribe me topic`, `Phoenix.PubSub.unsubscribe(server, topic)` is
+#   `.unsubscribe me topic` and `Phoenix.PubSub.broadcast(server, topic, m)`
+#   (or `broadcast!`) is `.broadcast topic m`, where m is a message
+#   expression (an alternative of the file's message unions) and the server
+#   argument is ignored (one PubSub per model). The topic must be a string
+#   literal or a module attribute (`@topic "feed"`, referenced as `@topic`)
+#   bound to one; anything else is an error. Which module is PubSub is by
+#   name: `Phoenix.PubSub` always, `PubSub` by default (the local
+#   elixir/src/pubsub.ex twin, so a driver runs without the phoenix_pubsub
+#   dependency), and any module named with `--pubsub Mod`. A subscribe or
+#   unsubscribe may also appear in init/1 (before its `{:ok, state}`): the
+#   spawn site `{:ok, pid} = GenServer.start[_link](Mod, arg)` then emits
+#   `.subscribe fresh topic` after the spawn, attributing the subscription
+#   to the child, and `:ok = Phoenix.PubSub.subscribe(...)` is accepted
+#   wherever the bare call is. The effects live on `Sys.subs`
+#   (Leanactors/Sys.lean): a broadcast is one delivery to every subscriber
+#   in subscription order and a death drops its subscriptions.
 #
 # Registered names: `send(Mod, m)`, `GenServer.cast(Mod, m)` and
 #   `GenServer.call(Mod, m)` need a constant pid for Mod. With `--pid`
@@ -173,7 +191,8 @@ defmodule ToLean do
   defmodule Ctx do
     defstruct types: %{}, msg_ctors: [], st_ctors: [], pids: %{}, enums: %{}, ns: "Gen", warnings: [],
               extra: [], awaits: %{}, reply_type: nil, traps: %{}, pid_vars: [],
-              covered: [], inits: %{}, mods: [], kinds: %{}, loops: %{}, defers: [], afters: %{}
+              covered: [], inits: %{}, mods: [], kinds: %{}, loops: %{}, defers: [], afters: %{},
+              pubsub: [[:Phoenix, :PubSub], [:PubSub]], attrs: %{}, init_subs: %{}
   end
 
   # ---------- entry ----------
@@ -187,6 +206,14 @@ defmodule ToLean do
         _ -> []
       end)
       |> Map.new()
+    # modules treated as PubSub (`--pubsub My.PubSub`), besides Phoenix.PubSub and PubSub
+    pubsubs =
+      rest
+      |> Enum.chunk_every(2)
+      |> Enum.flat_map(fn
+        ["--pubsub", m] -> [m |> String.split(".") |> Enum.map(&String.to_atom/1)]
+        _ -> []
+      end)
 
     {:ok, ast} = src |> File.read!() |> Code.string_to_quoted(columns: false)
     mods = for {:defmodule, _, [{:__aliases__, _, [name]}, [do: body]]} <- top(ast), do: {name, stmts(body)}
@@ -194,13 +221,17 @@ defmodule ToLean do
     # the source (name: __MODULE__ in start_link/start, Process.register/2)
     pids = if map_size(pids) == 0, do: register_names(mods), else: pids
     ctx = %Ctx{ns: ns, pids: pids}
+    ctx = %{ctx | pubsub: ctx.pubsub ++ pubsubs}
     ctx = Enum.reduce(mods, ctx, fn {name, body}, c -> collect_types(c, name, body) end)
     # the tagged unions by Lean name, for the expression and pattern
     # renderers (which do not carry the context)
     Process.put(:to_lean_unions, tagged_unions(ctx))
     clauses = for {name, body} <- mods, cl <- ordered(clauses(name, body)), do: cl
     traps = for {name, body} <- mods, traps?(body), into: %{}, do: {name, true}
-    inits = for {name, body} <- mods, init = init_of(name, body), init != nil, into: %{}, do: {name, init}
+    inits0 = for {name, body} <- mods, init = init_of(ctx, name, body), init != nil, do: {name, init}
+    inits = for {name, {p, e, _}} <- inits0, into: %{}, do: {name, {p, e}}
+    # the PubSub subscriptions init/1 makes, attributed to the child at its spawn site
+    init_subs = for {name, {_, _, subs}} <- inits0, subs != [], into: %{}, do: {name, subs}
     # raw receive loops: module -> loop function; those without a catch-all
     # clause defer (re-enqueue) unmatched messages; those with an `after`
     # clause arm a self-timer for the message after_<loop>
@@ -210,7 +241,7 @@ defmodule ToLean do
       for {name, _} <- loops,
           not Enum.any?(clauses, fn cl -> cl.mod == name and cl.guard == nil and bare?(cl.mpat) end),
           do: name
-    ctx = %{ctx | traps: traps, inits: inits, mods: Enum.map(mods, &elem(&1, 0)),
+    ctx = %{ctx | traps: traps, inits: inits, init_subs: init_subs, mods: Enum.map(mods, &elem(&1, 0)),
                   loops: loops, defers: defers, afters: afters}
     # a raw process has no handle_cast/handle_call: its messages are all info
     for {name, _} <- loops, kt <- [:cast, :call], Map.has_key?(ctx.types, {name, kt}),
@@ -223,7 +254,7 @@ defmodule ToLean do
     Enum.each(ctx.warnings, &IO.puts(:stderr, "warning: " <> &1))
   end
 
-  def main(_), do: IO.puts(:stderr, "usage: to_lean.exs SRC.ex NAMESPACE [--pid Mod=const]")
+  def main(_), do: IO.puts(:stderr, "usage: to_lean.exs SRC.ex NAMESPACE [--pid Mod=const] [--pubsub Mod]")
 
   # BEAM dispatch keys on the callback, not the tag: handle_cast, handle_call
   # and handle_info are separate functions. The Lean match is one function,
@@ -315,19 +346,27 @@ defmodule ToLean do
   # the model-only message a receive loop with `after` sends itself
   defp after_tag(fname), do: :"after_#{fname}"
 
-  # `init/1` as a pure state expression of its parameter: {param_pattern, expr}.
-  # Accepted: `def init(p), do: {:ok, e}` or a block whose only other
-  # statements are `Process.flag(:trap_exit, true)`. nil when undefined
-  # (the `use GenServer` default init is the identity).
-  defp init_of(mod, body) do
+  # `init/1` as a pure state expression of its parameter: {param_pattern,
+  # expr, pubsub_subscriptions}. Accepted: `def init(p), do: {:ok, e}` or a
+  # block whose only other statements are `Process.flag(:trap_exit, true)`
+  # and PubSub subscribe/unsubscribe calls (recorded as {:subscribe |
+  # :unsubscribe, topic}, emitted at the spawn site for the child). nil when
+  # undefined (the `use GenServer` default init is the identity).
+  defp init_of(ctx, mod, body) do
     case for {:def, _, [{:init, _, [p]}, [do: b]]} <- body, do: {p, b} do
       [] -> nil
       [{p, b}] ->
         {flags, [last]} = Enum.split(stmts(b), -1)
-        Enum.each(flags, fn
-          {{:., _, [{:__aliases__, _, [:Process]}, :flag]}, _, [:trap_exit, true]} -> :ok
-          other -> fail("#{mod}.init/1: unsupported statement #{Macro.to_string(other)}")
-        end)
+        subs =
+          Enum.flat_map(flags, fn
+            {{:., _, [{:__aliases__, _, [:Process]}, :flag]}, _, [:trap_exit, true]} -> []
+            other ->
+              case pubsub_call(ctx, mod, other) do
+                {f, topic, nil} when f in [:subscribe, :unsubscribe] -> [{f, topic}]
+                {f, _, _} -> fail("#{mod}.init/1: #{f} is not supported in init/1")
+                nil -> fail("#{mod}.init/1: unsupported statement #{Macro.to_string(other)}")
+              end
+          end)
         e = case last do
           {:ok, e} -> e
           other -> fail("#{mod}.init/1 must end in {:ok, state}, got #{Macro.to_string(other)}")
@@ -338,7 +377,7 @@ defmodule ToLean do
         end)
         {_, selfs} = Macro.prewalk(e, false, fn {:self, _, []} = n, _ -> {n, true}; n, a -> {n, a} end)
         selfs && fail("#{mod}.init/1: self() in the initial state is not supported")
-        {p, e}
+        {p, e, subs}
       _ -> fail("#{mod}.init/1 must have exactly one clause")
     end
   end
@@ -382,6 +421,32 @@ defmodule ToLean do
     end
   end
 
+  # A PubSub call: {f, topic, message_ast | nil} for `Mod.f(server, topic[, m])`
+  # where Mod is one of ctx.pubsub (or `:ok = Mod.f(...)`); nil otherwise.
+  # The topic is resolved to a string literal here (`topic_str`).
+  defp pubsub_call(ctx, mod, {:=, _, [:ok, call]}), do: pubsub_call(ctx, mod, call)
+  defp pubsub_call(ctx, mod, {{:., _, [{:__aliases__, _, segs}, f]}, _, args}) do
+    if segs in ctx.pubsub do
+      case {f, args} do
+        {:subscribe, [_server, topic]} -> {:subscribe, topic_str(ctx, mod, topic), nil}
+        {:unsubscribe, [_server, topic]} -> {:unsubscribe, topic_str(ctx, mod, topic), nil}
+        {f, [_server, topic, m]} when f in [:broadcast, :broadcast!] -> {:broadcast, topic_str(ctx, mod, topic), m}
+        _ -> fail("#{mod}: unsupported PubSub call #{Enum.join(segs, ".")}.#{f}/#{length(args)} (subscribe/2, unsubscribe/2, broadcast/3)")
+      end
+    end
+  end
+  defp pubsub_call(_ctx, _mod, _), do: nil
+
+  # a topic: a string literal, or a module attribute bound to one, as a Lean string literal
+  defp topic_str(_ctx, _mod, t) when is_binary(t), do: inspect(t)
+  defp topic_str(ctx, mod, {:@, _, [{name, _, nil}]} = a) when is_atom(name) do
+    case Map.fetch(ctx.attrs, {mod, name}) do
+      {:ok, t} when is_binary(t) -> inspect(t)
+      _ -> fail("#{mod}: PubSub topic #{Macro.to_string(a)} is not a module attribute bound to a string literal")
+    end
+  end
+  defp topic_str(_ctx, mod, t), do: fail("#{mod}: PubSub topic #{Macro.to_string(t)} must be a string literal or a module attribute bound to one")
+
   defp top({:__block__, _, xs}), do: xs
   defp top(x), do: [x]
   defp stmts({:__block__, _, xs}), do: xs
@@ -394,6 +459,9 @@ defmodule ToLean do
     Enum.reduce(body, ctx, fn
       {:@, _, [{:type, _, [{:"::", _, [{tname, _, _}, t]}]}]}, c ->
         put_in(c.types[{mod, tname}], t)
+      # a string-valued module attribute (a PubSub topic)
+      {:@, _, [{name, _, [v]}]}, c when is_atom(name) and is_binary(v) ->
+        put_in(c.attrs[{mod, name}], v)
       _, c -> c
     end)
     |> then(fn c ->
@@ -1298,6 +1366,8 @@ defmodule ToLean do
   defp uses_self?(cl) do
     {_, found} = Macro.prewalk(cl.body, false, fn
       {:self, _, []} = n, _ -> {n, true}
+      # a PubSub subscribe/unsubscribe is on behalf of `me`
+      {{:., _, [{:__aliases__, _, segs}, f]}, _, [_, _]} = n, _ when f in [:subscribe, :unsubscribe] and is_list(segs) -> {n, true}
       {:{}, _, [:noreply, _, t]} = n, _ when t != :hibernate -> {n, true}
       {:{}, _, [:reply, _, _, t]} = n, _ when t != :hibernate -> {n, true}
       n, acc -> {n, acc || blocking_call?(n)}
@@ -1692,7 +1762,7 @@ defmodule ToLean do
     {^tag, [_ | ts]} = List.keyfind(ctx.msg_ctors, tag, 0) || fail("call #{tag} not declared in @type call")
     parts = Enum.zip(args, ts) |> Enum.map(fn {a, t} -> paren_or(expr(env, a, t)) end)
     req = send_str(ctx, const, ".#{tag} me" <> Enum.map_join(parts, "", &(" " <> &1)))
-    {send_strs, ctx, _} = sends(ctx, env, before)
+    {send_strs, ctx, _} = sends(ctx, Map.put(env, :__mod__, mod), before)
     this = "(.#{await}#{cap_str}, [#{Enum.join(send_strs ++ [req], ", ")}])"
     # the continuation, in an environment with the captured vars, v : reply, and me
     env2 = Map.new(captured) |> Map.put(:__self__, true)
@@ -1746,7 +1816,10 @@ defmodule ToLean do
           {:=, _, [{:ok, {v, _, nil}}, {{:., _, [{:__aliases__, _, [:GenServer]}, f]}, _, [{:__aliases__, _, [child]}, arg]}]} when is_atom(v) and f in [:start_link, :start] ->
             {cctor, cfields} = List.keyfind(c.st_ctors, ctor_name(child), 0) || fail("unknown child module #{child}")
             init = child_state(c, e, child, arg, cctor, cfields)
-            {if(f == :start_link, do: ".spawnLink (#{init})", else: ".spawn (#{init})"), {c, bind_fresh(e, v)}}
+            e = bind_fresh(e, v)
+            # the child's init/1 subscriptions, on behalf of the child's pid
+            subs = for {sf, topic} <- Map.get(c.init_subs, child, []), do: ".#{sf} #{paren_or(e[{:alias, Atom.to_string(v)}])} #{topic}"
+            {Enum.join([if(f == :start_link, do: ".spawnLink (#{init})", else: ".spawn (#{init})") | subs], ", "), {c, e}}
           {:=, _, [lhs, {f, _, [{:__aliases__, _, [child]}, fname, [arg]]}]} when f in [:spawn, :spawn_link, :spawn_monitor] ->
             v =
               case {f, lhs} do
@@ -1769,7 +1842,13 @@ defmodule ToLean do
             {".monitor #{paren_or(expr(e, target, "Pid"))}", {c, e}}
           {f, _, args} when f in [:raise, :throw] and is_list(args) ->
             fail("#{f} is only supported as the last statement of a body (it exits the process): #{Macro.to_string(s)}")
-          other -> fail("unsupported statement #{Macro.to_string(other)}")
+          other ->
+            case pubsub_call(c, Map.get(e, :__mod__), other) do
+              {:subscribe, topic, nil} -> {".subscribe me #{topic}", {c, e}}
+              {:unsubscribe, topic, nil} -> {".unsubscribe me #{topic}", {c, e}}
+              {:broadcast, topic, m} -> {".broadcast #{topic} #{paren_or(msg_expr(c, e, m))}", {c, e}}
+              nil -> fail("unsupported statement #{Macro.to_string(other)}")
+            end
         end
       end)
     {strs, c, e}
@@ -1791,7 +1870,7 @@ defmodule ToLean do
   defp plain_body(ctx, mod, env, stmts) do
     {sends, [last]} = Enum.split(stmts, -1)
     {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(mod), 0)
-    {send_strs, ctx, env} = sends(ctx, env, sends)
+    {send_strs, ctx, env} = sends(ctx, Map.put(env, :__mod__, mod), sends)
     # a continuing state of a loop with `after` re-enters the receive at the
     # next generation (an exit, raise or throw keeps the whole state instead)
     next_state = fn e -> state_expr(env, e, ctor, visible_fields(ctx, mod, fields)) <> gen_suffix(ctx, mod) end
