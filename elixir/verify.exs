@@ -230,7 +230,8 @@ defmodule V.Run do
     {"Supervisor", "elixir/src/supervisor.ex", "Leanactors.Gen.Supervisor", ["--pid", "Sup=sup"]},
     {"Task", "elixir/src/task.ex", "Leanactors.Gen.Task", ["--pid", "Caller=caller"]},
     {"Watchdog", "elixir/src/watchdog.ex", "Leanactors.Gen.Watchdog", ["--pid", "Watchdog=watchdog"]},
-    {"Ttl", "elixir/src/ttl.ex", "Leanactors.Gen.Ttl", []}
+    {"Ttl", "elixir/src/ttl.ex", "Leanactors.Gen.Ttl", []},
+    {"Registry", "elixir/src/registry.ex", "Leanactors.Gen.Registry", []}
   ]
 
   @drivers [
@@ -240,6 +241,7 @@ defmodule V.Run do
     {"task", "elixir/task.exs", []},
     {"watchdog", "elixir/watchdog.exs", []},
     {"ttl", "elixir/ttl.exs", []},
+    {"registry", "elixir/registry.exs", []},
     {"fuzz", "elixir/fuzz.exs", ["--seed", "1", "--runs", "200"]}
   ]
 
