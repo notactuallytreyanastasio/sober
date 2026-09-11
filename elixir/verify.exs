@@ -231,7 +231,12 @@ defmodule V.Run do
     {"Task", "elixir/src/task.ex", "Leanactors.Gen.Task", ["--pid", "Caller=caller"]},
     {"Watchdog", "elixir/src/watchdog.ex", "Leanactors.Gen.Watchdog", ["--pid", "Watchdog=watchdog"]},
     {"Ttl", "elixir/src/ttl.ex", "Leanactors.Gen.Ttl", []},
-    {"Registry", "elixir/src/registry.ex", "Leanactors.Gen.Registry", []}
+    {"Registry", "elixir/src/registry.ex", "Leanactors.Gen.Registry", []},
+    {"Feed", "elixir/src/feed.ex", "Leanactors.Gen.Feed", []},
+    {"Ringlog", "elixir/src/ringlog.ex", "Leanactors.Gen.Ringlog", []},
+    # untyped mode: no @type anywhere, no --pid flag (the registered name
+    # comes from `name: __MODULE__` in start_link/3)
+    {"TableRegistry", "elixir/real/table_registry.ex", "Leanactors.Gen.TableRegistry", []}
   ]
 
   @drivers [
@@ -242,6 +247,9 @@ defmodule V.Run do
     {"watchdog", "elixir/watchdog.exs", []},
     {"ttl", "elixir/ttl.exs", []},
     {"registry", "elixir/registry.exs", []},
+    {"feed", "elixir/feed.exs", []},
+    {"ringlog", "elixir/ringlog.exs", []},
+    {"table_registry", "elixir/table_registry.exs", []},
     {"fuzz", "elixir/fuzz.exs", ["--seed", "1", "--runs", "200"]}
   ]
 
@@ -356,7 +364,7 @@ defmodule V.Run do
       Enum.map(@drivers, fn {name, script, args} ->
         {out, status} = System.cmd("elixir", [script | args], cd: @root, stderr_to_stdout: true)
         last = out |> String.split("\n") |> Enum.reject(&(&1 == "")) |> List.last()
-        %{status: (if status == 0, do: :ok, else: :fail), label: pad(name, 12) <> (last || ""), full: out}
+        %{status: (if status == 0, do: :ok, else: :fail), label: pad(name, 16) <> (last || ""), full: out}
       end)
 
     Enum.each(results, fn r ->
