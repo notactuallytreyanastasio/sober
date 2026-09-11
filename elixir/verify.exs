@@ -236,7 +236,14 @@ defmodule V.Run do
     {"Ringlog", "elixir/src/ringlog.ex", "Leanactors.Gen.Ringlog", []},
     # untyped mode: no @type anywhere, no --pid flag (the registered name
     # comes from `name: __MODULE__` in start_link/3)
-    {"TableRegistry", "elixir/real/table_registry.ex", "Leanactors.Gen.TableRegistry", []}
+    {"TableRegistry", "elixir/real/table_registry.ex", "Leanactors.Gen.TableRegistry", []},
+    # untyped mode again: the reply type is probed from the clause bodies (a
+    # list), and the LiveView's socket is the record of the assigns it touches
+    {"LogStore", "elixir/real/log_store.ex", "Leanactors.Gen.LogStore", []},
+    {"LogsLive", "elixir/real/logs_live.ex", "Leanactors.Gen.LogsLive", []},
+    # and a third: a chain of assigns folded into one record update, and a
+    # payload inferred `term() | nil` from the `!= nil` the body writes
+    {"RadioLive", "elixir/real/radio_live.ex", "Leanactors.Gen.RadioLive", []}
   ]
 
   @drivers [

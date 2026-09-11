@@ -33,6 +33,15 @@ elixir elixir/to_lean.exs elixir/src/ringlog.ex Leanactors.Gen.Ringlog > $OUT/Ge
 # `GenServer.start_link(__MODULE__, opts, name: __MODULE__)`, so the Lean
 # constant is `table_registry`)
 elixir elixir/to_lean.exs elixir/real/table_registry.ex Leanactors.Gen.TableRegistry > $OUT/Gen.TableRegistry.lean
+# untyped mode again: a ring buffer whose reply is a list (the reply type is
+# probed from the clause bodies, not declared) and the LiveView that shows
+# what it broadcasts (a socket modelled as the record of its assigns)
+elixir elixir/to_lean.exs elixir/real/log_store.ex Leanactors.Gen.LogStore > $OUT/Gen.LogStore.lean 2>/dev/null
+elixir elixir/to_lean.exs elixir/real/logs_live.ex Leanactors.Gen.LogsLive > $OUT/Gen.LogsLive.lean
+# untyped mode, a LiveView again: a chain of assigns folded into one record
+# update, and a payload inferred `term() | nil` from the `!= nil` the body
+# writes about it
+elixir elixir/to_lean.exs elixir/real/radio_live.ex Leanactors.Gen.RadioLive > $OUT/Gen.RadioLive.lean
 diff -q $OUT/Gen.Lock.lean Leanactors/Gen/Lock.lean
 diff -q $OUT/Gen.Bank.lean Leanactors/Gen/Bank.lean
 diff -q $OUT/Gen.Supervisor.lean Leanactors/Gen/Supervisor.lean
@@ -43,18 +52,21 @@ diff -q $OUT/Gen.Registry.lean Leanactors/Gen/Registry.lean
 diff -q $OUT/Gen.Feed.lean Leanactors/Gen/Feed.lean
 diff -q $OUT/Gen.Ringlog.lean Leanactors/Gen/Ringlog.lean
 diff -q $OUT/Gen.TableRegistry.lean Leanactors/Gen/TableRegistry.lean
+diff -q $OUT/Gen.LogStore.lean Leanactors/Gen/LogStore.lean
+diff -q $OUT/Gen.LogsLive.lean Leanactors/Gen/LogsLive.lean
+diff -q $OUT/Gen.RadioLive.lean Leanactors/Gen/RadioLive.lean
 echo "   generated files are up to date"
 
 echo "== translator fixtures"
 # `cmd | grep -v` would hide a failure: the pipeline reports grep's status, and
 # grep succeeds precisely when there are FAIL lines to print. So the output is
 # captured, a non-zero exit is fatal, and only then are the PASS lines dropped.
-elixir elixir/test/run_fixtures.exs > $OUT/fixtures.txt || { cat $OUT/fixtures.txt; exit 1; }
+elixir elixir/test/run_fixtures.exs > $OUT/fixtures.txt || { grep -v "^PASS " $OUT/fixtures.txt; exit 1; }
 grep -v "^PASS " $OUT/fixtures.txt
 # and the self-test of the landing tooling: it runs elixir/land_real.exs and
 # elixir/real_provenance.exs against a scratch repository under $TMPDIR and
 # removes it again, touching nothing here.
-elixir elixir/test/land_real_test.exs > $OUT/land_real.txt || { cat $OUT/land_real.txt; exit 1; }
+elixir elixir/test/land_real_test.exs > $OUT/land_real.txt || { grep -v "^PASS " $OUT/land_real.txt; exit 1; }
 grep -v "^PASS " $OUT/land_real.txt
 
 echo "== readiness self-check"

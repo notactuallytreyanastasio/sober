@@ -63,11 +63,24 @@
 #   while awaiting is re-enqueued to self, encoding selective receive.
 #   Raw processes: instead of callbacks a module may define exactly one loop
 #   `def run(state) do receive do pat [when g] -> body ... end end` (any
-#   name). Each receive clause is a handle_info clause with the parameter as
-#   the state pattern; a body ending in `run(e)` continues with state e,
+#   name, `def` or `defp`: visibility is an Elixir rule with no counterpart
+#   in the model, and the function that IS the whole life of a process is
+#   usually private, entered from a public wrapper). Each receive clause is
+#   a handle_info clause with the parameter as the state pattern; a body ending in `run(e)` continues with state e,
 #   `exit(r)` exits with the current state, any other last expression means
 #   the loop returns (exit :normal). If the receive has no catch-all clause
 #   a defer clause re-enqueues unmatched messages to self: selective receive.
+#   The loop must take ONE argument and every call to it must be in tail
+#   position -- of the loop's own arms, or of the wrapper that enters it.
+#   Both are the same requirement: the loop is the whole life of a process,
+#   which is what lets its tail decide what the process does next and lets
+#   falling out of it be `exit :normal`. `v = collect(acc)` in the middle of
+#   a function is a blocking receive whose value the caller goes on to use;
+#   the model's only blocking form is `GenServer.call`, which splits the
+#   clause into an await state, and a receive has nothing to split. Such a
+#   helper is an error rather than a loop, at any arity -- a multi-argument
+#   loop would be an n-tuple state the model already has, but every one in
+#   the measured projects is a synchronous collect, not a process.
 #   `pid = spawn(Mod, :run, [a])`, `pid = spawn_link(Mod, :run, [a])` and
 #   `{pid, _ref} = spawn_monitor(Mod, :run, [a])` map to spawn/spawnLink/
 #   spawnMonitor with Mod's state constructor applied to a.
@@ -271,22 +284,40 @@
 #     * reply: when every `{:reply, r, _}`, `{:reply, r, _, _}`,
 #       `{:stop, _, r, _}` and `GenServer.reply(_, r)` in the file is a
 #       literal atom or tagged tuple, the alternatives become the tagged
-#       union `Reply` as a declared @type reply would; otherwise the reply
-#       type is `term()`, and a reply expression that does have a type in
-#       the model is then an error naming `@type reply` (the opaque
-#       constructor cannot carry it). A tag that appears at two arities
-#       (`:ok` and `{:ok, ref}`) names its tuple form with the arity
-#       appended (`ok` and `ok1`).
+#       union `Reply` as a declared @type reply would. A tag that appears at
+#       two arities (`:ok` and `{:ok, ref}`) names its tuple form with the
+#       arity appended (`ok` and `ok1`). When NO reply is a literal there is
+#       no union to infer, but the expressions may still have one type
+#       between them: the file is rendered once with the replies left out,
+#       the type each reply expression has in its own clause is collected,
+#       and if there is exactly one the whole file is compiled again with it
+#       as `@type reply` -- so a list-valued or struct-valued reply carries
+#       its real type (`Msg.reply (a0 : List Term)`), and every decision
+#       downstream is still made from a declared type. A mixed file (a
+#       literal atom beside a typed expression, or two reply expressions of
+#       different types) keeps `term()`, and a reply expression that does
+#       have a type in the model is then an error naming `@type reply`: the
+#       opaque constructor cannot carry it, and there is no one type to
+#       promote. (Unifying the mixed case would need a `Reply` inductive
+#       with a constructor per shape, wrapped at every reply site and
+#       unwrapped at every `reply v` await-resume pattern; nothing in the
+#       measured projects needs it yet.)
 #     * state: the literal of `init/1`. `%{k: e, ..}` (atom keys) is a
 #       record type (see below), `%{}` a map, an integer `integer()`, a
 #       boolean `boolean()`, a binary `binary()`, `nil` `term() | nil`, a
 #       list `[term()]`, a tuple positional, `%Mod{..}` that struct;
 #       anything else `term()`. With no init/1 either, the
 #       shape comes from the state patterns of the callbacks, which must
-#       agree: a map pattern anywhere makes it a record whose fields are the
-#       keys the patterns match and the keys the bodies update or return,
+#       agree: a map pattern anywhere -- or a body that updates or returns
+#       named keys, as a LiveView's `assign` does -- makes it a record whose
+#       fields are the keys the patterns match and the keys the bodies write,
 #       tuple patterns of one size make it positional, and patterns that only
-#       bind the state whole leave it `term()`.
+#       bind the state whole with nothing written by name leave it `term()`.
+#       Such a field's type is the shape of the values the bodies write to
+#       it, read by the same rules as an init/1 literal (a list append or a
+#       list literal is `[term()]`, an integer `integer()`, and so on); a
+#       field nothing pins, or one written at two different shapes, stays
+#       `term()`.
 #   Every inferred field type is `term()`, which renders as the opaque
 #   `Term` of Leanactors/Term.lean (a structure over Nat with DecidableEq
 #   and Repr, imported when it occurs); `any()` and `reference()` render
@@ -294,6 +325,23 @@
 #   fields exactly as before, so the annotated sources translate byte for
 #   byte. An atom literal at a `Term` position is an error: give the field
 #   a @type so it becomes an enum.
+#
+# LiveView assigns. A socket is a struct with an `assigns` map and Phoenix
+#   imports `assign/2,3`, which updates it functionally, so a socket is
+#   modelled as exactly the record the state machinery already has:
+#   `assign(s, :k, e)` is the map update `%{s | k: e}`, `assign(s, k: e, ..)`
+#   and `assign(s, %{k: e, ..})` the multi-field one, and `s.assigns.k` the
+#   field read `s.k`. The rewrite happens before anything else looks at the
+#   body, needs a variable socket and literal atom keys (a computed key is
+#   left alone and reported as the unsupported call it is), and is skipped
+#   entirely for a module that defines `assign` itself. Nothing else about
+#   LiveView is modelled: `mount/3` and `render/1` are not callbacks, so the
+#   initial state comes from the spawn site as it does for a GenServer with
+#   no init/1, and `handle_event/3` is a browser event rather than a message,
+#   so it is not a clause of `beh` -- but because that IS a transition the
+#   real process makes, the generated file names it in its own header
+#   comment. The assigns no callback reads or writes are not in the model,
+#   which is the abstraction a record state makes of any map.
 #
 # Record-shaped state. A state type `%{k: T, ..}` with atom keys becomes
 #   one St constructor with NAMED fields, one per key, in declaration
@@ -598,13 +646,26 @@ defmodule ToLean do
               covered: [], inits: %{}, mods: [], kinds: %{}, loops: %{}, defers: [], afters: %{},
               pubsub: [[:Phoenix, :PubSub], [:PubSub]], attrs: %{}, init_subs: %{},
               structs: %{}, struct_states: %{}, struct_order: [],
-              records: %{}, ets: [], ignored: [],
+              records: %{}, ets: [], ignored: [], events: [],
               locals: %{}, local_specs: %{}, local_decls: ""
   end
 
   # ---------- entry ----------
 
   def main([src, ns | rest]) do
+    {out, warnings} = compile(src, ns, rest, nil)
+    IO.puts(out)
+    Enum.each(warnings, &IO.puts(:stderr, "warning: " <> &1))
+  end
+
+  def main(_), do: IO.puts(:stderr, "usage: to_lean.exs SRC.ex NAMESPACE [--pid Mod=const] [--pubsub Mod]")
+
+  # The whole translation. `reply` is the Lean type the file's replies were
+  # probed to have (see `reply_probe`), or nil on the first pass.
+  defp compile(src, ns, rest, reply) do
+    # a second pass starts from a clean slate: the notes below are collected
+    # while the source is walked, and would otherwise be reported twice
+    Process.delete(:to_lean_reg_notes)
     pids =
       rest
       |> Enum.chunk_every(2)
@@ -625,7 +686,7 @@ defmodule ToLean do
     {:ok, ast} = src |> File.read!() |> Code.string_to_quoted(columns: false)
     # a module `Loom.Teams.TableRegistry` is known by its last segment
     mods = for {:defmodule, _, [{:__aliases__, _, segs}, [do: body]]} <- top(ast),
-               do: {List.last(segs), strip_resource_noops(List.last(segs), desugar(subst_attrs(stmts(body))))}
+               do: {List.last(segs), strip_resource_noops(List.last(segs), rewrite_assigns(desugar(subst_attrs(stmts(body)))))}
     # registered names: the --pid flags if any are given, else derived from
     # the source (name: __MODULE__ in start_link/start, Process.register/2)
     pids = if map_size(pids) == 0, do: register_names(mods), else: pids
@@ -652,12 +713,15 @@ defmodule ToLean do
     # untyped mode: message unions, the reply and the state a module does
     # not declare are inferred from its clauses, replies, sends and init/1;
     # a declaration always wins over an inferred one
-    ctx = %{ctx | types: Map.merge(infer_types(ctx, mods), ctx.types)}
+    ctx = %{ctx | types: Map.merge(infer_types(ctx, mods, reply), ctx.types)}
     ctx = Enum.reduce(mods, ctx, fn {name, body}, c -> collect_types(c, name, body) end)
     # modules that create ETS tables carry a hidden counter field `ets`
     ctx = %{ctx | ets: for({name, body} <- mods, ets_new?(body), do: name),
                   ignored: for({name, body} <- mods, f <- ignored_defs(body),
-                                not Map.has_key?(locals, "#{name}.#{f}"), do: "#{name}.#{f}")}
+                                not String.starts_with?(f, "handle_event/"),
+                                not Map.has_key?(locals, "#{name}.#{f}"), do: "#{name}.#{f}"),
+                  events: for({name, body} <- mods, f <- ignored_defs(body),
+                              String.starts_with?(f, "handle_event/"), do: "#{name}.#{f}")}
     # the tagged unions and structs by Lean name, for the expression and
     # pattern renderers (which do not carry the context)
     Process.put(:to_lean_unions, tagged_unions(ctx))
@@ -709,12 +773,48 @@ defmodule ToLean do
     # they are called at, so this runs once everything else is known
     ctx = local_sigs(ctx, clauses)
     ctx = %{ctx | local_decls: render_locals(ctx)}
-    {out, ctx} = render(ctx, clauses)
-    IO.puts(out)
-    Enum.each(ctx.warnings, &IO.puts(:stderr, "warning: " <> &1))
+    # untyped mode: a file whose replies are not literals has no reply union
+    # to infer, but the expressions may still have one type between them.
+    # Probe for it and, if there is one, compile the file again with it.
+    case reply_probe(ctx, clauses, reply) do
+      nil ->
+        {out, ctx} = render(ctx, clauses)
+        {out, ctx.warnings}
+
+      t ->
+        compile(src, ns, rest, t)
+    end
   end
 
-  def main(_), do: IO.puts(:stderr, "usage: to_lean.exs SRC.ex NAMESPACE [--pid Mod=const] [--pubsub Mod]")
+  # The Lean type of the file's replies, or nil. Untyped mode leaves the
+  # reply type opaque (`term()`) when the replies are not all literal atoms
+  # and tagged tuples, and a reply whose value does have a type in the model
+  # -- a list, a struct, a number -- then has nowhere to go. So when every
+  # reply is a non-literal expression, render the clauses once with the reply
+  # itself left out (`:to_lean_reply_probe`), collect the types those
+  # expressions have in their own clause environments, and report the type
+  # when there is exactly one. The caller compiles the file again with it, so
+  # every decision downstream is still made from a declared type -- as if the
+  # source carried `@type reply :: that`.
+  defp reply_probe(_ctx, _clauses, prev) when prev != nil, do: nil
+
+  defp reply_probe(ctx, clauses, _prev) do
+    if Process.get(:to_lean_reply_candidate, false) do
+      Process.put(:to_lean_reply_types, [])
+      Process.put(:to_lean_reply_probe, true)
+
+      try do
+        render(ctx, clauses)
+      after
+        Process.delete(:to_lean_reply_probe)
+      end
+
+      case Process.get(:to_lean_reply_types, []) |> Enum.reject(&is_nil/1) |> Enum.uniq() do
+        [t] when t != "Term" -> t
+        _ -> nil
+      end
+    end
+  end
 
   # every module spawned by `GenServer.start_link/start(Mod, _)` in the file
   defp spawned_modules(ast) do
@@ -847,7 +947,7 @@ defmodule ToLean do
   # map with atom keys is a record `%{k: T, ..}`, `%{}` a map `%{term() =>
   # term()}`, integers `integer()`, booleans `boolean()`, `nil` `term() |
   # nil`, lists `[term()]`, tuples positionally, anything else `term()`.
-  defp infer_types(ctx, mods) do
+  defp infer_types(ctx, mods, reply) do
     declared = fn _mod, body, name ->
       Enum.any?(body, fn
         {:@, _, [{:type, _, [{:"::", _, [{^name, _, _}, _]}]}]} -> true
@@ -867,11 +967,17 @@ defmodule ToLean do
       else
         rs = for {_, body} <- mods, r <- replies_of(body), do: r
         with_calls = for {mod, body} <- mods, replies_of(body) != [], do: mod
+        # a second pass compiles the file with the type the replies were
+        # probed to have; on the first pass, record whether probing could help
+        Process.put(:to_lean_reply_candidate,
+          reply == nil and rs != [] and not Enum.any?(rs, &reply_literal?/1))
         cond do
           rs == [] -> %{}
           Enum.all?(rs, &reply_literal?/1) ->
             alts = rs |> Enum.map(&reply_alt/1) |> Enum.uniq_by(&{tag_of(&1), tuple_arity(&1)})
             for mod <- with_calls, into: %{}, do: {{mod, :reply}, union_ast(alts)}
+          reply != nil ->
+            for mod <- with_calls, into: %{}, do: {{mod, :reply}, {:__lean__, [], [reply]}}
           true ->
             for mod <- with_calls, into: %{}, do: {{mod, :reply}, {:term, [], []}}
         end
@@ -906,10 +1012,13 @@ defmodule ToLean do
         pats = Enum.map(cls, & &1.spat)
         keys = Enum.uniq(Enum.flat_map(pats, &state_pat_keys/1) ++ Enum.flat_map(cls, &state_keys_in(&1.body)))
         sizes = pats |> Enum.map(&state_pat_size/1) |> Enum.uniq()
+        record = fn -> {:%{}, [], for(k <- keys, do: {k, state_key_type(cls, k)})} end
         cond do
-          Enum.any?(pats, &(state_pat_keys(&1) != [])) ->
+          # a map pattern anywhere, or -- a LiveView whose callbacks bind the
+          # socket whole and update named assigns -- keys only from the bodies
+          Enum.any?(pats, &(state_pat_keys(&1) != [])) or (keys != [] and sizes == [:var]) ->
             if keys != [] and Enum.all?(sizes, &(&1 in [:var, :map])),
-              do: {:%{}, [], for(k <- keys, do: {k, {:term, [], []}})},
+              do: record.(),
               else: nil
           sizes == [:var] -> {:term, [], []}
           true ->
@@ -919,6 +1028,55 @@ defmodule ToLean do
             end
         end
     end
+  end
+
+  # The type of an inferred record field: the shape of the values the bodies
+  # write to it (`%{s | k: e}`, or a record literal returned as the state),
+  # read by the same `infer_type` an init/1 literal goes through. Fields
+  # nothing pins stay opaque, and so do fields written at two different
+  # shapes -- there is no way to choose between them here, and `term()` is
+  # the abstraction that is always sound.
+  defp state_key_type(cls, k) do
+    case cls
+         |> Enum.flat_map(fn cl -> for v <- state_key_values(cl.body, k), do: infer_type_in(cl, v) end)
+         |> Enum.reject(&(&1 == {:term, [], []}))
+         |> Enum.uniq() do
+      [t] -> t
+      _ -> {:term, [], []}
+    end
+  end
+
+  # A value written to a state field, typed in the clause that writes it: a
+  # bare variable the clause's message pattern bound carries that payload's
+  # type (so a nil-tested payload makes the field an Option too), and
+  # anything else is read by the shape rules `infer_type` applies to an
+  # init/1 literal.
+  defp infer_type_in(cl, {v, _, nil} = e) when is_atom(v) do
+    if bare?(cl.mpat) do
+      infer_type(e)
+    else
+      {_, args} = msg_shape(cl.mpat)
+
+      case Enum.find(Enum.zip(args, payload_types(cl, args)), &match?({{^v, _, nil}, _}, &1)) do
+        {_, t} -> t
+        nil -> infer_type(e)
+      end
+    end
+  end
+
+  defp infer_type_in(_cl, e), do: infer_type(e)
+
+  defp state_key_values(body, k) do
+    {_, vs} =
+      Macro.prewalk(body, [], fn
+        {:%{}, _, [{:|, _, [_, kvs]}]} = n, acc when is_list(kvs) ->
+          {n, acc ++ for({^k, v} <- kvs, do: v)}
+        {:%{}, _, kvs} = n, acc when is_list(kvs) ->
+          {n, acc ++ for({^k, v} <- kvs, do: v)}
+        n, acc -> {n, acc}
+      end)
+
+    vs
   end
 
   # the atom keys a state pattern matches (`%{f: p, ..}`, optionally `= s`)
@@ -961,12 +1119,15 @@ defmodule ToLean do
       for cl <- cls, not bare?(cl.mpat), cl[:after] == nil, {tag, args} = msg_shape(cl.mpat), reduce: %{} do
         acc ->
           name = if(loop_of(body) != nil, do: :msg, else: %{handle_cast: :cast, handle_info: :info, handle_call: :call}[cl.kind])
+          ts = payload_types(cl, args)
           case Enum.find(Map.get(acc, name, []), &(tag_of(&1) == tag)) do
-            nil -> Map.update(acc, name, [msg_alt(tag, length(args))], &(&1 ++ [msg_alt(tag, length(args))]))
+            nil -> Map.update(acc, name, [msg_alt(tag, ts)], &(&1 ++ [msg_alt(tag, ts)]))
             alt ->
               tuple_arity(alt) == length(args) ||
                 fail("#{mod}: message tag #{tag} is matched with #{tuple_arity(alt)} and #{length(args)} arguments; declare its shape with a @type")
-              acc
+              Map.update!(acc, name, fn alts ->
+                for a <- alts, do: if(tag_of(a) == tag, do: msg_alt(tag, merge_payload(payload_types_of(a), ts)), else: a)
+              end)
           end
       end
     handled = for {_, alts} <- by_kind, alt <- alts, do: tag_of(alt)
@@ -976,8 +1137,50 @@ defmodule ToLean do
     Map.to_list(Map.update(by_kind, :msg, sent, &(&1 ++ sent)))
   end
 
+  defp msg_alt(tag, []), do: tag
+  defp msg_alt(tag, ts) when is_list(ts), do: {:{}, [], [tag | ts]}
   defp msg_alt(tag, 0), do: tag
-  defp msg_alt(tag, n), do: {:{}, [], [tag | List.duplicate({:term, [], []}, n)]}
+  defp msg_alt(tag, n) when is_integer(n), do: {:{}, [], [tag | List.duplicate({:term, [], []}, n)]}
+
+  # The types of an inferred message's payloads. Every payload is the opaque
+  # `term()` except one the clause body compares with nil (`x == nil`,
+  # `x != nil`, `is_nil(x)`): the model has nil only at an Option type, so
+  # such a payload is `term() | nil`. This is the one thing an untyped module
+  # says about a payload -- a nil comparison is only written about a value
+  # that may be absent -- and it has to be said here, because the same test
+  # on an opaque `Term` is refused (`check_nil_cmp/4`) rather than rendered.
+  defp payload_types(cl, args) do
+    for a <- args do
+      case a do
+        {v, _, nil} when is_atom(v) ->
+          if nil_tested?(cl.body, v), do: {:|, [], [{:term, [], []}, nil]}, else: {:term, [], []}
+
+        _ ->
+          {:term, [], []}
+      end
+    end
+  end
+
+  defp payload_types_of(a) when is_atom(a), do: []
+  defp payload_types_of({_, b}), do: [b]
+  defp payload_types_of({:{}, _, [_ | rest]}), do: rest
+
+  # two clauses matching the same tag: a payload either clause nil-tests is
+  # nullable for the whole constructor
+  defp merge_payload(ts, us),
+    do: for({t, u} <- Enum.zip(ts, us), do: if(t == {:term, [], []}, do: u, else: t))
+
+  defp nil_tested?(body, v) do
+    {_, found} =
+      Macro.prewalk(body, false, fn
+        {op, _, [{^v, _, nil}, nil]} = n, _ when op in [:==, :!=, :===, :!==] -> {n, true}
+        {op, _, [nil, {^v, _, nil}]} = n, _ when op in [:==, :!=, :===, :!==] -> {n, true}
+        {:is_nil, _, [{^v, _, nil}]} = n, _ -> {n, true}
+        n, acc -> {n, acc}
+      end)
+
+    found
+  end
 
   defp union_ast([a]), do: a
   defp union_ast([a | rest]), do: {:|, [], [a, union_ast(rest)]}
@@ -1033,11 +1236,33 @@ defmodule ToLean do
   defp infer_type(b) when is_boolean(b), do: {:boolean, [], []}
   defp infer_type(nil), do: {:|, [], [{:term, [], []}, nil]}
   defp infer_type(l) when is_list(l), do: [{:term, [], []}]
+  # `l ++ [x]`: whichever side is a list says what the value is
+  defp infer_type({:++, _, [a, b]}) do
+    case {infer_type(a), infer_type(b)} do
+      {[t], _} -> [t]
+      {_, [t]} -> [t]
+      _ -> {:term, [], []}
+    end
+  end
   defp infer_type({:{}, _, xs}), do: {:{}, [], Enum.map(xs, &infer_type/1)}
   defp infer_type({a, b}), do: {:{}, [], [infer_type(a), infer_type(b)]}
   # a struct literal is that struct's type, whatever fields the literal sets
   # (the field types come from `defstruct` and `@type t`, not from here)
   defp infer_type({:%, _, [m, {:%{}, _, _}]}), do: {:%, [], [m, {:%{}, [], []}]}
+  # a comparison, a boolean connective and a Kernel type test are booleans:
+  # the shape of what a body writes to a state field is how that field's type
+  # is read, and `true`/`false` is a value the model has
+  defp infer_type({op, _, [_, _]})
+       when op in [:==, :!=, :===, :!==, :<, :>, :<=, :>=, :and, :or, :&&, :||, :in],
+       do: {:boolean, [], []}
+
+  defp infer_type({op, _, [_]}) when op in [:not, :!], do: {:boolean, [], []}
+
+  defp infer_type({f, _, [_]})
+       when f in [:is_nil, :is_pid, :is_list, :is_map, :is_integer, :is_atom, :is_boolean,
+                  :is_number, :is_float, :is_tuple, :is_binary],
+       do: {:boolean, [], []}
+
   defp infer_type(_), do: {:term, [], []}
 
   # ---------- external resources ----------
@@ -1836,6 +2061,100 @@ defmodule ToLean do
   #
   # Chains fold left to right: `Macro.prewalk` rewrites the outermost pipe
   # first and then descends into the result.
+  # ---------- LiveView assigns ----------
+
+  # A LiveView socket is a struct with an `assigns` map, and Phoenix's
+  # imported `assign/2,3` is a functional update of it: `assign(s, :k, v)` is
+  # `put_in(s.assigns[:k], v)` and `s.assigns.k` is the fetch. Nothing else
+  # about LiveView is modelled -- not the lifecycle, not the rendering, not
+  # the diff -- so a socket here is exactly the record the state machinery
+  # already has: `assign(s, :k, v)` is rewritten to the map update
+  # `%{s | k: v}` and `s.assigns.k` to the field read `s.k`, and the state of
+  # such a module is inferred as a record over the keys its callbacks touch,
+  # the way a map-patterned state already is. The assigns a callback never
+  # reads or writes are not in the model, which is the same abstraction the
+  # record state makes of any map.
+  #
+  # The rewrite is skipped for a module that defines `assign` itself (then it
+  # is that module's function, not Phoenix's), and it only fires for a
+  # literal atom key on a variable socket: anything else stays as it was and
+  # is reported as the unsupported call it is.
+  defp rewrite_assigns(body) do
+    if defines?(body, :assign), do: body, else: Macro.prewalk(body, &assign_node/1)
+  end
+
+  # `s.assigns.k` -> `s.k`
+  defp assign_node({{:., m, [{{:., _, [{v, _, nil} = s, :assigns]}, _, []}, k]}, _, []})
+       when is_atom(v) and is_atom(k),
+       do: {{:., m, [s, k]}, [no_parens: true] ++ m, []}
+
+  # `assign(s, :k, e)`, `assign(s, k: e, ..)`, `assign(s, %{k: e, ..})`, and
+  # any chain of those on one socket variable -> the single map update
+  # `%{s | k: e, ..}`.
+  defp assign_node({:assign, m, args} = n) when is_list(args) do
+    case assign_chain(n) do
+      {:ok, s, kvs} -> {:%{}, m, [{:|, m, [s, kvs]}]}
+      :no -> n
+    end
+  end
+
+  defp assign_node(n), do: n
+
+  # The socket argument of an `assign` may itself be an `assign`: the LiveView
+  # pipeline `socket |> assign(:a, x) |> assign(:b, y)` desugars to
+  # `assign(assign(socket, :a, x), :b, y)`. The model's map update needs the
+  # socket VARIABLE at its head -- a record state has no whole value to nest
+  # one update inside another on -- so a chain is unfolded down to that
+  # variable and folded into one update, which is what Elixir's `%{s | ..}`
+  # already means: every value is evaluated against the original `s`, exactly
+  # as each `assign` in the chain evaluates its value against the socket the
+  # source named -- the intermediate socket of a chain is anonymous, so no
+  # value in it can name anything but the original variable, and `%{s | ..}`
+  # reads every field off that same original. The one case that is refused
+  # (the call is then left alone and reported as the unsupported one it is)
+  # is the same key written twice in one chain: the update has no second slot
+  # for it, and dropping the first write would drop its sub-expressions with
+  # it, so a construct inside them would go unreported.
+  defp assign_chain({v, _, nil} = s) when is_atom(v), do: {:ok, s, []}
+
+  defp assign_chain({:%{}, _, [{:|, _, [{v, _, nil} = s, kvs]}]}) when is_atom(v) and is_list(kvs),
+    do: if(assign_keys?(kvs), do: {:ok, s, kvs}, else: :no)
+
+  defp assign_chain({:assign, _, [inner, k, e]}) when is_atom(k) and k not in [nil, true, false],
+    do: assign_push(inner, [{k, e}])
+
+  defp assign_chain({:assign, _, [inner, kvs]}) when is_list(kvs),
+    do: if(assign_keys?(kvs), do: assign_push(inner, kvs), else: :no)
+
+  defp assign_chain({:assign, _, [inner, {:%{}, _, kvs}]}) when is_list(kvs),
+    do: if(assign_keys?(kvs), do: assign_push(inner, kvs), else: :no)
+
+  defp assign_chain(_), do: :no
+
+  defp assign_push(inner, kvs) do
+    with {:ok, s, done} <- assign_chain(inner),
+         false <- Enum.any?(Keyword.keys(kvs), &(&1 in Keyword.keys(done))) do
+      {:ok, s, done ++ kvs}
+    else
+      _ -> :no
+    end
+  end
+
+  defp assign_keys?(kvs),
+    do: Keyword.keyword?(kvs) and kvs != [] and Enum.all?(kvs, fn {k, _} -> atom_key?(k) end)
+
+  # does this module body define a function of that name (any arity)?
+  defp defines?(body, name) do
+    {_, found} =
+      Macro.prewalk({:__block__, [], body}, false, fn
+        {d, _, [{^name, _, args} | _]} = n, _ when d in [:def, :defp] and is_list(args) -> {n, true}
+        {d, _, [{:when, _, [{^name, _, args} | _]} | _]} = n, _ when d in [:def, :defp] and is_list(args) -> {n, true}
+        n, acc -> {n, acc}
+      end)
+
+    found
+  end
+
   defp desugar(ast) do
     Macro.prewalk(ast, fn
       {:|>, _, [l, r]} -> pipe_into(l, r)
@@ -2046,6 +2365,9 @@ defmodule ToLean do
   end
 
   # Elixir type AST -> Lean type (string)
+  # a Lean type the translator computed itself, not one the source wrote:
+  # the probed reply type of untyped mode (see `reply_probe`)
+  defp lean_type(_ctx, _mod, {:__lean__, _, [t]}) when is_binary(t), do: t
   defp lean_type(_ctx, _mod, {:pid, _, []}), do: "Pid"
   defp lean_type(_ctx, _mod, {{:., _, [{:__aliases__, _, [:GenServer]}, :from]}, _, []}), do: "Pid"
   defp lean_type(_ctx, _mod, {:integer, _, []}), do: "Int"
@@ -2314,18 +2636,51 @@ defmodule ToLean do
   # {loop name, state parameter, receive arms, after body | nil} of a raw
   # process module, or nil
   defp loop_of(body) do
-    loops = for {:def, _, [head, [do: {:receive, _, [opts]}]]} <- body, do: {head_parts(head), opts}
+    loops = for {d, _, [head, [do: {:receive, _, [opts]}]]} <- body, d in [:def, :defp], do: {head_parts(head), opts}
     handlers =
       for {:def, _, [head, _]} <- body, {f, _, _} = head_parts(head), f in [:handle_cast, :handle_info, :handle_call, :handle_continue], do: f
     case loops do
       [] -> nil
       [_ | _] when handlers != [] -> fail("a module cannot mix GenServer callbacks with a receive loop")
-      [{{fname, [param], nil}, [do: arms]}] -> {fname, param, arms, nil}
-      [{{fname, [param], nil}, [do: arms, after: [{:->, _, [[_t], ab]}]]}] -> {fname, param, arms, ab}
+      [{{fname, [param], nil}, [do: arms]}] -> check_loop_calls(fname, body); {fname, param, arms, nil}
+      [{{fname, [param], nil}, [do: arms, after: [{:->, _, [[_t], ab]}]]}] -> check_loop_calls(fname, body); {fname, param, arms, ab}
       [{{fname, _, _}, _}] -> fail("receive loop #{fname} must take one argument and have no guard; `after` takes one clause")
       _ -> fail("more than one receive loop in a module")
     end
   end
+
+  # A receive loop models the WHOLE life of a process: its tail decides what
+  # the process does next (`loop(e)` continues, anything else exits normally).
+  # That reading is only faithful when every call to the loop is in tail
+  # position -- `v = loop(e)` in the middle of a function is a blocking
+  # receive whose value the caller goes on to use, and the model has no way
+  # to express one (the only blocking form it has is `GenServer.call`, which
+  # splits the clause into an await state). So a non-tail call is an error,
+  # not a loop.
+  defp check_loop_calls(fname, body) do
+    bodies = for {d, _, [_, [do: b]]} <- body, d in [:def, :defp], do: b
+    tails = Enum.flat_map(bodies, &tail_exprs/1)
+    call? = fn {f, _, args} when is_list(args) -> f == fname and length(args) == 1; _ -> false end
+    {_, n} = Macro.prewalk(bodies, 0, fn node, acc -> {node, if(call?.(node), do: acc + 1, else: acc)} end)
+    if n > Enum.count(tails, call?) do
+      fail("receive loop #{fname} is called outside tail position: a receive in the middle of a " <>
+             "computation is a blocking receive, which the model cannot express")
+    end
+    :ok
+  end
+
+  # the expressions a body can end in (through blocks, if/case/cond branches
+  # and the arms of a receive); anything else is a leaf
+  defp tail_exprs({:__block__, _, xs}), do: (case List.last(xs) do nil -> []; last -> tail_exprs(last) end)
+  defp tail_exprs({:if, _, [_, kw]}) when is_list(kw),
+    do: Enum.flat_map([kw[:do], kw[:else]], fn nil -> []; b -> tail_exprs(b) end)
+  defp tail_exprs({:case, _, [_, [do: arms]]}) when is_list(arms), do: arm_tails(arms)
+  defp tail_exprs({:cond, _, [[do: arms]]}) when is_list(arms), do: arm_tails(arms)
+  defp tail_exprs({:receive, _, [opts]}) when is_list(opts),
+    do: arm_tails((opts[:do] || []) ++ (opts[:after] || []))
+  defp tail_exprs(e), do: [e]
+
+  defp arm_tails(arms), do: Enum.flat_map(arms, fn {:->, _, [_, b]} -> tail_exprs(b); _ -> [] end)
 
   # Rewrite the tail of a receive-clause body: `loop(e)` continues with state
   # e (re-arming the after-timer if the loop has one), `exit(r)`, `raise`
@@ -2696,6 +3051,18 @@ defmodule ToLean do
         do: "",
         else: "-- Not translated (public API, not a callback): " <> Enum.join(ctx.ignored, ", ") <> "\n"
 
+    # A LiveView's `handle_event` is not a message the mailbox carries, so it
+    # is not a clause of `beh` -- but unlike a public API wrapper it IS a
+    # transition the running process makes, driven by the browser channel.
+    # Say so in the file: a property proved of this model is a property of
+    # the module's message handling only.
+    events_note =
+      if ctx.events == [],
+        do: "",
+        else: "-- Not translated (a LiveView browser event is not a message, but it IS a " <>
+              "transition of the real process, which this model does not carry): " <>
+              Enum.join(ctx.events, ", ") <> "\n"
+
     # The per-file `Atom` and `Module` inductives are built from what the
     # rendering used, so they can only be emitted now, and the helper files
     # the rendering reached for are found the same way (a String, a SetList
@@ -2711,7 +3078,7 @@ defmodule ToLean do
 
     """
     -- GENERATED by elixir/to_lean.exs. Do not edit.
-    #{ignored_note}import Leanactors.Sys
+    #{ignored_note}#{events_note}import Leanactors.Sys
     #{maps_import}#{term_import}#{str_import}#{set_import}#{time_import}
     namespace #{ctx.ns}
 
@@ -2845,7 +3212,9 @@ defmodule ToLean do
   # variable renders as `(some w)` and leaves the `none` case to a later
   # clause): a tag is covered when the rows of its clauses, plus the rows of
   # any bare-message clause widened to the tag's arity, are exhaustive over
-  # the state fields and message arguments. `:all` when the bare-message
+  # the state fields and message arguments. The sentinel `:__every__` (a
+  # name no Elixir atom tag can be, unlike the `:all` this once used, which
+  # a module with a `:all` message collided with) says the bare-message
   # clauses alone cover every state.
   defp covered_tags(ctx, mod, entries) do
     {_, fields} = List.keyfind(ctx.st_ctors, ctor_name(mod), 0)
@@ -2857,7 +3226,7 @@ defmodule ToLean do
           rows = for({^tag, row} <- tagged, do: row) ++ for(sp <- bare, do: sp ++ List.duplicate("_", length(ts))),
           rows != [] and exhaustive?(ctx, rows, ftypes ++ ts),
           do: tag
-    if bare != [] and exhaustive?(ctx, bare, ftypes), do: [:all | tags], else: tags
+    if bare != [] and exhaustive?(ctx, bare, ftypes), do: [:__every__ | tags], else: tags
   end
 
   # Usefulness check: do the rows (lists of Lean pattern parts, one per
@@ -2970,7 +3339,7 @@ defmodule ToLean do
       {ci, info} = Enum.split_with(chunk, fn {cl, _, _} -> cl.kind != :handle_info end)
       covered = covered_tags(c, mod, ci)
       needed =
-        if :all in covered do
+        if :__every__ in covered do
           []
         else
           for {tag, _} <- c.msg_ctors,
@@ -2979,17 +3348,42 @@ defmodule ToLean do
               do: tag
         end
       crash = Enum.map(needed, &crash_clause(c, mod, &1))
+      info = live_info(c, mod, ci, needed, info)
+      chunk = ci ++ info
       # Every tag is covered (or gets a crash clause): the module's arms are
       # exhaustive, so a trailing defer clause or the global catch-all would
       # be a redundant alternative, which Lean rejects.
       total = covered_tags(c, mod, chunk)
-      exhaustive = :all in total or Enum.all?(c.msg_ctors, fn {tag, _} -> tag in total or tag in needed end)
+      exhaustive = :__every__ in total or Enum.all?(c.msg_ctors, fn {tag, _} -> tag in total or tag in needed end)
       c = if exhaustive, do: %{c | covered: [ctor_name(mod) | c.covered]}, else: c
       defer = if mod in c.defers and not exhaustive, do: [defer_clause(c, mod)], else: []
       strs = fn xs -> Enum.map(xs, &elem(&1, 2)) end
       {strs.(ci) ++ crash ++ strs.(info) ++ defer, c}
     end)
     |> then(fn {groups, c} -> {List.flatten(groups), c} end)
+  end
+
+  # The handle_info clauses that can still be reached. A source catch-all
+  # `def handle_info(_msg, state), do: {:noreply, state}` is dead when the
+  # clauses before it -- the module's own, plus the crash clauses inserted
+  # for the cast/call tags they miss -- already match every Msg constructor:
+  # on the BEAM nothing would reach it, and Lean rejects the alternative as
+  # redundant. Dropping it changes no behaviour, and it is the shape a
+  # LiveView writes (one real `handle_info` and a catch-all for the rest).
+  defp live_info(ctx, mod, ci, needed, info) do
+    {kept, _} =
+      Enum.flat_map_reduce(info, ci, fn {cl, _, _} = row, prev ->
+        cov = covered_tags(ctx, mod, prev)
+
+        dead? =
+          cl.guard == nil and bare?(cl.mpat) and spat_bare?(mod, cl.spat) and
+            (:__every__ in cov or
+               Enum.all?(ctx.msg_ctors, fn {tag, _} -> tag in cov or tag in needed end))
+
+        {if(dead?, do: [], else: [row]), prev ++ [row]}
+      end)
+
+    kept
   end
 
   # `| _, _, .<mod> s_0 .., .<tag> _ .. => (.<mod> s_0 .., [.exit .error])`:
@@ -4203,18 +4597,25 @@ defmodule ToLean do
   # `.send <caller> (.reply r)`: the reply of a handle_call clause
   defp reply_str(ctx, env, r) do
     from = env[:__from__] || fail("{:reply, ...} outside handle_call")
-    # Untyped mode infers `term()` for a reply that is not a literal. If the
-    # expression does have a type in the model, the opaque reply constructor
-    # cannot carry it, and Lean would reject the generated file: say so here
-    # instead, naming the declaration that fixes it.
-    if ctx.reply_type == "Term" do
-      case type_of(env, r) do
-        nil -> :ok
-        "Term" -> :ok
-        rt -> fail("the reply #{Macro.to_string(r)} has type #{rt}, but the reply type was inferred as the opaque term(); declare @type reply :: ...")
+    # The probe pass (`reply_probe`) only wants the type this expression has
+    # here, in its own clause environment; it renders nothing.
+    if Process.get(:to_lean_reply_probe, false) do
+      Process.put(:to_lean_reply_types, [type_of(env, r) | Process.get(:to_lean_reply_types, [])])
+      send_str(ctx, from, ".reply probe")
+    else
+      # Untyped mode infers `term()` for a reply that is not a literal. If the
+      # expression does have a type in the model, the opaque reply constructor
+      # cannot carry it, and Lean would reject the generated file: say so here
+      # instead, naming the declaration that fixes it.
+      if ctx.reply_type == "Term" do
+        case type_of(env, r) do
+          nil -> :ok
+          "Term" -> :ok
+          rt -> fail("the reply #{Macro.to_string(r)} has type #{rt}, but the reply type was inferred as the opaque term(); declare @type reply :: ...")
+        end
       end
+      send_str(ctx, from, ".reply #{paren_or(expr(env, r, ctx.reply_type))}")
     end
-    send_str(ctx, from, ".reply #{paren_or(expr(env, r, ctx.reply_type))}")
   end
 
   # the current state rebuilt from the clause's state pattern (for exit/1, raise, throw)
@@ -4603,6 +5004,7 @@ defmodule ToLean do
   end
   # `===`/`!==` are `==`/`!=`: the modelled types have no boxed-value identity
   defp expr(env, {op, _, [a, b]}, t) when op in [:*, :===, :!==] do
+    if op != :*, do: check_nil_cmp(env, a, b, op)
     lop = case op do
       :* -> "*"
       :=== -> "="
@@ -4612,6 +5014,7 @@ defmodule ToLean do
     "(#{expr(env, a, at)} #{lop} #{expr(env, b, at)})"
   end
   defp expr(env, {:!, _, [a]}, _t), do: "(¬ #{expr(env, a, nil)})"
+
   defp expr(env, {:-, _, [a]}, t) do
     at = type_of(env, a) || t
     at in [nil, "Int"] || fail("unary `-` at #{at}: only integer()")
@@ -4623,6 +5026,8 @@ defmodule ToLean do
     # arithmetic on one here rather than let Lean fail on a missing instance
     if op in [:+, :-, :<=, :>=, :<, :>] and "Instant" in [type_of(env, a), type_of(env, b)],
       do: fail("`#{op}` in #{Macro.to_string(e)}: the model has no clock, so an Instant has equality and nothing else")
+
+    if op in [:==, :!=], do: check_nil_cmp(env, a, b, op)
     lop = %{+: "+", -: "-", ++: "++", <=: "≤", >=: "≥", <: "<", >: ">", ==: "=", !=: "≠", and: "∧", or: "∨"}[op]
     at = if op in [:++], do: t, else: nil
     "(#{expr(env, a, at)} #{lop} #{expr(env, b, at)})"
@@ -4647,6 +5052,22 @@ defmodule ToLean do
     end
   end
   defp expr(_env, e, _t), do: fail("unsupported expression #{Macro.to_string(e)}")
+
+  # nil is a value of the model only at an Option type. Comparing anything
+  # else with it asks a question about a value that type does not have, so it
+  # is an error here rather than the `none` Lean would refuse to elaborate --
+  # the same rule `is_nil/1` follows in `type_test/3`.
+  defp check_nil_cmp(env, a, b, op) do
+    if (a == nil) != (b == nil) do
+      other = if a == nil, do: b, else: a
+
+      case type_of(env, other) do
+        nil -> :ok
+        "Option " <> _ -> :ok
+        t -> fail("#{Macro.to_string(other)} #{op} nil at #{t}: nil is not a value of that type in the model")
+      end
+    end
+  end
 
   # A Kernel type test, decided from the modelled type of its argument. At an
   # Option type the value is the argument or nil, so the test is `isNone` for

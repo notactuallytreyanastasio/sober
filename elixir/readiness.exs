@@ -47,6 +47,15 @@
 # call and one `with` are two. `--markdown` reports it per module and adds a
 # "Closest to translatable" section -- the ten untranslatable modules that
 # are fewest features away -- which is how the next round is planned.
+# A blocker inside a module-local helper is reported against the helper and
+# not its call sites -- a helper that calls `Runs.get_run!/1` four times is
+# one thing to build, so it stays ONE blocker -- but it carries every family
+# inside it, under the inner construct's name rather than "local helper is
+# not a pure expression". What such a module is usually waiting on is
+# `Metrics.global_metrics/0`, another application module; filing the whole
+# remote surface of a helper under one translator-shaped label made the
+# planning table read as though the translator were one step away from
+# modules that are eight. One blocker may thus count under several families.
 #
 # The regression gate. `--json` prints the per-project numbers (files,
 # candidate modules, translated, blockers, families, and one line per
@@ -120,6 +129,17 @@ defmodule Readiness do
     # (a struct `Mod.t()`, an enum `Mod.level()`); a struct type
     # `%__MODULE__{f: T}` / `%Mod{f: T}` is the module's defstruct
     local_remote_types: "Mod.name() for a module of this file",
+    # Phoenix LiveView: a socket is a struct with an `assigns` map, and the
+    # imported `assign/2,3` is a functional update of it, which the
+    # translator rewrites to the record update `%{socket | k: e}`. Nothing
+    # else about LiveView is modelled (not the lifecycle, not `handle_event`).
+    liveview: [
+      "assign(socket, :key, e)",
+      "assign(socket, key: e, ..)",
+      "assign(socket, %{key: e, ..})",
+      "socket |> assign(..) |> assign(..) (a chain on one socket variable)",
+      "socket.assigns.key"
+    ],
     # statements before the return form (see `sends` in the translator)
     statements: [
       "send(Name | :name | pid_expr, msg)",
@@ -599,6 +619,50 @@ defmodule Readiness do
 
   @kernel_funs MapSet.new(Kernel.__info__(:functions) ++ Kernel.__info__(:macros))
 
+  # `assign(socket, :k, e)`, `assign(socket, k: e, ..)`,
+  # `assign(socket, %{k: e, ..})` and any CHAIN of them on one socket
+  # variable (the LiveView pipeline `socket |> assign(..) |> assign(..)`):
+  # the assigns update the translator folds into the single record update
+  # `%{socket | k: e, ..}`. A computed key, a socket that is not a variable
+  # under the chain, and the same key written twice in one chain are not one
+  # of these and stay blockers -- this mirrors `assign_chain/1` in the
+  # translator.
+  defp live_assign?(e), do: match?({:ok, _, _}, assign_chain(e))
+
+  defp assign_chain({v, _, nil} = s) when is_atom(v), do: {:ok, s, []}
+
+  defp assign_chain({:assign, _, [inner, k, e]}) when is_atom(k) and k not in [nil, true, false],
+    do: assign_push(inner, [{k, e}])
+
+  defp assign_chain({:assign, _, [inner, kvs]}) when is_list(kvs),
+    do: if(assign_keys?(kvs), do: assign_push(inner, kvs), else: :no)
+
+  defp assign_chain({:assign, _, [inner, {:%{}, _, kvs}]}) when is_list(kvs),
+    do: if(assign_keys?(kvs), do: assign_push(inner, kvs), else: :no)
+
+  defp assign_chain(_), do: :no
+
+  defp assign_push(inner, kvs) do
+    with {:ok, s, done} <- assign_chain(inner),
+         false <- Enum.any?(Keyword.keys(kvs), &(&1 in Keyword.keys(done))) do
+      {:ok, s, done ++ kvs}
+    else
+      _ -> :no
+    end
+  end
+
+  # the value expressions of a chain of assigns (what is left to check once
+  # the chain itself is accounted for)
+  defp assign_values(e) do
+    case assign_chain(e) do
+      {:ok, _, kvs} -> for {_, v} <- kvs, do: v
+      :no -> []
+    end
+  end
+
+  defp assign_keys?(kvs),
+    do: Keyword.keyword?(kvs) and kvs != [] and Enum.all?(kvs, fn {k, _} -> k not in [nil, true, false] end)
+
   # label for an unsupported zero-module call
   defp call_kind(mod, f, n) do
     cond do
@@ -806,9 +870,16 @@ defmodule Readiness do
 
     case Enum.filter(fs, &(&1.sev == :blocker)) do
       [] -> Enum.filter(fs, &(&1.sev == :note))
-      [first | _] ->
+      [first | _] = bs ->
+        # ONE blocker for the helper (the helper is the unit of work: four
+        # calls to Runs.get_run!/1 are one thing to build), but it carries
+        # EVERY family inside it, because the distance is the number of
+        # features away and a helper that calls Runs and DateTime and floats
+        # is three of them. The families are the inner constructs', not
+        # "local helper is not a pure expression": that is what it waits on.
         detail = String.trim("#{e.name}/#{e.arity}: #{first.kind} #{first.detail}")
-        [finding(:blocker, e.line, "local helper is not a pure expression", detail)]
+        [Map.put(finding(:blocker, e.line, "local helper is not a pure expression", detail),
+                 :families, bs |> Enum.map(&family(&1.kind)) |> Enum.uniq() |> Enum.sort())]
     end
   end
 
@@ -1179,7 +1250,7 @@ defmodule Readiness do
 
   defp check_defs(mod, body) do
     inits = for {:def, m, [head | rest]} <- body, {f, args, _} = head_parts(head), f == :init, length(args || []) == 1, do: {m, head, rest}
-    loops = for {:def, m, [head, [do: {:receive, _, _}]]} <- body, do: {m, head}
+    loops = for {d, m, [head, [do: {:receive, _, _}]]} <- body, d in [:def, :defp], do: {m, head}
     handlers = for {:def, _, [head | _]} <- body, {f, args, _} = head_parts(head), {f, length(args || [])} in @supported.callbacks, f != :init, do: f
     mixed = loops != [] and handlers != []
     defs =
@@ -1196,18 +1267,45 @@ defmodule Readiness do
               else: check_clause(mod, f, args, guard, blocks[:do], line)
           d == :def and {f, arity} == {:init, 1} -> if length(inits) > 1, do: [finding(:blocker, line, "init/1 with more than one clause")], else: []
           d == :def and {f, arity} in @supported.ignored_callbacks -> [finding(:note, line, "#{f}/#{arity} ignored by the translator")]
-          d == :def and match?([do: {:receive, _, _}], blocks) ->
-            check_loop_def(mod, f, args, guard, blocks[:do], line, length(loops), mixed)
+          match?([do: {:receive, _, _}], blocks) ->
+            [check_loop_def(mod, f, args, guard, blocks[:do], line, length(loops), mixed),
+             if(length(args || []) == 1 and not loop_calls_in_tail?(body, f),
+               do: [finding(:blocker, line, "receive loop called outside tail position", "#{d} #{f}/#{length(args || [])}")],
+               else: [])]
           {f, arity} in [handle_cast: 2, handle_info: 2, handle_call: 3, handle_continue: 2, init: 1] ->
             [finding(:blocker, line, "callback is defp", "#{f}/#{arity}")]
           has_receive?([node]) ->
-            [finding(:blocker, line, "receive not the whole body of a one-argument def", "#{d} #{f}/#{arity}")]
+            [finding(:blocker, line, "receive not the whole body of a function", "#{d} #{f}/#{arity}")]
           true -> []
         end
       end
     init_fs = for {m, head, [blocks]} <- Enum.take(inits, 1), is_list(blocks), do: check_init(mod, head, blocks[:do], ln(m, 1))
     [defs, init_fs]
   end
+
+  # A receive loop models the whole life of a process, so every call to it
+  # must be in tail position: `v = loop(e)` is a blocking receive whose value
+  # the caller uses, which the model cannot express. (The translator makes
+  # the same check; see `check_loop_calls` in elixir/to_lean.exs.)
+  defp loop_calls_in_tail?(body, fname) do
+    bodies = for {d, _, [_, [do: b]]} <- body, d in [:def, :defp], do: b
+    call? = fn {f, _, args} when is_list(args) -> f == fname and length(args) == 1; _ -> false end
+    {_, n} = Macro.prewalk(bodies, 0, fn node, acc -> {node, if(call?.(node), do: acc + 1, else: acc)} end)
+    n <= bodies |> Enum.flat_map(&tail_exprs/1) |> Enum.count(call?)
+  end
+
+  # the expressions a body can end in (through blocks, if/case/cond branches
+  # and the arms of a receive); anything else is a leaf
+  defp tail_exprs({:__block__, _, xs}), do: (case List.last(xs) do nil -> []; last -> tail_exprs(last) end)
+  defp tail_exprs({:if, _, [_, kw]}) when is_list(kw),
+    do: Enum.flat_map([kw[:do], kw[:else]], fn nil -> []; b -> tail_exprs(b) end)
+  defp tail_exprs({:case, _, [_, [do: arms]]}) when is_list(arms), do: arm_tails(arms)
+  defp tail_exprs({:cond, _, [[do: arms]]}) when is_list(arms), do: arm_tails(arms)
+  defp tail_exprs({:receive, _, [opts]}) when is_list(opts),
+    do: arm_tails((opts[:do] || []) ++ (opts[:after] || []))
+  defp tail_exprs(e), do: [e]
+
+  defp arm_tails(arms), do: Enum.flat_map(arms, fn {:->, _, [_, b]} -> tail_exprs(b); _ -> [] end)
 
   # init/1: `def init(p), do: {:ok, e}` with optional Process.flag statements
   defp check_init(mod, head, b, line) do
@@ -1913,6 +2011,10 @@ defmodule Readiness do
           # a helper of this module: translated as its own Lean definition,
           # and reported (once) at that definition, not here
           local_call?(mod, f, n) -> Enum.flat_map(args, &check_expr(mod, &1, l))
+          # Phoenix LiveView's imported `assign/2,3` on a variable socket
+          # with literal atom keys: a functional update of the socket's
+          # assigns, which the translator models as a record field update
+          live_assign?(e) -> Enum.flat_map(assign_values(e), &check_expr(mod, &1, l))
           String.starts_with?(Atom.to_string(f), "sigil_") -> blk.("sigil")
           true -> [finding(:blocker, l, call_kind(mod, f, n), str(e)) | Enum.flat_map(args, &check_expr(mod, &1, l))]
         end
@@ -1939,7 +2041,7 @@ defmodule Readiness do
   # ---------- loops ----------
 
   defp loop_of(body) do
-    loops = for {:def, _, [head, [do: {:receive, _, [opts]}]]} <- body, do: {head_parts(head), opts}
+    loops = for {d, _, [head, [do: {:receive, _, [opts]}]]} <- body, d in [:def, :defp], do: {head_parts(head), opts}
     case loops do
       [{{fname, [param], nil}, opts}] -> {fname, param, opts[:do], opts[:after]}
       _ -> nil
@@ -1956,7 +2058,7 @@ defmodule Readiness do
   # cannot see); distance 1 means one feature away.
   def distance(m), do: length(families(m))
 
-  def families(m), do: m |> blockers() |> Enum.map(&family(&1.kind)) |> Enum.uniq() |> Enum.sort()
+  def families(m), do: m |> blockers() |> Enum.flat_map(&families_of/1) |> Enum.uniq() |> Enum.sort()
 
   # The modules with the fewest families first, already-translatable ones
   # dropped: the planning list for the next round. Each keeps its project.
@@ -2219,6 +2321,22 @@ defmodule Readiness do
     |> Enum.sort_by(fn {k, n} -> {-n, k} end)
   end
 
+  # occurrences of each family, and the modules each occurs in (one blocker
+  # may wait on several families, and is counted under each)
+  defp fam_freq(mods) do
+    mods
+    |> Enum.flat_map(&blockers/1)
+    |> Enum.flat_map(&families_of/1)
+    |> Enum.frequencies()
+    |> Enum.sort_by(fn {k, n} -> {-n, k} end)
+  end
+
+  defp fam_spread(mods) do
+    for m <- mods, k <- m |> blockers() |> Enum.flat_map(&families_of/1) |> Enum.uniq(), reduce: %{} do
+      acc -> Map.update(acc, k, 1, &(&1 + 1))
+    end
+  end
+
   # modules in which a kind occurs
   defp spread(mods), do: spread_by(mods, & &1.kind)
 
@@ -2234,7 +2352,18 @@ defmodule Readiness do
   # what a translator feature would have to cover ("call to Logger").
   @remote_kind ~r{^(?<mod>[A-Z][A-Za-z0-9_.]*|:[a-z][a-z0-9_]*)\.[a-z_][A-Za-z0-9_?!]*/[0-9]+$}
 
-  def family(kind) do
+  # A finding may carry its own families: an impure local helper is reported
+  # under the helper's name, but what it WAITS on is the blockers inside it --
+  # `Metrics.global_metrics/0`, not "a local helper". Filing such a finding
+  # under "local helper is not a pure expression" made the planning table read
+  # as though the translator were one feature away from modules that are
+  # really waiting on whole other application modules, so the finding records
+  # the inner kinds' families instead, all of them.
+  # the families one finding waits on: usually one, but an impure local
+  # helper carries every family inside it
+  def families_of(%{} = f), do: Map.get(f, :families) || [family(f.kind)]
+
+  def family(kind) when is_binary(kind) do
     cond do
       String.starts_with?(kind, "local call ") -> "call to a helper in the same module"
       String.starts_with?(kind, "imported/macro call ") -> "call to an imported function or macro"
@@ -2272,8 +2401,8 @@ defmodule Readiness do
       "#{length(mods)} candidate modules (GenServer or receive loop) in #{Enum.sum(for pr <- projects, do: length(pr.files))} files: #{yes} translatable, #{length(mods) - yes} not",
       if(skipped == [], do: [], else: "#{length(skipped)} other modules skipped (#{skipped |> Enum.frequencies_by(&elem(&1, 1)) |> Enum.map_join(", ", fn {w, n} -> "#{n} #{w}" end)})"),
       "blocking constructs by family (occurrences / modules):",
-      for({k, n} <- freq_by(mods, &family(&1.kind)),
-          do: "  #{String.pad_leading("#{n}", 5)}  #{String.pad_leading("#{spread_by(mods, &family(&1.kind))[k]}", 3)}  #{k}"),
+      for({k, n} <- fam_freq(mods),
+          do: "  #{String.pad_leading("#{n}", 5)}  #{String.pad_leading("#{fam_spread(mods)[k]}", 3)}  #{k}"),
       "blocking constructs by frequency (occurrences / modules):",
       for({k, n} <- freq(mods), do: "  #{String.pad_leading("#{n}", 5)}  #{String.pad_leading("#{spread(mods)[k]}", 3)}  #{k}"),
       "closest to translatable (distinct blocker families / blockers):",
@@ -2352,8 +2481,8 @@ defmodule Readiness do
     skipped = for pr <- projects, f <- pr.files, s <- f.skipped, do: s
     fr = freq(mods)
     sp = spread(mods)
-    fam = freq_by(mods, &family(&1.kind))
-    fsp = spread_by(mods, &family(&1.kind))
+    fam = fam_freq(mods)
+    fsp = fam_spread(mods)
     total_blockers = Enum.sum(Enum.map(fr, &elem(&1, 1)))
     [
       "# Translator readiness of real projects",
@@ -2399,7 +2528,10 @@ defmodule Readiness do
       "## Blocking constructs by family",
       "",
       "The same blockers grouped into the feature each one would need: every call into one module is one family,",
-      "all calls to helpers of the same module are one, and every other kind is its own family. This is the",
+      "all calls to helpers of the same module are one, and every other kind is its own family. A blocker inside a",
+      "module-local helper is one blocker, reported against the helper rather than its call sites, but it counts under",
+      "every family inside it and under the inner construct's name: what such a module is waiting on is",
+      "`Metrics.global_metrics/0`, not \"a local helper\". This is the",
       "planning table -- it says what a translator feature would have to cover, largest first.",
       "",
       "| # | Family | Occurrences | Modules |",
