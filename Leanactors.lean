@@ -43,3 +43,7 @@ import Leanactors.Examples.Ringlog
 import Leanactors.Gen.TableRegistry
 import Leanactors.Examples.TableRegistry
 import Leanactors.Examples.TableRegistryProof
+import Leanactors.Gen.LogStore
+import Leanactors.Examples.LogStore
+import Leanactors.Gen.LogsLive
+import Leanactors.Examples.LogsLive

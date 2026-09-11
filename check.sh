@@ -24,6 +24,11 @@ elixir elixir/to_lean.exs elixir/src/ringlog.ex Leanactors.Gen.Ringlog > $OUT/Ge
 # `GenServer.start_link(__MODULE__, opts, name: __MODULE__)`, so the Lean
 # constant is `table_registry`)
 elixir elixir/to_lean.exs elixir/real/table_registry.ex Leanactors.Gen.TableRegistry > $OUT/Gen.TableRegistry.lean
+# untyped mode again: a ring buffer whose reply is a list (the reply type is
+# probed from the clause bodies, not declared) and the LiveView that shows
+# what it broadcasts (a socket modelled as the record of its assigns)
+elixir elixir/to_lean.exs elixir/real/log_store.ex Leanactors.Gen.LogStore > $OUT/Gen.LogStore.lean 2>/dev/null
+elixir elixir/to_lean.exs elixir/real/logs_live.ex Leanactors.Gen.LogsLive > $OUT/Gen.LogsLive.lean
 diff -q $OUT/Gen.Lock.lean Leanactors/Gen/Lock.lean
 diff -q $OUT/Gen.Bank.lean Leanactors/Gen/Bank.lean
 diff -q $OUT/Gen.Supervisor.lean Leanactors/Gen/Supervisor.lean
@@ -34,6 +39,8 @@ diff -q $OUT/Gen.Registry.lean Leanactors/Gen/Registry.lean
 diff -q $OUT/Gen.Feed.lean Leanactors/Gen/Feed.lean
 diff -q $OUT/Gen.Ringlog.lean Leanactors/Gen/Ringlog.lean
 diff -q $OUT/Gen.TableRegistry.lean Leanactors/Gen/TableRegistry.lean
+diff -q $OUT/Gen.LogStore.lean Leanactors/Gen/LogStore.lean
+diff -q $OUT/Gen.LogsLive.lean Leanactors/Gen/LogsLive.lean
 echo "   generated files are up to date"
 
 echo "== translator fixtures"
