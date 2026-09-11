@@ -7,6 +7,9 @@ import Leanactors.Explore
 import Leanactors.Fair
 import Leanactors.AssocList
 import Leanactors.Term
+import Leanactors.Str
+import Leanactors.SetList
+import Leanactors.Time
 import Leanactors.Examples.Bank
 import Leanactors.Examples.Lock
 import Leanactors.Examples.LockProof

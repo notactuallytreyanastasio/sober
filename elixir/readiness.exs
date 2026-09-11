@@ -110,6 +110,47 @@ defmodule Readiness do
                  reverse: 1, take: 2, drop: 2, at: 2, empty?: 1],
     # an Erlang queue is the list, oldest first
     queue_calls: [new: 0, in: 2, out: 1, to_list: 1, len: 1, is_empty: 1, peek: 1],
+    # values: a binary is a Lean String (literal, `<>`, `#{}` interpolation
+    # and a literal string pattern), a keyword list is `List (Atom × V)`, a
+    # MapSet is a duplicate-free list, a clock read is one opaque Instant,
+    # and a module name used as a value is a constant of a `Module` type
+    value_forms: [
+      ~S("a binary literal" | "a#{e}b" | a <> b | a string pattern),
+      "[k: v, ..] over the generated `Atom` type; opts[:k] is Access.get/2",
+      "MapSet.t(T) as a list; DateTime.t() as the opaque Instant",
+      "Client | Loom.MCP.Client as a value of the generated `Module` type"
+    ],
+    # the value types those families add to builtin_types/remote_types
+    value_types: [binary: 0, bitstring: 0, iodata: 0, iolist: 0, atom: 0, module: 0, keyword: 0, keyword: 1],
+    value_remote_types: [
+      {[:String], :t, 0}, {[:Keyword], :t, 0}, {[:Keyword], :t, 1},
+      {[:MapSet], :t, 0}, {[:MapSet], :t, 1},
+      {[:DateTime], :t, 0}, {[:NaiveDateTime], :t, 0}, {[:Date], :t, 0}, {[:Time], :t, 0}
+    ],
+    # The remote-call table, mirroring @remote at the top of
+    # elixir/to_lean.exs: {module segments, function, arity}. A `noop` row is
+    # a statement the model drops whole (its arguments are never translated,
+    # so they are not walked either); an `error` row is refused by the
+    # translator with a reason and stays a blocker here.
+    remote_noops:
+      (for f <- [:debug, :info, :notice, :warn, :warning, :error, :critical, :alert, :emergency],
+           a <- [1, 2],
+           do: {[:Logger], f, a}) ++
+        [{[:Logger], :log, 2}, {[:Logger], :log, 3}, {[:Logger], :metadata, 1}, {[:Logger], :configure, 1}],
+    remote_calls: [
+      {[:Keyword], :get, 2}, {[:Keyword], :get, 3}, {[:Keyword], :fetch, 2}, {[:Keyword], :fetch!, 2},
+      {[:Keyword], :put, 3}, {[:Keyword], :delete, 2}, {[:Keyword], :has_key?, 2},
+      {[:Keyword], :keys, 1}, {[:Keyword], :values, 1},
+      {[:Access], :get, 2}, {[:Access], :get, 3},
+      {[:MapSet], :new, 0}, {[:MapSet], :new, 1}, {[:MapSet], :put, 2}, {[:MapSet], :delete, 2},
+      {[:MapSet], :member?, 2}, {[:MapSet], :size, 1}, {[:MapSet], :to_list, 1},
+      {[:MapSet], :union, 2}, {[:MapSet], :difference, 2}, {[:MapSet], :intersection, 2},
+      {[:DateTime], :utc_now, 0}, {[:DateTime], :utc_now, 1},
+      {[:NaiveDateTime], :utc_now, 0}, {[:NaiveDateTime], :utc_now, 1}, {[:Date], :utc_today, 0},
+      {[:System], :monotonic_time, 0}, {[:System], :monotonic_time, 1},
+      {[:System], :system_time, 0}, {[:System], :system_time, 1},
+      {[:System], :os_time, 0}, {[:System], :os_time, 1}
+    ],
     # PubSub effects; which module is PubSub is by name (or --pubsub Mod)
     pubsub_modules: [[:Phoenix, :PubSub], [:PubSub]],
     pubsub_calls: [subscribe: 2, unsubscribe: 2, broadcast: 3, broadcast!: 3],
@@ -155,6 +196,10 @@ defmodule Readiness do
   @queue_calls @supported.queue_calls
   @pubsub_calls @supported.pubsub_calls
   @pubsub_modules @supported.pubsub_modules
+  @remote_noops @supported.remote_noops
+  @remote_calls @supported.remote_calls
+  @value_types @supported.value_types
+  @value_remote_types @supported.value_remote_types
 
   def supported, do: @supported
 
@@ -545,15 +590,21 @@ defmodule Readiness do
       {name, _, args} when is_atom(name) and args in [nil, []] ->
         cond do
           {name, 0} in @supported.builtin_types -> []
+          {name, length(args || [])} in @value_types -> []
           Map.has_key?(mod.types, name) -> []
           true -> blk.("unsupported type #{name}()", str(t))
         end
+      # `keyword(T)` is `List (Atom × T)`
+      {:keyword, _, [inner]} -> check_type(mod, inner, line, where)
+      {{:., _, [{:__aliases__, _, [m]}, :t]}, _, [inner]} when m in [:Keyword, :MapSet] ->
+        check_type(mod, inner, line, where)
       # `:queue.queue(T)` is `List T`
       {{:., _, [:queue, :queue]}, _, [inner]} -> check_type(mod, inner, line, where)
       {{:., _, [:queue, :queue]}, _, _} -> blk.("queue type without an element type", str(t))
       {{:., _, [{:__aliases__, _, segs}, f]}, _, args} ->
         cond do
           {segs, f, length(args || [])} in @supported.remote_types -> []
+          {segs, f, length(args || [])} in @value_remote_types -> []
           # `Mod.t()` / `Mod.level()`: a type of a module of this file
           Atom.to_string(List.last(segs)) in mod.file_mods and (args || []) == [] -> []
           true -> blk.("unsupported type #{Enum.join(segs, ".")}.#{f}()", str(t))
@@ -700,7 +751,10 @@ defmodule Readiness do
         case {call, pubsub_call(call)} do
           {{{:., _, [{:__aliases__, _, [:Process]}, :flag]}, _, [:trap_exit, true]}, _} -> []
           {_, {f, _, _} = pc} when f in [:subscribe, :unsubscribe] -> check_pubsub(mod, pc, l)
-          _ -> [finding(:blocker, l, "statement in init/1", str(s))] ++ classify_stmt_kinds(mod, s, l)
+          # a @remote `:noop` row (a Logger call) is dropped before init/1 is
+          # read, so it is not a statement the translator has to handle
+          _ -> if remote_noop?(call), do: check_expr(mod, call, l), else:
+                 [finding(:blocker, l, "statement in init/1", str(s))] ++ classify_stmt_kinds(mod, s, l)
         end
       end
     last_fs =
@@ -814,7 +868,7 @@ defmodule Readiness do
       a when is_atom(a) -> []
       n when is_integer(n) -> []
       f when is_float(f) -> [finding(:blocker, l, "float literal in a pattern", str(p))]
-      s when is_binary(s) -> [finding(:blocker, l, "string pattern", str(p))]
+      s when is_binary(s) -> (_ = s; [])
       [{:|, _, [h, t]}] -> check_pattern(mod, h, l) ++ check_pattern(mod, t, l)
       xs when is_list(xs) -> [finding(:blocker, l, "fixed-length list pattern", str(p))]
       {:^, _, _} -> [finding(:blocker, l, "pin ^x in a pattern", str(p))]
@@ -1128,6 +1182,12 @@ defmodule Readiness do
   defp value?({_, _}), do: true
   defp value?(_), do: false
 
+  # a call whose @remote row is `:noop`: the translator drops it, arguments
+  # included, before anything is translated
+  defp remote_noop?({{:., _, [{:__aliases__, _, segs}, f]}, _, args}) when is_list(args),
+    do: {segs, f, length(args)} in @remote_noops
+  defp remote_noop?(_), do: false
+
   # ---------- expressions ----------
 
   defp check_expr(mod, e, line) do
@@ -1139,12 +1199,16 @@ defmodule Readiness do
       a when is_atom(a) -> []
       n when is_integer(n) -> []
       f when is_float(f) -> blk.("float literal")
-      s when is_binary(s) -> blk.("string literal")
+      s when is_binary(s) -> (_ = s; [])
       [] -> []
+      # a keyword list is `List (Atom × V)`: the keys are Atom constants,
+      # the values are ordinary expressions
       xs when is_list(xs) ->
-        if Keyword.keyword?(xs) and xs != [], do: blk.("keyword list literal"), else: Enum.flat_map(xs, &check_expr(mod, &1, l))
+        if Keyword.keyword?(xs) and xs != [],
+          do: Enum.flat_map(xs, fn {_, v} -> check_expr(mod, v, l) end),
+          else: Enum.flat_map(xs, &check_expr(mod, &1, l))
       {:__MODULE__, _, nil} -> blk.("__MODULE__ as a value")
-      {:__aliases__, _, _} -> blk.("module alias as a value")
+      {:__aliases__, _, _} -> []
       # `@name` where the module binds it to a literal is substituted
       {:@, _, [{name, _, _}]} ->
         if name in mod.attrs,
@@ -1160,8 +1224,14 @@ defmodule Readiness do
       # `fn x -> e end` is an Enum predicate: exactly one clause, one variable
       {:fn, _, [{:->, _, [[{v, _, nil}], b]}]} when is_atom(v) -> check_expr(mod, b, l)
       {:fn, _, clauses} -> [blk.("anonymous fn (only `fn x -> e end`)"), for({:->, _, [_ps, b]} <- clauses, do: check_expr(mod, b, l))]
-      {:<<>>, _, _} -> blk.("string interpolation / binary")
-      {:sigil_s, _, _} -> blk.("string literal")
+      # `"a#{e}b"`: the interpolated expressions are what has to be supported
+      {:<<>>, _, parts} ->
+        Enum.flat_map(parts, fn
+          b when is_binary(b) -> []
+          {:"::", _, [{{:., _, [Kernel, :to_string]}, _, [inner]}, {:binary, _, nil}]} -> check_expr(mod, inner, l)
+          other -> [finding(:blocker, l, "binary construction (only literals and interpolation)", str(other))]
+        end)
+      {:sigil_s, _, _} -> blk.("sigil ~s")
       {v, _, nil} when is_atom(v) -> []
       {:self, _, []} -> []
       # `%{s | f: e}` rebuilds a record state or a struct value
@@ -1187,7 +1257,10 @@ defmodule Readiness do
           do: Enum.flat_map(pairs, fn {_, v} -> check_expr(mod, v, l) end),
           else: [finding(:blocker, l, "struct literal of a module outside this file", str(e))]
       {:%, _, _} -> blk.("struct literal %Mod{}")
-      {{:., _, [{:__aliases__, _, [:Access]}, :get]}, _, [m, k]} -> [blk.("access m[k]"), check_expr(mod, m, l), check_expr(mod, k, l)]
+      {{:., _, [Access, :get]}, _, args} when is_list(args) ->
+        if {[:Access], :get, length(args)} in @remote_calls,
+          do: Enum.flat_map(args, &check_expr(mod, &1, l)),
+          else: [finding(:blocker, l, "Access.get/#{length(args)}", str(e)) | Enum.flat_map(args, &check_expr(mod, &1, l))]
       {{:., _, [{:__aliases__, _, [:Map]}, f]}, _, args} ->
         n = length(args)
         cond do
@@ -1204,9 +1277,13 @@ defmodule Readiness do
         if {f, length(args)} in @enum_calls,
           do: Enum.flat_map(args, &check_expr(mod, &1, l)),
           else: [finding(:blocker, l, "Enum.#{f}/#{length(args)}", str(e)) | Enum.flat_map(args, &check_expr(mod, &1, l))]
-      # PubSub effects (the server argument is ignored)
+      # PubSub effects (the server argument is ignored), then the @remote table
       {{:., _, [{:__aliases__, _, segs}, f]}, _, args} when is_list(args) ->
         cond do
+          {segs, f, length(args)} in @remote_noops ->
+            # dropped whole, arguments included: not walked, and only a note
+            [finding(:note, l, "#{Enum.join(segs, ".")}.#{f}/#{length(args)} dropped (no effect in the model)", str(e))]
+          {segs, f, length(args)} in @remote_calls -> Enum.flat_map(args, &check_expr(mod, &1, l))
           pubsub_call(e) != nil -> check_pubsub(mod, pubsub_call(e), l)
           segs in @pubsub_modules ->
             [finding(:blocker, l, "#{Enum.join(segs, ".")}.#{f}/#{length(args)} (subscribe/2, unsubscribe/2, broadcast/3)", str(e))]
@@ -1231,7 +1308,8 @@ defmodule Readiness do
       {:|>, _, _} -> [blk.("pipe |>"), pipe_stages(e) |> Enum.flat_map(&check_expr(mod, &1, l))]
       # `[h | t]` as an expression: the list branch above hands us the cons
       {:|, _, [h, t]} -> [blk.("list cons [h | t] in an expression"), check_expr(mod, h, l), check_expr(mod, t, l)]
-      {op, _, [a, b]} when op in [:*, :/, :<>, :&&, :||, :in, :"..", :===, :!==, :=~, :"//", :"<-", :"::"] ->
+      {:<>, _, [a, b]} -> check_expr(mod, a, l) ++ check_expr(mod, b, l)
+      {op, _, [a, b]} when op in [:*, :/, :&&, :||, :in, :"..", :===, :!==, :=~, :"//", :"<-", :"::"] ->
         [blk.("operator #{op}"), check_expr(mod, a, l), check_expr(mod, b, l)]
       {op, _, [a]} when op in [:!, :-, :+] -> [blk.("operator #{op}"), check_expr(mod, a, l)]
       {:not, _, [a]} -> check_expr(mod, a, l)
