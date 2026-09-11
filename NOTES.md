@@ -1127,11 +1127,147 @@ fixtures (37 ok, 12 error), the readiness self-check over `elixir/src`,
 `lake build`, ten drivers and 200 fuzz scripts, in under two minutes on a
 warm build.
 
-## 12. What to try first
+## 12. Round 7
+
+Four builders on `wf7/*` branches under node 651, aimed for the first time
+at a table rather than at the model: after round 6 the actor semantics
+were done, and what stopped real files was ordinary functional Elixir.
+The readiness report named the three piles — control flow and expression
+structure (goal 657), values and remote calls (goal 653), module-local
+functions and `init/1` (goal 652) — and a fourth builder (goal 654) turned
+the report itself into a gate. The integrator (goal 703) merged gate,
+values, locals and control in that order, control last because it
+restructures the expression core and it is easier to re-apply the others'
+call sites onto it than the reverse.
+
+* **The pure fragment as a language** (goal 657, node 694). The translator
+  used to *recognise* control flow: an `if` or a `case` was allowed around
+  a whole clause body, and nowhere else. It now compiles expressions. Any
+  sub-expression may be an `if`, a `case`, a block or a binding; a
+  desugaring pass over the whole module body rewrites `a |> f(b)` to
+  `f(a, b)`, `cond` to nested `if`s and `unless` to `if` before anything
+  else looks at it, so nothing downstream ever sees a pipe. The
+  interesting constraint was totality. Lean's `let` has nothing to fall
+  through to, so a pattern binding is accepted only when the pattern is
+  total at its type — a variable, `_`, a pair at a product type, a struct
+  pattern — and `{:ok, v} = Map.fetch(m, k)` is a clear error telling you
+  to match instead. A `cond` must end in `true ->`, because falling off
+  the end raises `CondClauseError` and an expression in the model cannot
+  raise. An `if` with no `else` is `nil`, which the model has only at an
+  `Option` type. The Kernel type tests fall out of the same discipline
+  from the other side: a value of the model has exactly one type, so the
+  test is a compile-time constant, and where it is not — an opaque `Term`,
+  a tagged union with both atom and tuple alternatives — the translator
+  says so rather than guessing.
+
+* **Values, and one table for the library** (goal 653, node 702). Binaries
+  were easy (Lean's `String` has `DecidableEq` and `Repr`, which is
+  everything a state field needs) except for interpolation, which has to
+  render values the model knows nothing about: the answer is a `ToStr`
+  class with faithful instances for the four types whose Elixir rendering
+  is known and a low-priority instance through `Repr` for everything else,
+  so the translation never fails for want of a rendering and the doc
+  comment says plainly which strings are artefacts. Time was the family
+  where the honest answer was "no". A clock read could have been a fresh
+  opaque value from a hidden counter, the way `:ets.new` is, but clock
+  reads appear deep inside expressions rather than on the right of a
+  binding, so threading a counter through the expression renderer would
+  have been real machinery in exchange for a model still too weak to prove
+  anything about elapsed time. Instead there is exactly one `Instant`,
+  every read returns it, and `<`, `>`, `+`, `-` and `DateTime.diff` are
+  translation errors that name the reason: a module whose behaviour
+  depends on time passing is rejected rather than translated with its
+  timing quietly wrong. Logging was the cheapest large win — a
+  `Logger.info("x #{y}")` is three blockers, a call, a string and an
+  interpolation, and none of them has to be supported, because the call is
+  dropped with its arguments untranslated next to the `:ets` statements.
+  The lasting piece is the shape rather than any one family: one `@remote`
+  table of {module, function, arity} to a rendering, `:noop` or
+  `{:error, why}`. The next round extends the subset by adding rows.
+
+* **Where the error goes** (goal 652, node 688). The biggest single family
+  in the round-6 report was never the actor model: it was 271 calls to
+  helpers in the same module. Translating them turned out to be a question
+  about *where the error goes*. Inlining the helper at each call site would
+  have reported the same defect 271 times; emitting each helper as its own
+  Lean definition reports it once, at the definition, and says what stops
+  it. That is the difference between a symptom list and a work list, and
+  it is why the new family (`local helper is not a pure expression`, 242
+  occurrences) is barely smaller than the old one while the report is far
+  more useful. The second lesson was about types: a helper has no declared
+  type in Elixir, so its Lean signature comes from a `@spec` when there is
+  one and otherwise from the types it is *called* at — which needs the call
+  sites rendered, which needs the signatures. The translator therefore
+  renders everything three times and lets a definition fix its own result
+  type before any use does, so one opaque call site cannot make a typed
+  helper opaque. Recursion is split by shape: a helper that recurses on a
+  list tail is an ordinary `def`, anything else takes a `fuel : Nat` and is
+  called at `localFuel = 64`, which the generated file documents as an
+  approximation.
+
+* **The report as a gate** (goal 654, node 679). `docs/readiness.md` was a
+  document; it is now also `docs/readiness-baseline.json`, which `check.sh`
+  re-measures on every run and fails on a regression, naming each module
+  whose verdict changed. Two design choices are worth recording. The five
+  projects live outside the repository, so the baseline records the paths
+  it was made from and a machine without those checkouts *skips* the step
+  instead of failing it — the gate must not make the repo unbuildable for
+  someone who only has the repo. And the gate never fails on an
+  improvement: a run that beats the baseline prints the refresh command and
+  exits 0, so a forgotten refresh costs a stale number and nothing else.
+  Re-running the translator per candidate file cost 78s serially; the files
+  are independent, so the walk is one `Task.async_stream` and the gate is
+  16s. The same round moved the `Loom.Teams.TableRegistry` proof into its
+  own `TableRegistryProof.lean`, matching the Lock/Task/Ttl convention, and
+  added the corollaries the callers actually meet: `refs_distinct`
+  (distinct team ids, distinct ETS references) and `refs_below_counter`,
+  each also through `beh_eq_gen`.
+
+**What the merge itself taught.** Three builders edited one 5,000-line
+translator concurrently and the merge was four conflicts, all of them
+ordering questions in the same three functions: which `expr/3` clause
+comes first (`__local_call__` and the control-form dispatch both have to
+precede the `Option` clause, so a branch is wrapped in `some`/`none` on
+its own), and whether a catch-all `type_of/2` clause for any 3-tuple sits
+before or after the specific ones. The convention that made that cheap was
+declared in advance: add new clauses, never rewrite shared ones, and
+record every edit outside your area as an observation node titled
+"cross-area edit" — three of those nodes (678, 690, 698) described the
+whole conflict set before `git` ever reported one. What the merge could
+not have predicted is the *interaction*: six small gaps opened only once
+the branches were together, each one a rule that existed on one branch
+meeting a form that existed on another. `{_, q} = :queue.out(q0)` inside a
+block expression, for instance, was a supported statement (round 6) inside
+a form that did not exist until round 7. They were found by chasing one
+module — `Ensemble.LogStore`, the only one the merged walker reports with
+zero blockers — and the chase ended in a lesson worth more than the fixes:
+the translator accepted a file that Lean then rejected, because untyped
+mode had inferred the reply type as the opaque `term()` while the reply
+expression was a `List Term`. The readiness harness never compiles what it
+translates, so `LogStore` would have been counted as the round's second
+translatable module. It is not one. A reply with a model type at an
+inferred `term()` reply is now a translator error naming `@type reply`,
+and the count stayed honest at one.
+
+Numbers after the round: blockers over the five real projects 1,621 → 848
+(-48%), families 117 → 106, twenty-three of them emptied outright and
+twelve narrower ones taking their place; translatable modules 1 → 1, with
+the nearest four now one family away each. 14,697 lines of hand-written
+Lean in 37 files under `Leanactors/` (`SysProps.lean` 1,759, `Fair.lean`
+1,599, `TableRegistryProof.lean` 291, `AssocList.lean` 304,
+`SetList.lean` 108, `Str.lean` 65, `Time.lean` 47), 509 generated lines in
+ten, 809 theorems, no `sorry`, no `axiom`; the translator is about 5,220
+lines and the readiness harness about 2,420; `check.sh` runs ten
+translations, 73 fixtures (53 ok, 20 error), the readiness self-check over
+`elixir/src`, the readiness gate over the five real projects, `lake
+build`, ten drivers and 200 fuzz scripts.
+
+## 13. What to try first
 
 1. `./check.sh` from the repo root (with `export PATH="$HOME/.elan/bin:$PATH"`).
-   It regenerates the ten `Gen/` files and diffs them, runs the 49
-   translator fixtures and the readiness self-check over `elixir/src`,
+   It regenerates the ten `Gen/` files and diffs them, runs the 73
+   translator fixtures, the readiness self-check over `elixir/src` and the
+   readiness gate over the five real projects,
    runs `lake build` (which runs every `#eval explore` and builds the
    `replay` binary), greps for `sorry`, runs the ten drivers on the BEAM,
    and fuzzes the interpreters against the BEAM with 200 seeded scripts.

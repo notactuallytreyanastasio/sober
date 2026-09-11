@@ -7,8 +7,8 @@ learned).
 
 ## Status
 
-14,364 lines of hand-written Lean across 33 files under `Leanactors/`
-(plus 509 generated lines in ten `Gen/` files), 796 `theorem`s, zero
+14,697 lines of hand-written Lean across 37 files under `Leanactors/`
+(plus 509 generated lines in ten `Gen/` files), 809 `theorem`s, zero
 `sorry` and zero `axiom`. Ten worked examples (bank, lock, supervisor,
 task, watchdog, ttl, registry, feed, ringlog, table registry), each
 translated from a real Elixir/BEAM module by the same type-directed
@@ -27,10 +27,10 @@ watchdog and the ttl cache also have a liveness property proved along
 fair runs, each with a witness that its premise is reachable and its
 fairness assumptions are satisfiable. The two interpreters the checkers
 and traces run on are fuzzed against the BEAM (`elixir/fuzz.exs`, 200
-seeded scripts per `check.sh`). The translator itself has a suite of 49
-regression fixtures (37 `expect: ok`, 12 `expect: error`), and
-`elixir/readiness.exs` measures the subset against real code
-(**Readiness**).
+seeded scripts per `check.sh`). The translator itself has a suite of 73
+regression fixtures (53 `expect: ok`, 20 `expect: error`), and
+`elixir/readiness.exs` measures the subset against real code, with the
+numbers committed as a baseline `check.sh` re-measures (**Readiness**).
 
 | Example | Property | Checker configurations |
 |---|---|---|
@@ -57,6 +57,9 @@ regression fixtures (37 `expect: ok`, 12 `expect: error`), and
 | `Leanactors/Explore.lean` | Generic bounded explorer for `Sys`: `Sys.explore` / `Sys.exploreWith` enumerate runs, signal and DOWN deliveries, timer firings and environment messages to a depth; used by Supervisor, Task, Watchdog and Ttl |
 | `Leanactors/Fair.lean` | Fairness and liveness for both layers: infinite runs that may idle (`CRun` over `Config` with an environment relation, `SysRun` over a closed `Sys`, `SysRunE` over an open `Sys` with an environment relation such as `Sys.Deliver`), labelled steps `CStepL`/`SysStepL`/`SysStepLE`, `ReachE`/`SysReachEnv`/`SysReachE`, `CEnabled`/`SysEnabled`, `WeakFair`/`EnvFair`, `Eventually`/`Always`/`LeadsTo`, the workhorses `stable_until` and `rank_leads_to` for each layer, `LeadsTo.rank_induction`, `SysRun.toE` embedding a closed run; the erase/`findIdx` list facts the timer-driven proofs rank with; `FairDemo` two-state sanity check |
 | `Leanactors/AssocList.lean` | Association lists `List (K × V)`, the model of an Elixir map: `get?`/`insert`/`erase`/`hasKey`/`keys`/`values`/`size`/`filter`/`reject` with `get?_insert_self`/`_ne`, `get?_erase_self`/`_ne`, `hasKey_iff`, `mem_of_get?`, `mem_insert`, `mem_erase`, `mem_filter`, `mem_reject`, `mem_erase_of_ne`; the uniqueness group `Uniq` (no two entries share a key, no two share a value) with `uniq_nil`/`uniq_cons`, the extraction lemmas `Uniq.key_inj`/`Uniq.val_inj` and the preservation steps `Uniq.insert_fresh`/`Uniq.erase`; first-match semantics, no uniqueness assumed by the rest, no Mathlib |
+| `Leanactors/Str.lean` | Elixir binaries as Lean `String`s: the `ToStr` class with faithful instances for `String`, `Nat`, `Int` and `Bool` and a low-priority one through `Repr`, `Str.toStr` (what an interpolation and `inspect`/`to_string` render with), and the append lemmas |
+| `Leanactors/SetList.lean` | `MapSet` as a duplicate-free list in insertion order: `contains`/`insert`/`erase`/`size`/`toList`/`ofList`/`union`/`difference`/`intersection` with 14 lemmas |
+| `Leanactors/Time.lean` | The clock, deliberately trivial: a one-constructor `inductive Instant` whose only value is `now`, with `DecidableEq` and `Repr`, `Instant.eq_now`/`all_eq`, and no `LT`, `LE` or arithmetic — a module whose behaviour depends on time passing is refused by the translator rather than modelled wrongly |
 | `Leanactors/Replay.lean` | The `replay` executable (`lake build`, `.lake/build/bin/replay`): a line script on stdin (`example bank\|ttl\|lock`, then `deliver <pid> <msg>`, `run <pid>`, `signal`, `down`, `timer <i>`), replayed with `run` (bank, lock) or `runSys` (ttl), printing the final observables in a canonical text form; a choice the model cannot follow is an error, not a silent stop |
 | `Leanactors/Examples/SysPropsDemo.lean` | Three supervisor proof shapes (monotone along `Grows`, the timer case, the DOWN case) as `example`s spelled out against `SysProps` directly |
 | `Leanactors/Examples/Supervisor.lean` | One-for-one supervisor translated from `elixir/src/supervisor.ex`; bounded checker; the no-`trap_exit` mutant |
@@ -80,13 +83,14 @@ regression fixtures (37 `expect: ok`, 12 `expect: error`), and
 | `Leanactors/Examples/Registry.lean` | Name registry translated from `elixir/src/registry.ex`: state `%{name() => pid()}` as an association list, monitored clients; hand `beh`, `beh_eq_gen`, bounded checker over every map entry, the no-monitor mutant, `taken`/`freed` traces, two run-case lemmas toward the invariant proof |
 | `Leanactors/Examples/Feed.lean` | PubSub feed translated from `elixir/src/feed.ex`: a publisher broadcasting `post n` on the topic `"feed"`, two subscribers that subscribe in `init/1` and count posts, one leaving; hand `beh`, `beh_eq_gen`, the bounded check that each subscriber has seen a prefix of the published sequence and is owed exactly the rest in order, two mutants, and `subs_feed_only` proved through `SysStep.mem_subs_cases` |
 | `Leanactors/Examples/Ringlog.lean` | Ring buffer of log entries translated from `elixir/src/ringlog.ex`: hand `beh`, `beh_eq_gen`, the bounded check of `count = entries.length` and `count ≤ max_entries` (two mutants caught in 7 configurations), and the proof — `ok_step` for one behaviour step, `beh_no_spawn`, `count_invariant` for every reachable configuration |
-| `Leanactors/Examples/TableRegistry.lean` | `Loom.Teams.TableRegistry` with no annotations at all: hand `beh`, `beh_eq_gen`, the bounded uniqueness check, the no-counter-bump mutant, two traces, and the `Bounded`/`Uniq` invariant giving `team_has_one_ref` and `refs_unique` for every reachable configuration (and both again through `beh_eq_gen`) |
+| `Leanactors/Examples/TableRegistry.lean` | `Loom.Teams.TableRegistry` with no annotations at all: hand `beh`, `beh_eq_gen`, the bounded uniqueness check, the no-counter-bump mutant and two traces |
+| `Leanactors/Examples/TableRegistryProof.lean` | The proof for the first file copied unmodified out of a real project: the `Bounded`/`Uniq` invariant over every reachable configuration, `Inv.step` over all four `SysStep` cases, and `team_has_one_ref`, `refs_unique`, `refs_distinct` (distinct team ids, distinct ETS references) and `refs_below_counter`, each also through `beh_eq_gen`; the docstring says what the abstraction does not cover — ETS itself is opaque fresh values and `:ets.delete/1` is dropped, so these are properties of the registry's map |
 | `Leanactors/Term.lean` | An opaque term: a structure over `Nat` with `DecidableEq` and `Repr`, the type of every field whose Elixir type the translator does not know (untyped mode, `term()`/`any()`/`reference()`, the reference `:ets.new` returns), with `Term.fresh` and the `id` lemmas |
 | `Leanactors/Gen/*.lean` | Generated from `elixir/src/*.ex` and `elixir/real/*.ex` by the translator; do not edit |
 | `elixir/src/*.ex` | The Elixir source of truth (bank, lock, supervisor, task, watchdog, ttl, registry, feed, ringlog): executed on the BEAM and translated to Lean |
 | `elixir/src/pubsub.ex` | A 44-line local stand-in for `Phoenix.PubSub` (`subscribe/2`, `unsubscribe/2`, `broadcast/3`, `subscribers/2`) so the drivers run without the `phoenix_pubsub` dependency; not translated — it is the transport, and PubSub is an effect of `Sys` rather than an actor |
 | `elixir/real/*.ex` | Real modules copied verbatim from other projects and translated as they stand (`table_registry.ex` is byte-identical to `loom/lib/loom/teams/table_registry.ex`) |
-| `elixir/to_lean.exs` | The translator: `@type`-directed (`msg`, `cast`, `info`, `call`, `reply`, `state`), small subset, unverified; `handle_continue` is inlined, not sent |
+| `elixir/to_lean.exs` | The translator: `@type`-directed (`msg`, `cast`, `info`, `call`, `reply`, `state`), small subset, unverified; `handle_continue` is inlined, not sent; the pure fragment is compiled as a language, so any sub-expression may be an `if`, a `case`, a block or a binding (pipes, `cond` and `unless` are desugared away first), module-local helpers become Lean definitions, and one `@remote` table says what each standard-library call becomes |
 | `elixir/test/run_fixtures.exs` | Translator regression runner: translates every `test/fixtures/*.ex`, diffs against `test/expected/*.lean`, compiles the ok ones with `lake env lean`, checks the error ones fail as declared; `--regen` rewrites the expectations |
 | `elixir/test/fixtures/*.ex` | 49 small sources, one translator feature each (37 `expect: ok`, 12 `expect: error`); directives in the leading comment block |
 | `elixir/test/expected/*.lean` | Their expected translations, committed; regenerate with `elixir/test/regen_expected.sh` and review the diff |
@@ -100,8 +104,9 @@ regression fixtures (37 `expect: ok`, 12 `expect: error`), and
 | `elixir/feed.exs` | Driver: a publisher broadcasts three posts over the local PubSub twin, one subscriber leaves, two more posts; states and the subscriber list checked against Lean's `script` |
 | `elixir/ringlog.exs` | The BEAM twin of `Examples/Ringlog.lean`: pushes past the cap, reads every entry and the entries of one level |
 | `elixir/table_registry.exs` | Driver: the real module with real ETS tables, one per team, re-create gives a fresh reference, delete is idempotent, the rescue keeps the registry alive |
-| `elixir/readiness.exs` | Readiness harness: runs the translator dry and walks each module's AST against an allowlist, reporting every unsupported construct with file, line and kind; `--markdown` writes `docs/readiness.md`, `--strict` is `check.sh`'s self-check over `elixir/src` |
+| `elixir/readiness.exs` | Readiness harness: runs the translator dry and walks each module's AST against an allowlist, reporting every unsupported construct with file, line and kind; `--markdown` writes `docs/readiness.md`, `--strict` is `check.sh`'s self-check over `elixir/src`, `--json --update-baseline` writes `docs/readiness-baseline.json` and `--check-baseline` re-measures and fails on a regression; every module gets a *distance*, the number of distinct blocker families it still hits |
 | `docs/readiness.md` | Generated readiness report over the lib trees of loom, ensemble, blinks_backend, big_bill and bobs_broadcast |
+| `docs/readiness-baseline.json` | The same numbers per project as `check.sh` reads them; the gate fails on a regression and prints the refresh command when a round beats them |
 | `elixir/fuzz.exs` | Differential fuzz: seeded random scripts replayed in Lean (the `replay` binary) and on the BEAM (the real modules in `elixir/src`), observables compared byte for byte; `--seed S --only N` reproduces a failure |
 | `NOTES.md` | Design narrative: the thesis, the layers, the translator, the proof recipe, findings, approximations and their direction |
 
@@ -487,7 +492,91 @@ names them in a comment. This is the price of taking a real file as it
 stands, and the BEAM driver (`elixir/table_registry.exs`) covers the other
 direction by running the real module against real ETS tables.
 
-**Translator fixtures.** `elixir/test/fixtures/*.ex` are 49 small
+**Control flow and expressions.** The pure fragment is compiled as a
+language rather than recognised as a body shape. Any sub-expression may be
+an `if`, a `case`, a block `(a; b; c)` or a binding: a block is nested
+`let`s, `x = e` is `let x := e`, and `some`/`none` is inserted per branch
+rather than around the whole form. Before anything else looks at a module,
+a desugaring pass rewrites `a |> f(b)` to `f(a, b)`, `cond` to nested
+`if`s and `unless` to `if`, so nothing downstream ever sees a pipe. The
+constraint that shapes the rest is totality: Lean's `let` has nothing to
+fall through to, so a pattern binding is accepted only when the pattern is
+total at its type (a variable, `_`, a pair at a product type, a struct
+pattern) and `{:ok, v} = Map.fetch(m, k)` is a clear error telling you to
+match instead; a `cond` must end in `true ->`, because falling off the end
+raises `CondClauseError` and an expression in the model cannot raise; an
+`if` with no `else` is `nil`, which the model has only at an `Option`
+type. The Kernel type tests fall out of the same discipline from the other
+side: a value of the model has exactly one type, so `is_pid` on a `pid()`
+is the constant `true`, and where the test is genuinely undecidable — an
+opaque `Term`, a tagged union with both atom and tuple alternatives — the
+translator says so rather than guessing. `elem/2`, `tuple_size/1`, `abs`,
+`min`, `max`, `div`, `rem`, `in`, `&&`, `||`, `!`, `*`, `===`, `!==` and
+unary `-` are supported on the types the model has (`div`/`rem` on
+`non_neg_integer()` only: Elixir's `div` truncates toward zero and Lean's
+integer division does not). A statement with an effect before an
+`if`/`case` body is now pushed into every branch — its effect prepended to
+whichever leaf runs — instead of being refused.
+
+**Values and remote calls.** Elixir binaries are Lean `String`s: a
+`String.t()` or `binary()` in a `@type`, a string literal, `<>` as `++`, a
+literal string pattern, and an interpolation `"a#{e}b"` as `"a" ++
+Str.toStr e ++ "b"`. `Str.toStr` is the `ToStr` class of
+`Leanactors/Str.lean`; its instances for `String`, `Nat`, `Int` and `Bool`
+are the BEAM's own rendering and everything else goes through a derived
+`Repr`, which is deterministic but is not what `to_string` would print, so
+no property should depend on the bytes of an interpolated string. A
+keyword list is the association list `List (Atom × V)` over an `Atom`
+inductive the generated file builds from the keys used, so `Keyword.*`,
+`Access.get/2` and `opts[:k]` are the same `AssocList` a map is. A
+`MapSet` is a duplicate-free list in insertion order
+(`Leanactors/SetList.lean`); its `to_list` is in that order and not the
+BEAM's term order, the one place the model is coarser than `MapSet`. A
+module name used as a value becomes a constant of a generated `Module`
+inductive, so it can be stored, sent and compared. Time is not modelled at
+all: `DateTime.utc_now/0`, `System.monotonic_time/1` and their neighbours
+are the single opaque `Instant.now` of `Leanactors/Time.lean`, which has
+equality and nothing else — ordering or subtracting two instants is
+refused with a message saying the model has no clock, rather than modelled
+wrongly. And logging is not an effect: every `Logger` call is dropped,
+arguments included, before anything is translated, which is why a
+`Logger.info("x #{y}")` needs no string support at all. Standard-library
+calls are one table: `@remote` at the top of `elixir/to_lean.exs` maps a
+module, function and arity to what the call becomes — a rendering, `:noop`
+(dropped) or `{:error, why}` (refused, with the reason). Teaching the
+translator another standard-library function is adding a row.
+
+**Module-local functions and `init/1` statements.** A `def`/`defp` that is
+not a callback and that a callback reaches, directly or through another
+helper, becomes a Lean definition emitted before `beh`, named
+`<module>_<function>`; a call to it renders as a call. Its body must be in
+the pure fragment above. A helper that sends, spawns or logs has no effect
+the model could carry, so it is an error naming the helper — once, not
+once per call site. Argument and result types come from a `@spec` when the
+module gives one and otherwise from the types the helper is called at,
+inferred over three rendering rounds, with the definition fixing its own
+result type before any use does. A helper that recurses on the tail of a
+list argument is an ordinary `def`; any other self-recursion takes a
+leading `fuel : Nat`, returns its result type's default at zero, and is
+called with the constant `localFuel` (64), which makes it an
+approximation of the Elixir function beyond that depth and says so in the
+generated file. Mutual recursion is an error naming both. `init/1` may now
+be a block: `Process.flag(:trap_exit, true)`, a PubSub subscribe, a
+`Logger` call (dropped), a call to a local helper, and bindings `v = e` of
+pure expressions, which are substituted into the state expression, since
+`init/1` has no Lean binder of its own — the state is built at the spawn
+site. The option list a real `init/1` is handed is not modelled: a
+parameter used as one is the empty keyword list, so `Keyword.get(opts, :k,
+d)` is its literal default and the translator warns (the same rule now
+reads a registered name out of `name: Keyword.get(opts, :name,
+__MODULE__)`). And a module with neither `@type state` nor an `init/1` to
+infer one from reads the shape off its callbacks' state patterns: a map
+pattern anywhere makes it a record whose fields are the keys the patterns
+match and the keys the bodies update or return, tuple patterns of one size
+make it positional, and patterns that only bind the state whole leave it
+the opaque `Term`.
+
+**Translator fixtures.** `elixir/test/fixtures/*.ex` are 73 small
 sources, one translator feature each: guard fallthrough and deferral,
 nested and pattern-LHS blocking calls, deferred replies, spawn and
 monitor, tuple `init`, DOWN and EXIT typing, timeouts, `send_after`,
@@ -717,23 +806,52 @@ Cross-checking it against the fixture corpus is what keeps it honest: no
 the 12 `expect: error` fixtures (the other five are kind and type errors).
 
 `docs/readiness.md` is that report over the lib trees of five real
-applications: 373 files, 55 GenServer or receive-loop modules, 1,621
-blocking constructs, grouped both by kind and by the translator feature
-each group would need. Round 6 took that from 2,838 and made
-`Loom.Teams.TableRegistry` the first real module the harness reports as
-translatable — the same module `Leanactors/Examples/TableRegistry.lean`
-proves two properties of. What leads the remaining table is calls to
-helpers defined in the same module (271 occurrences in 41 modules),
-imported and macro calls (156/20, almost all Phoenix LiveView), string
-literals (147/25) and interpolation (85/18), `if`/`case` below body level
-(98/28) and statements in `init/1` (89/26). The round is planned from that
+applications: 373 files, 55 GenServer or receive-loop modules, 848
+blocking constructs in 106 families, grouped both by kind and by the
+translator feature each group would need. Round 6 took that from 2,838 to
+1,621 and made `Loom.Teams.TableRegistry` the first real module the
+harness reports as translatable — the same module
+`Leanactors/Examples/TableRegistry.lean` proves its properties of. Round 7
+took it from 1,621 to 848, roughly halving it. Twenty-three families left
+the table outright: every string literal (147) and interpolation (85),
+every keyword list (67), every `Logger` (40), `Keyword` (37), `Access`
+(24) and `MapSet` (11) call, every pipe (38), `cond`, `&&`, `||`, `in`
+and `<>`, every `if`/`case` below body level (98) and every plain binding
+(36). Twelve narrower families replaced them, which is the point of the
+exercise: `call to a helper in the same module` (271 occurrences in 41
+modules, the largest family in the round-6 report) is now `local helper is
+not a pure expression` (242/40), which names a helper and the construct
+that stops it instead of naming a call site. That is what leads the
+remaining table, ahead of imported and macro calls (144/17, 123 of them
+Phoenix `assign/2` and `assign/3`), `Enum` calls (24/14), an `if`/`case`
+used as a statement with its value discarded (23/12) and message patterns
+that are neither an atom nor a tagged tuple (22/9). The round is planned from that
 table rather than from guesses.
+
+Those numbers are committed as `docs/readiness-baseline.json`, and
+`check.sh` re-measures the five projects and fails if any of them
+translates fewer modules or carries more blockers than the baseline
+records, naming every module whose verdict changed; a run that *beats* the
+baseline prints the refresh command and passes, and a machine without
+those checkouts skips the step rather than failing it. The report also
+ranks the untranslatable modules by *distance* — the number of distinct
+blocker families each still hits, which is what a round can plan against.
+The nearest is `Ensemble.LogStore` at distance zero: the walker finds
+nothing unsupported in it at all, and the translator still refuses it, for
+a type reason the walker does not model. Its `handle_call` replies with
+`:queue.to_list(state.entries)`, and untyped mode infers a reply type only
+when every reply in the file is a literal, so the reply is the opaque
+`term()`, which cannot carry a `List Term`. Inferring a reply type from
+the reply *expression* needs the clause environment, which is where the
+other inferences do not live; it is worth one real module on its own, and
+four more are one family away.
 
 ## Build
 
 ```sh
 ./check.sh              # regenerate Gen/, verify it is unchanged, run the translator fixtures,
-                        # the readiness self-check over elixir/src, lake build (proofs, checkers,
+                        # the readiness self-check over elixir/src, the readiness regression gate
+                        # over the five real projects, lake build (proofs, checkers,
                         # the replay binary), run the ten drivers,
                         # then the differential fuzz (200 seeded scripts)
 ```
@@ -756,7 +874,7 @@ or piecewise:
 elixir elixir/to_lean.exs elixir/src/lock.ex Leanactors.Gen.Lock --pid Lock=server > Leanactors/Gen/Lock.lean
 elixir elixir/to_lean.exs elixir/src/ttl.ex Leanactors.Gen.Ttl > Leanactors/Gen/Ttl.lean   # names derived from the source
 elixir elixir/to_lean.exs elixir/src/registry.ex Leanactors.Gen.Registry > Leanactors/Gen/Registry.lean
-elixir elixir/test/run_fixtures.exs         # 49 translator fixtures; --regen rewrites the expectations
+elixir elixir/test/run_fixtures.exs         # 73 translator fixtures; --regen rewrites the expectations
 elixir elixir/readiness.exs elixir/src      # what the translator would need for a given source tree
 lake build              # checks every proof, runs the bounded checkers, builds .lake/build/bin/replay
 elixir elixir/bank.exs  # exits 1 on mismatch with the Lean trace
@@ -1032,15 +1150,24 @@ type, literal keys in patterns, and the `Map.*` calls listed under
 map). External resources are not modelled at all: `:ets.new` is a fresh
 opaque `Term` from a counter and every other ETS call is dropped, so a
 property proved about such a module is a property of the references it
-keeps, not of the tables. Strings are not values (a topic is the one
-exception, and it is resolved at translation time), so neither are string
-literals or interpolation. A state field a body sends to cannot be
+keeps, not of the tables. Strings are Lean `String`s, but an
+interpolated one is only as faithful as `Str.toStr` (a value with no
+printable model goes through its derived `Repr`), so no property should
+depend on the bytes of one. A clock read is one opaque `Instant`, so
+nothing about elapsed time can be stated at all; ordering or subtracting
+two instants is refused rather than approximated. A `MapSet` is a list in
+insertion order, not the BEAM's term order. A state field a body sends to cannot be
 inferred as a pid: in untyped mode it becomes a `Term`, and the mismatch
 only surfaces as a Lean type error, so such a source still needs a `@type`
 with `pid()`. A cons expression `[x | xs]` is unsupported, a blocking call
 is not supported in a module that creates ETS tables, and `case
 Map.pop`'s `{nil, _}` arm also matches a stored `nil` on the BEAM (the
-model has no `nil` values). Environment steps inside the supervisor,
+model has no `nil` values). An `if`/`case` whose value is discarded, a
+statement with an effect inside a block expression, and a `case` over a
+comparison (`case x > 10 do true -> ..`, which renders the scrutinee as a
+`Prop` Lean cannot match against `true`) are all still errors. A
+self-recursive local helper that does not recurse on a list tail is
+approximated beyond `localFuel` (64) applications. Environment steps inside the supervisor,
 watchdog and ttl runs (`SysRunE` exists and the task uses it; the other
 three liveness theorems are still over closed `SysRun`s), safety proofs
 for the registry and the feed's prefix property, strong fairness, and any

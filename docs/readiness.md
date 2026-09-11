@@ -26,12 +26,12 @@ need a `--pid` flag) do not count against a module.
 
 | Project | Files | Candidate modules | Translated | Blockers | Blocker families |
 |---|---:|---:|---:|---:|---:|
-| loom | 117 | 22 | 1 | 767 | 76 |
-| ensemble | 145 | 25 | 0 | 749 | 79 |
-| blinks_backend | 33 | 2 | 0 | 36 | 17 |
-| big_bill | 60 | 3 | 0 | 46 | 15 |
-| bobs_broadcast | 18 | 3 | 0 | 23 | 12 |
-| **all** | 373 | 55 | 1 | 1621 | 117 |
+| loom | 117 | 22 | 1 | 326 | 60 |
+| ensemble | 145 | 25 | 0 | 454 | 67 |
+| blinks_backend | 33 | 2 | 0 | 24 | 10 |
+| big_bill | 60 | 3 | 0 | 31 | 10 |
+| bobs_broadcast | 18 | 3 | 0 | 13 | 8 |
+| **all** | 373 | 55 | 1 | 848 | 106 |
 
 Other modules seen (not GenServers, no `receive`; skipped): 168 plain module, 28 use Ecto.Schema, 26 use Jido.Action, 24 use EnsembleWeb, 11 use LoomWeb, 10 use Phoenix.Component, 9 use BigBillWeb, 9 use BlinksBackendWeb, 7 use Supervisor, 5 use Application, 5 use BobsBroadcastWeb, 5 use Ecto.Repo, 5 use Phoenix.Endpoint, 4 use Gettext.Backend, 4 use Phoenix.Component, Gettext, 3 use Swoosh.Mailer, 2 use Mix.Task, 1 use DynamicSupervisor, 1 use Jido.AI.Agent, 1 use Jido.MCP.Server, 1 use Phoenix.Presence.
 
@@ -43,123 +43,112 @@ planning table -- it says what a translator feature would have to cover, largest
 
 | # | Family | Occurrences | Modules |
 |---:|---|---:|---:|
-| 1 | `call to a helper in the same module` | 271 | 41 |
-| 2 | `call to an imported function or macro` | 156 | 20 |
-| 3 | `string literal` | 147 | 25 |
-| 4 | `if/case not at body level` | 98 | 28 |
-| 5 | `statement in init/1` | 89 | 26 |
-| 6 | `string interpolation / binary` | 85 | 18 |
-| 7 | `keyword list literal` | 67 | 12 |
-| 8 | `call to Logger` | 40 | 15 |
-| 9 | `pipe \|>` | 38 | 20 |
-| 10 | `call to Keyword` | 37 | 11 |
-| 11 | `Kernel function or guard` | 33 | 14 |
-| 12 | `block as a sub-expression` | 26 | 13 |
-| 13 | `call to Enum` | 26 | 14 |
-| 14 | `call to Access` | 24 | 9 |
-| 15 | `no @type state and no init/1 to infer one from` | 24 | 24 |
-| 16 | `message pattern is not an atom or tagged tuple` | 22 | 9 |
-| 17 | `anonymous fn (only `fn x -> e end`)` | 20 | 14 |
-| 18 | `call to Runs` | 20 | 6 |
-| 19 | `variable binding x = e` | 20 | 9 |
-| 20 | `call to :ets` | 18 | 5 |
-| 21 | `call to DateTime` | 17 | 9 |
-| 22 | `binding a pattern x = e` | 16 | 12 |
-| 23 | `call to Map` | 16 | 13 |
-| 24 | `operator &&` | 12 | 5 |
-| 25 | `call to MapSet` | 11 | 3 |
-| 26 | `module alias as a value` | 11 | 6 |
-| 27 | `map pattern with a non-literal key` | 10 | 4 |
-| 28 | `operator \|\|` | 10 | 8 |
-| 29 | `call to Protocol` | 9 | 1 |
-| 30 | `call to Search` | 9 | 3 |
-| 31 | `if/case after a statement with an effect (it would have to be pushed into every branch)` | 9 | 6 |
-| 32 | `init/1 return form (only {:ok, state})` | 9 | 9 |
-| 33 | `operator in` | 9 | 6 |
-| 34 | `string pattern` | 9 | 4 |
-| 35 | `unsupported type String.t()` | 9 | 5 |
-| 36 | `operator <>` | 8 | 5 |
-| 37 | `call to ModelRouter` | 7 | 1 |
-| 38 | `call to Process` | 7 | 6 |
-| 39 | `call to System` | 7 | 3 |
-| 40 | `call to GitHub` | 6 | 2 |
-| 41 | `call to Comms` | 5 | 2 |
-| 42 | `receive not the whole body of a one-argument def` | 5 | 5 |
-| 43 | `send as a sub-expression` | 5 | 3 |
-| 44 | `PubSub topic is not a string literal or an attribute bound to one` | 4 | 2 |
-| 45 | `call on an expression` | 4 | 4 |
-| 46 | `call to AgentLoop` | 4 | 1 |
-| 47 | `call to Events` | 4 | 2 |
-| 48 | `call to Loom.Teams.Tasks` | 4 | 1 |
-| 49 | `call to SessionMessages` | 4 | 1 |
-| 50 | `call to String` | 4 | 4 |
-| 51 | `call to Task` | 4 | 2 |
-| 52 | `last statement is not a GenServer return form` | 4 | 2 |
-| 53 | `struct pattern of a module outside this file` | 4 | 2 |
-| 54 | `try/rescue` | 4 | 3 |
-| 55 | `unsupported type map()` | 4 | 2 |
-| 56 | `call to AcpClient` | 3 | 1 |
-| 57 | `call to AgentRegistry` | 3 | 1 |
-| 58 | `call to File` | 3 | 3 |
-| 59 | `call to GenServer` | 3 | 3 |
-| 60 | `call to Path` | 3 | 3 |
-| 61 | `call to QueryBuilder` | 3 | 1 |
-| 62 | `cond` | 3 | 3 |
-| 63 | `init/1 parameter pattern` | 3 | 3 |
-| 64 | `module attribute @defaults as a value` | 3 | 1 |
-| 65 | `record-shaped map type %{field: T}` | 3 | 2 |
-| 66 | `unsupported type port()` | 3 | 3 |
-| 67 | `call to :telemetry` | 2 | 2 |
-| 68 | `call to AgentExecutions` | 2 | 1 |
-| 69 | `call to BlameHistory` | 2 | 1 |
-| 70 | `call to Ecto.UUID` | 2 | 2 |
-| 71 | `call to EventProcessor` | 2 | 1 |
-| 72 | `call to List` | 2 | 2 |
-| 73 | `call to Loom.Permissions.Manager` | 2 | 2 |
-| 74 | `call to Port` | 2 | 1 |
-| 75 | `call to ReqLLM.Context` | 2 | 1 |
-| 76 | `call to Settings` | 2 | 1 |
-| 77 | `call to Task.Supervisor` | 2 | 2 |
-| 78 | `operator *` | 2 | 2 |
-| 79 | `call to AgentDispatcher` | 1 | 1 |
-| 80 | `call to Architect` | 1 | 1 |
-| 81 | `call to Categorizer` | 1 | 1 |
-| 82 | `call to CostTracker` | 1 | 1 |
-| 83 | `call to DiffEngine` | 1 | 1 |
-| 84 | `call to DynamicSupervisor` | 1 | 1 |
-| 85 | `call to Ensemble.MonitoredRepos` | 1 | 1 |
-| 86 | `call to Exqlite.Sqlite3` | 1 | 1 |
-| 87 | `call to IO` | 1 | 1 |
-| 88 | `call to Jason` | 1 | 1 |
-| 89 | `call to Linkifier` | 1 | 1 |
-| 90 | `call to Loom.LSP.Supervisor` | 1 | 1 |
-| 91 | `call to Loom.MCP.Client` | 1 | 1 |
-| 92 | `call to Loom.MCP.ClientSupervisor` | 1 | 1 |
-| 93 | `call to Loom.Teams.ModelRouter` | 1 | 1 |
-| 94 | `call to Loom.Telemetry.Metrics` | 1 | 1 |
-| 95 | `call to LoomWeb.DiffComponent` | 1 | 1 |
-| 96 | `call to Persistence` | 1 | 1 |
-| 97 | `call to Projects` | 1 | 1 |
-| 98 | `call to SentryConnections` | 1 | 1 |
-| 99 | `call to SentryProjects` | 1 | 1 |
-| 100 | `call to Session` | 1 | 1 |
-| 101 | `call to TextGenerator` | 1 | 1 |
-| 102 | `call to Toml` | 1 | 1 |
-| 103 | `call to Tools` | 1 | 1 |
-| 104 | `float literal` | 1 | 1 |
-| 105 | `list cons [h \| t] in an expression` | 1 | 1 |
-| 106 | `module attribute @default_github_client as a value` | 1 | 1 |
-| 107 | `module attribute @default_health_interval as a value` | 1 | 1 |
-| 108 | `module attribute @default_interval_ms as a value` | 1 | 1 |
-| 109 | `module attribute @default_ttl as a value` | 1 | 1 |
-| 110 | `module attribute @initial_delay as a value` | 1 | 1 |
-| 111 | `module attribute @table as a value` | 1 | 1 |
-| 112 | `operator /` | 1 | 1 |
-| 113 | `pin ^x in a pattern` | 1 | 1 |
-| 114 | `raise not in tail position` | 1 | 1 |
-| 115 | `unsupported type` | 1 | 1 |
-| 116 | `unsupported type AcpClient.request_id()` | 1 | 1 |
-| 117 | `unsupported type AcpClient.t()` | 1 | 1 |
+| 1 | `local helper is not a pure expression` | 242 | 40 |
+| 2 | `call to an imported function or macro` | 144 | 17 |
+| 3 | `call to Enum` | 24 | 14 |
+| 4 | `if/case as a statement (its value is discarded)` | 23 | 12 |
+| 5 | `message pattern is not an atom or tagged tuple` | 22 | 9 |
+| 6 | `statement in init/1` | 21 | 15 |
+| 7 | `call to Runs` | 20 | 6 |
+| 8 | `local helper with a rescue block` | 20 | 11 |
+| 9 | `anonymous fn (only `fn x -> e end`)` | 19 | 14 |
+| 10 | `Kernel function or guard` | 18 | 11 |
+| 11 | `call to :ets` | 18 | 5 |
+| 12 | `a statement with an effect inside a block expression` | 16 | 9 |
+| 13 | `call to Map` | 15 | 14 |
+| 14 | `map pattern with a non-literal key` | 10 | 4 |
+| 15 | `call to Protocol` | 9 | 1 |
+| 16 | `call to Search` | 9 | 3 |
+| 17 | `init/1 return form (only {:ok, state})` | 9 | 9 |
+| 18 | `call to ModelRouter` | 7 | 1 |
+| 19 | `call to Process` | 7 | 6 |
+| 20 | `call to GitHub` | 6 | 2 |
+| 21 | `binding a pattern that may not match` | 5 | 5 |
+| 22 | `call to Comms` | 5 | 2 |
+| 23 | `fixed-length list pattern` | 5 | 3 |
+| 24 | `no @type state and no init/1 to infer one from` | 5 | 5 |
+| 25 | `receive not the whole body of a one-argument def` | 5 | 5 |
+| 26 | `send as a sub-expression` | 5 | 3 |
+| 27 | `struct pattern of a module outside this file` | 5 | 3 |
+| 28 | `PubSub topic is not a string literal or an attribute bound to one` | 4 | 2 |
+| 29 | `call on an expression` | 4 | 4 |
+| 30 | `call to AgentLoop` | 4 | 1 |
+| 31 | `call to Events` | 4 | 2 |
+| 32 | `call to Loom.Teams.Tasks` | 4 | 1 |
+| 33 | `call to SessionMessages` | 4 | 1 |
+| 34 | `call to Task` | 4 | 2 |
+| 35 | `last statement is not a GenServer return form` | 4 | 2 |
+| 36 | `sigil` | 4 | 3 |
+| 37 | `try/rescue` | 4 | 3 |
+| 38 | `unsupported type map()` | 4 | 2 |
+| 39 | `call to AcpClient` | 3 | 1 |
+| 40 | `call to AgentRegistry` | 3 | 1 |
+| 41 | `call to File` | 3 | 3 |
+| 42 | `call to GenServer` | 3 | 3 |
+| 43 | `call to Path` | 3 | 3 |
+| 44 | `call to QueryBuilder` | 3 | 1 |
+| 45 | `call to String` | 3 | 3 |
+| 46 | `call to System` | 3 | 2 |
+| 47 | `init/1 parameter pattern` | 3 | 3 |
+| 48 | `local helper called as a statement` | 3 | 2 |
+| 49 | `local helper with a catch block` | 3 | 3 |
+| 50 | `module attribute @defaults as a value` | 3 | 1 |
+| 51 | `record-shaped map type %{field: T}` | 3 | 2 |
+| 52 | `unsupported pattern` | 3 | 2 |
+| 53 | `unsupported type port()` | 3 | 3 |
+| 54 | `call to :telemetry` | 2 | 2 |
+| 55 | `call to AgentExecutions` | 2 | 1 |
+| 56 | `call to BlameHistory` | 2 | 1 |
+| 57 | `call to Blinks` | 2 | 1 |
+| 58 | `call to Ecto.UUID` | 2 | 2 |
+| 59 | `call to EventProcessor` | 2 | 1 |
+| 60 | `call to List` | 2 | 2 |
+| 61 | `call to Loom.Permissions.Manager` | 2 | 2 |
+| 62 | `call to Port` | 2 | 1 |
+| 63 | `call to ReqLLM.Context` | 2 | 1 |
+| 64 | `call to Settings` | 2 | 1 |
+| 65 | `call to Task.Supervisor` | 2 | 2 |
+| 66 | `call to AgentDispatcher` | 1 | 1 |
+| 67 | `call to Architect` | 1 | 1 |
+| 68 | `call to Categorizer` | 1 | 1 |
+| 69 | `call to CostTracker` | 1 | 1 |
+| 70 | `call to DateTime` | 1 | 1 |
+| 71 | `call to DiffEngine` | 1 | 1 |
+| 72 | `call to DynamicSupervisor` | 1 | 1 |
+| 73 | `call to Ensemble.MonitoredRepos` | 1 | 1 |
+| 74 | `call to Exqlite.Sqlite3` | 1 | 1 |
+| 75 | `call to IO` | 1 | 1 |
+| 76 | `call to Jason` | 1 | 1 |
+| 77 | `call to Linkifier` | 1 | 1 |
+| 78 | `call to Loom.LSP.Supervisor` | 1 | 1 |
+| 79 | `call to Loom.MCP.Client` | 1 | 1 |
+| 80 | `call to Loom.MCP.ClientSupervisor` | 1 | 1 |
+| 81 | `call to Loom.Teams.ModelRouter` | 1 | 1 |
+| 82 | `call to Loom.Telemetry.Metrics` | 1 | 1 |
+| 83 | `call to LoomWeb.DiffComponent` | 1 | 1 |
+| 84 | `call to Persistence` | 1 | 1 |
+| 85 | `call to Projects` | 1 | 1 |
+| 86 | `call to SentryConnections` | 1 | 1 |
+| 87 | `call to SentryProjects` | 1 | 1 |
+| 88 | `call to Session` | 1 | 1 |
+| 89 | `call to TextGenerator` | 1 | 1 |
+| 90 | `call to Toml` | 1 | 1 |
+| 91 | `call to Tools` | 1 | 1 |
+| 92 | `float literal` | 1 | 1 |
+| 93 | `list cons [h \| t] in an expression` | 1 | 1 |
+| 94 | `module attribute @default_github_client as a value` | 1 | 1 |
+| 95 | `module attribute @default_health_interval as a value` | 1 | 1 |
+| 96 | `module attribute @default_interval_ms as a value` | 1 | 1 |
+| 97 | `module attribute @default_ttl as a value` | 1 | 1 |
+| 98 | `module attribute @initial_delay as a value` | 1 | 1 |
+| 99 | `module attribute @table as a value` | 1 | 1 |
+| 100 | `operator /` | 1 | 1 |
+| 101 | `pattern alias = on a non-map, non-struct` | 1 | 1 |
+| 102 | `pin ^x in a pattern` | 1 | 1 |
+| 103 | `raise not in tail position` | 1 | 1 |
+| 104 | `unsupported type` | 1 | 1 |
+| 105 | `unsupported type AcpClient.request_id()` | 1 | 1 |
+| 106 | `unsupported type AcpClient.t()` | 1 | 1 |
 
 ## Closest to translatable
 
@@ -170,16 +159,16 @@ modules that are fewest features away, nearest first (ties broken by the number 
 
 | # | Project | Module | Distance | Blockers | Families |
 |---:|---|---|---:|---:|---|
-| 1 | loom | `Loom.LSP.ConfigListener` | 1 | 1 | `call to Loom.LSP.Supervisor` |
-| 2 | bobs_broadcast | `BobsBroadcastWeb.StreamController` | 2 | 2 | `no @type state and no init/1 to infer one from`, `receive not the whole body of a one-argument def` |
-| 3 | ensemble | `EnsembleWeb.LogsLive` | 2 | 2 | `call to an imported function or macro`, `no @type state and no init/1 to infer one from` |
-| 4 | loom | `Loom.Session.Architect` | 2 | 2 | `no @type state and no init/1 to infer one from`, `receive not the whole body of a one-argument def` |
-| 5 | loom | `Loom.Tools.Shell` | 2 | 2 | `no @type state and no init/1 to infer one from`, `receive not the whole body of a one-argument def` |
-| 6 | loom | `LoomWeb.CostDashboardLive` | 2 | 2 | `call to a helper in the same module`, `no @type state and no init/1 to infer one from` |
-| 7 | ensemble | `EnsembleWeb.DecisionGraphLive` | 2 | 3 | `call to a helper in the same module`, `no @type state and no init/1 to infer one from` |
-| 8 | ensemble | `Ensemble.AI.TextGenerator` | 3 | 3 | `no @type state and no init/1 to infer one from`, `receive not the whole body of a one-argument def`, `unsupported type String.t()` |
-| 9 | bobs_broadcast | `BobsBroadcastWeb.RadioLive` | 3 | 4 | `call to an imported function or macro`, `no @type state and no init/1 to infer one from`, `pipe \|>` |
-| 10 | ensemble | `Ensemble.IssueOrchestrator` | 3 | 16 | `call to Keyword`, `call to a helper in the same module`, `statement in init/1` |
+| 1 | ensemble | `Ensemble.LogStore` | 0 | 0 |  |
+| 2 | ensemble | `EnsembleWeb.LogsLive` | 1 | 1 | `call to an imported function or macro` |
+| 3 | loom | `Loom.LSP.ConfigListener` | 1 | 1 | `call to Loom.LSP.Supervisor` |
+| 4 | loom | `LoomWeb.CostDashboardLive` | 1 | 1 | `local helper is not a pure expression` |
+| 5 | bobs_broadcast | `BobsBroadcastWeb.RadioLive` | 1 | 2 | `call to an imported function or macro` |
+| 6 | big_bill | `BigBillWeb.SearchLive` | 2 | 2 | `call to Search`, `call to an imported function or macro` |
+| 7 | bobs_broadcast | `BobsBroadcastWeb.StreamController` | 2 | 2 | `no @type state and no init/1 to infer one from`, `receive not the whole body of a one-argument def` |
+| 8 | ensemble | `Ensemble.AI.TextGenerator` | 2 | 2 | `no @type state and no init/1 to infer one from`, `receive not the whole body of a one-argument def` |
+| 9 | ensemble | `EnsembleWeb.DecisionGraphLive` | 2 | 2 | `local helper is not a pure expression`, `local helper with a rescue block` |
+| 10 | loom | `Loom.Session.Architect` | 2 | 2 | `no @type state and no init/1 to infer one from`, `receive not the whole body of a one-argument def` |
 
 ## Blocking constructs by frequency
 
@@ -190,436 +179,252 @@ A kind is a stable label: `Mod.fun/arity` for a remote call the translator has n
 
 | # | Construct | Occurrences | Modules |
 |---:|---|---:|---:|
-| 1 | `string literal` | 147 | 25 |
-| 2 | `if/case not at body level` | 98 | 28 |
-| 3 | `statement in init/1` | 89 | 26 |
-| 4 | `imported/macro call assign/2` | 88 | 15 |
-| 5 | `string interpolation / binary` | 85 | 18 |
-| 6 | `keyword list literal` | 67 | 12 |
-| 7 | `pipe \|>` | 38 | 20 |
-| 8 | `imported/macro call assign/3` | 33 | 10 |
-| 9 | `block as a sub-expression` | 26 | 13 |
-| 10 | `Access.get/2` | 24 | 9 |
-| 11 | `Keyword.get/3` | 24 | 10 |
-| 12 | `no @type state and no init/1 to infer one from` | 24 | 24 |
-| 13 | `message pattern is not an atom or tagged tuple` | 22 | 9 |
-| 14 | `anonymous fn (only `fn x -> e end`)` | 20 | 14 |
-| 15 | `variable binding x = e` | 20 | 9 |
-| 16 | `DateTime.utc_now/0` | 16 | 9 |
-| 17 | `Logger.info/1` | 16 | 9 |
-| 18 | `binding a pattern x = e` | 16 | 12 |
-| 19 | `operator &&` | 12 | 5 |
-| 20 | `Logger.warning/1` | 11 | 10 |
-| 21 | `Runs.get_run!/1` | 11 | 6 |
-| 22 | `local call set_status/2` | 11 | 1 |
-| 23 | `module alias as a value` | 11 | 6 |
-| 24 | `map pattern with a non-literal key` | 10 | 4 |
-| 25 | `operator \|\|` | 10 | 8 |
-| 26 | `Runs.update_run/2` | 9 | 5 |
-| 27 | `if/case after a statement with an effect (it would have to be pushed into every branch)` | 9 | 6 |
-| 28 | `init/1 return form (only {:ok, state})` | 9 | 9 |
-| 29 | `local call append_event/2` | 9 | 1 |
-| 30 | `local call build_event/3` | 9 | 1 |
-| 31 | `operator in` | 9 | 6 |
-| 32 | `string pattern` | 9 | 4 |
-| 33 | `unsupported type String.t()` | 9 | 5 |
-| 34 | `Keyword.fetch!/2` | 8 | 4 |
-| 35 | `local call forward_to_llm_component/1` | 8 | 1 |
-| 36 | `operator <>` | 8 | 5 |
-| 37 | `Enum.reduce/3` | 7 | 5 |
-| 38 | `Logger.debug/1` | 7 | 4 |
-| 39 | `local call do_poll/1` | 7 | 3 |
-| 40 | `Logger.error/1` | 6 | 3 |
-| 41 | `local call broadcast_team/2` | 6 | 1 |
-| 42 | `local call forward_to_dashboard/1` | 6 | 1 |
-| 43 | `local call reload_issues/1` | 6 | 1 |
-| 44 | `:ets.lookup/2` | 5 | 3 |
-| 45 | `:ets.new/2` | 5 | 5 |
-| 46 | `Kernel.is_reference/1` | 5 | 3 |
-| 47 | `Kernel.put_in/3` | 5 | 2 |
-| 48 | `Kernel.to_string/1` | 5 | 1 |
-| 49 | `Keyword.get/2` | 5 | 5 |
-| 50 | `Protocol.path_to_uri/1` | 5 | 1 |
-| 51 | `System.monotonic_time/1` | 5 | 2 |
-| 52 | `imported/macro call assign/1` | 5 | 2 |
-| 53 | `local call schedule_poll/1` | 5 | 3 |
-| 54 | `receive not the whole body of a one-argument def` | 5 | 5 |
-| 55 | `send as a sub-expression` | 5 | 3 |
-| 56 | `:ets.insert/2` | 4 | 2 |
-| 57 | `Events.emit/1` | 4 | 2 |
-| 58 | `Map.fetch!/2` | 4 | 4 |
-| 59 | `MapSet.delete/2` | 4 | 2 |
-| 60 | `Process.demonitor/2` | 4 | 3 |
-| 61 | `PubSub topic is not a string literal or an attribute bound to one` | 4 | 2 |
-| 62 | `Task.start/1` | 4 | 2 |
-| 63 | `call on an expression` | 4 | 4 |
-| 64 | `imported/macro call push_navigate/2` | 4 | 3 |
-| 65 | `imported/macro call put_flash/2` | 4 | 2 |
-| 66 | `imported/macro call send_update/2` | 4 | 1 |
-| 67 | `last statement is not a GenServer return form` | 4 | 2 |
-| 68 | `local call broadcast/2` | 4 | 1 |
-| 69 | `local call handle_ndjson_line/2` | 4 | 2 |
-| 70 | `local call reload_tasks/2` | 4 | 1 |
-| 71 | `local call rescope_to_project/2` | 4 | 2 |
-| 72 | `local call spawn_debate_response/4` | 4 | 1 |
-| 73 | `local call update_status/2` | 4 | 1 |
-| 74 | `struct pattern of a module outside this file` | 4 | 2 |
-| 75 | `try/rescue` | 4 | 3 |
-| 76 | `unsupported type map()` | 4 | 2 |
-| 77 | `Comms.send_to/3` | 3 | 1 |
-| 78 | `Enum.map_join/3` | 3 | 1 |
-| 79 | `Kernel.inspect/1` | 3 | 3 |
-| 80 | `Map.new/2` | 3 | 3 |
-| 81 | `cond` | 3 | 3 |
-| 82 | `imported/macro call connected?/1` | 3 | 1 |
-| 83 | `init/1 parameter pattern` | 3 | 3 |
-| 84 | `local call dispatch_next_from_queue/1` | 3 | 1 |
-| 85 | `local call do_build/1` | 3 | 1 |
-| 86 | `local call do_watch/2` | 3 | 1 |
-| 87 | `local call finish_ai_walkthrough/2` | 3 | 1 |
-| 88 | `local call forward_to_cost/1` | 3 | 1 |
-| 89 | `local call next_id/1` | 3 | 1 |
-| 90 | `local call scoped_repos/1` | 3 | 1 |
-| 91 | `local call send_request/4` | 3 | 1 |
-| 92 | `local call subscribe_to_team/1` | 3 | 1 |
-| 93 | `local call track_usage/2` | 3 | 1 |
-| 94 | `module attribute @defaults as a value` | 3 | 1 |
-| 95 | `record-shaped map type %{field: T}` | 3 | 2 |
-| 96 | `unsupported type port()` | 3 | 3 |
-| 97 | `:ets.tab2list/1` | 2 | 1 |
-| 98 | `AgentExecutions.list_executions/1` | 2 | 1 |
-| 99 | `AgentLoop.run/2` | 2 | 1 |
-| 100 | `AgentRegistry.agents_for_trigger/1` | 2 | 1 |
-| 101 | `Comms.broadcast/2` | 2 | 2 |
-| 102 | `Ecto.UUID.generate/0` | 2 | 2 |
-| 103 | `Enum.each/2` | 2 | 2 |
-| 104 | `Enum.join/2` | 2 | 1 |
-| 105 | `EventProcessor.append_event/2` | 2 | 1 |
-| 106 | `File.read/1` | 2 | 2 |
-| 107 | `Kernel.get_in/2` | 2 | 2 |
-| 108 | `Kernel.is_binary/1` | 2 | 2 |
-| 109 | `Loom.Permissions.Manager.grant/3` | 2 | 2 |
-| 110 | `Loom.Teams.Tasks.complete_task/2` | 2 | 1 |
-| 111 | `Map.from_struct/1` | 2 | 2 |
-| 112 | `Map.new/1` | 2 | 2 |
-| 113 | `MapSet.new/0` | 2 | 1 |
-| 114 | `MapSet.put/2` | 2 | 2 |
-| 115 | `MapSet.size/1` | 2 | 1 |
-| 116 | `ModelRouter.record_success/4` | 2 | 1 |
-| 117 | `ModelRouter.select/2` | 2 | 1 |
-| 118 | `Path.join/2` | 2 | 2 |
-| 119 | `Process.cancel_timer/1` | 2 | 2 |
-| 120 | `Protocol.initialize_params/1` | 2 | 1 |
-| 121 | `Search.populate/1` | 2 | 1 |
-| 122 | `SessionMessages.create_message/1` | 2 | 1 |
-| 123 | `SessionMessages.next_sequence/1` | 2 | 1 |
-| 124 | `Settings.put/2` | 2 | 1 |
-| 125 | `String.trim/1` | 2 | 2 |
-| 126 | `System.cmd/3` | 2 | 1 |
-| 127 | `imported/macro call push_event/2` | 2 | 2 |
-| 128 | `imported/macro call refresh_orchestrator_state/0` | 2 | 1 |
-| 129 | `imported/macro call reload/0` | 2 | 1 |
-| 130 | `imported/macro call reload_prs/0` | 2 | 1 |
-| 131 | `local call broadcast_config_change/0` | 2 | 1 |
-| 132 | `local call build_loop_opts/1` | 2 | 1 |
-| 133 | `local call compact_runs/0` | 2 | 1 |
-| 134 | `local call default_global_metrics/0` | 2 | 1 |
-| 135 | `local call do_change_role/2` | 2 | 1 |
-| 136 | `local call do_dispatch/3` | 2 | 1 |
-| 137 | `local call do_dispatch_issue/2` | 2 | 1 |
-| 138 | `local call emit_finished/3` | 2 | 2 |
-| 139 | `local call ensure_team/3` | 2 | 1 |
-| 140 | `local call estimate_tokens/1` | 2 | 1 |
-| 141 | `local call load_agent_configs/0` | 2 | 1 |
-| 142 | `local call load_cost_data/1` | 2 | 1 |
-| 143 | `local call load_enabled_agents/0` | 2 | 1 |
-| 144 | `local call load_issues/1` | 2 | 1 |
-| 145 | `local call load_repo/2` | 2 | 1 |
-| 146 | `local call maybe_execute_agent/4` | 2 | 1 |
-| 147 | `local call maybe_prefetch_context/2` | 2 | 1 |
-| 148 | `local call maybe_retry/3` | 2 | 1 |
-| 149 | `local call maybe_track_result/2` | 2 | 1 |
-| 150 | `local call refresh_grouped_runs/1` | 2 | 1 |
-| 151 | `local call resolve_command/2` | 2 | 2 |
-| 152 | `local call run_health_check/1` | 2 | 1 |
-| 153 | `local call schedule_cleanup/0` | 2 | 1 |
-| 154 | `local call schedule_compaction/1` | 2 | 1 |
-| 155 | `local call schedule_cron_tick/0` | 2 | 1 |
-| 156 | `local call schedule_health_check/1` | 2 | 1 |
-| 157 | `local call schedule_persist/1` | 2 | 1 |
-| 158 | `local call schedule_stall_check/0` | 2 | 1 |
-| 159 | `local call send_notification/3` | 2 | 1 |
-| 160 | `local call slots_available?/1` | 2 | 1 |
-| 161 | `local call split_lines/1` | 2 | 2 |
-| 162 | `local call start_server/1` | 2 | 1 |
-| 163 | `local call start_track/1` | 2 | 1 |
-| 164 | `local call stop_timer/1` | 2 | 1 |
-| 165 | `local call stop_watcher/1` | 2 | 1 |
-| 166 | `local call store_config/1` | 2 | 1 |
-| 167 | `local call sync_tools/2` | 2 | 1 |
-| 168 | `local call update_registry_tokens/1` | 2 | 1 |
-| 169 | `operator *` | 2 | 2 |
-| 170 | `:ets.delete/2` | 1 | 1 |
-| 171 | `:ets.whereis/1` | 1 | 1 |
-| 172 | `:telemetry.execute/3` | 1 | 1 |
-| 173 | `:telemetry.span/3` | 1 | 1 |
-| 174 | `AcpClient.receive_data/2` | 1 | 1 |
-| 175 | `AcpClient.send_notification/3` | 1 | 1 |
-| 176 | `AcpClient.send_response/3` | 1 | 1 |
-| 177 | `AgentDispatcher.get_state/0` | 1 | 1 |
-| 178 | `AgentLoop.default_run_tool/3` | 1 | 1 |
-| 179 | `AgentLoop.resume/3` | 1 | 1 |
-| 180 | `AgentRegistry.get_agent/1` | 1 | 1 |
-| 181 | `Architect.run/3` | 1 | 1 |
-| 182 | `BlameHistory.blame_lines/3` | 1 | 1 |
-| 183 | `BlameHistory.line_evolution/3` | 1 | 1 |
-| 184 | `Categorizer.categorize/1` | 1 | 1 |
-| 185 | `CostTracker.team_cost_summary/1` | 1 | 1 |
-| 186 | `DateTime.to_iso8601/0` | 1 | 1 |
-| 187 | `DiffEngine.parse_unified_diff/1` | 1 | 1 |
-| 188 | `DynamicSupervisor.start_child/2` | 1 | 1 |
-| 189 | `Ensemble.MonitoredRepos.list_enabled_repos/0` | 1 | 1 |
-| 190 | `Enum.filter/1` | 1 | 1 |
-| 191 | `Enum.find/2` | 1 | 1 |
-| 192 | `Enum.find_index/2` | 1 | 1 |
-| 193 | `Enum.flat_map/1` | 1 | 1 |
-| 194 | `Enum.group_by/1` | 1 | 1 |
-| 195 | `Enum.map_join/2` | 1 | 1 |
-| 196 | `Enum.reduce/2` | 1 | 1 |
-| 197 | `Enum.sort_by/1` | 1 | 1 |
-| 198 | `Enum.split_with/1` | 1 | 1 |
-| 199 | `Enum.take/1` | 1 | 1 |
-| 200 | `Enum.uniq/0` | 1 | 1 |
-| 201 | `Enum.uniq_by/1` | 1 | 1 |
-| 202 | `Exqlite.Sqlite3.open/1` | 1 | 1 |
-| 203 | `File.cwd!/0` | 1 | 1 |
-| 204 | `GenServer.cast/2` | 1 | 1 |
-| 205 | `GenServer.reply/2` | 1 | 1 |
-| 206 | `GenServer.whereis/1` | 1 | 1 |
-| 207 | `GitHub.get_authenticated_user/0` | 1 | 1 |
-| 208 | `GitHub.get_commits_for_file/2` | 1 | 1 |
-| 209 | `GitHub.get_pr/2` | 1 | 1 |
-| 210 | `GitHub.get_pr_diff/2` | 1 | 1 |
-| 211 | `GitHub.list_user_repos/0` | 1 | 1 |
-| 212 | `GitHub.search_repos/1` | 1 | 1 |
-| 213 | `IO.iodata_to_binary/1` | 1 | 1 |
-| 214 | `Jason.encode!/1` | 1 | 1 |
-| 215 | `Kernel.binary_part/3` | 1 | 1 |
-| 216 | `Kernel.byte_size/1` | 1 | 1 |
-| 217 | `Kernel.ceil/1` | 1 | 1 |
-| 218 | `Kernel.elem/2` | 1 | 1 |
-| 219 | `Kernel.is_map/1` | 1 | 1 |
-| 220 | `Kernel.is_port/1` | 1 | 1 |
-| 221 | `Kernel.max/2` | 1 | 1 |
-| 222 | `Kernel.min/2` | 1 | 1 |
-| 223 | `Kernel.put_in/2` | 1 | 1 |
-| 224 | `Kernel.rem/2` | 1 | 1 |
-| 225 | `Kernel.update_in/3` | 1 | 1 |
-| 226 | `Linkifier.linkify/2` | 1 | 1 |
-| 227 | `List.delete/2` | 1 | 1 |
-| 228 | `List.flatten/0` | 1 | 1 |
-| 229 | `Loom.LSP.Supervisor.start_from_config/0` | 1 | 1 |
-| 230 | `Loom.MCP.Client.refresh/0` | 1 | 1 |
-| 231 | `Loom.MCP.ClientSupervisor.enabled?/0` | 1 | 1 |
-| 232 | `Loom.Teams.ModelRouter.default_model/0` | 1 | 1 |
-| 233 | `Loom.Teams.Tasks.fail_task/2` | 1 | 1 |
-| 234 | `Loom.Teams.Tasks.get_task/1` | 1 | 1 |
-| 235 | `Loom.Telemetry.Metrics.session_metrics/1` | 1 | 1 |
-| 236 | `LoomWeb.DiffComponent.parse_edit_result/1` | 1 | 1 |
-| 237 | `Map.merge/2` | 1 | 1 |
-| 238 | `Map.put/2` | 1 | 1 |
-| 239 | `Map.update!/3` | 1 | 1 |
-| 240 | `Map.update/4` | 1 | 1 |
-| 241 | `Map.values/0` | 1 | 1 |
-| 242 | `MapSet.to_list/1` | 1 | 1 |
-| 243 | `ModelRouter.escalation_enabled?/0` | 1 | 1 |
-| 244 | `ModelRouter.record_failure/3` | 1 | 1 |
-| 245 | `ModelRouter.should_escalate?/3` | 1 | 1 |
-| 246 | `Path.relative_to/2` | 1 | 1 |
-| 247 | `Persistence.update_session/2` | 1 | 1 |
-| 248 | `Port.command/2` | 1 | 1 |
-| 249 | `Port.info/1` | 1 | 1 |
-| 250 | `Process.send_after/3` | 1 | 1 |
-| 251 | `Projects.list_projects/0` | 1 | 1 |
-| 252 | `Protocol.did_close_params/1` | 1 | 1 |
-| 253 | `Protocol.did_open_params/3` | 1 | 1 |
-| 254 | `QueryBuilder.apply_negatives/1` | 1 | 1 |
-| 255 | `QueryBuilder.build/1` | 1 | 1 |
-| 256 | `QueryBuilder.determine_facets/1` | 1 | 1 |
-| 257 | `ReqLLM.Context.system/1` | 1 | 1 |
-| 258 | `ReqLLM.Context.user/1` | 1 | 1 |
-| 259 | `Search.build_index/0` | 1 | 1 |
-| 260 | `Search.db_path/0` | 1 | 1 |
-| 261 | `Search.execute_facet_counts/2` | 1 | 1 |
-| 262 | `Search.execute_search/3` | 1 | 1 |
-| 263 | `Search.get_full_content/1` | 1 | 1 |
-| 264 | `Search.index_exists?/0` | 1 | 1 |
-| 265 | `Search.search/2` | 1 | 1 |
-| 266 | `SentryConnections.get_connection/0` | 1 | 1 |
-| 267 | `SentryProjects.list_projects/0` | 1 | 1 |
-| 268 | `Session.update_model/2` | 1 | 1 |
-| 269 | `String.contains?/2` | 1 | 1 |
-| 270 | `String.length/1` | 1 | 1 |
-| 271 | `Task.Supervisor.async_nolink/2` | 1 | 1 |
-| 272 | `Task.Supervisor.start_child/2` | 1 | 1 |
-| 273 | `TextGenerator.parse_issue_response/1` | 1 | 1 |
-| 274 | `Toml.decode_file/1` | 1 | 1 |
-| 275 | `Tools.schemas/0` | 1 | 1 |
-| 276 | `float literal` | 1 | 1 |
-| 277 | `imported/macro call ensure_team/2` | 1 | 1 |
-| 278 | `imported/macro call format_messages_as_context/0` | 1 | 1 |
-| 279 | `imported/macro call load_cost_data/0` | 1 | 1 |
-| 280 | `imported/macro call put_flash/3` | 1 | 1 |
-| 281 | `imported/macro call run_search/2` | 1 | 1 |
-| 282 | `imported/macro call set_status/1` | 1 | 1 |
-| 283 | `imported/macro call track_usage/1` | 1 | 1 |
-| 284 | `list cons [h \| t] in an expression` | 1 | 1 |
-| 285 | `local call apply_filters/2` | 1 | 1 |
-| 286 | `local call assign_metrics/1` | 1 | 1 |
-| 287 | `local call atomize_keys/1` | 1 | 1 |
-| 288 | `local call attach_handlers/0` | 1 | 1 |
-| 289 | `local call attempt_escalation/2` | 1 | 1 |
-| 290 | `local call broadcast_now_playing/1` | 1 | 1 |
-| 291 | `local call build_agent_list/1` | 1 | 1 |
-| 292 | `local call build_initial_cache/1` | 1 | 1 |
-| 293 | `local call build_permission_response/4` | 1 | 1 |
-| 294 | `local call build_permission_result/3` | 1 | 1 |
-| 295 | `local call call_llm/2` | 1 | 1 |
-| 296 | `local call cancel_active_run/2` | 1 | 1 |
-| 297 | `local call check_child_team_completion/2` | 1 | 1 |
-| 298 | `local call classify_event/2` | 1 | 1 |
-| 299 | `local call config/1` | 1 | 1 |
-| 300 | `local call connect_server/2` | 1 | 1 |
-| 301 | `local call create_and_dispatch_continuation/3` | 1 | 1 |
-| 302 | `local call deep_merge/2` | 1 | 1 |
-| 303 | `local call default_model/0` | 1 | 1 |
-| 304 | `local call default_session_metrics/0` | 1 | 1 |
-| 305 | `local call detect_stalled_agents/1` | 1 | 1 |
-| 306 | `local call determine_status/2` | 1 | 1 |
-| 307 | `local call determine_view_state/1` | 1 | 1 |
-| 308 | `local call dispatch_permission_response/5` | 1 | 1 |
-| 309 | `local call do_persist/1` | 1 | 1 |
-| 310 | `local call do_refresh/1` | 1 | 1 |
-| 311 | `local call execute_agent_async/4` | 1 | 1 |
-| 312 | `local call extract_answer/1` | 1 | 1 |
-| 313 | `local call extract_event_type/1` | 1 | 1 |
-| 314 | `local call fetch_issues_from_sentry/0` | 1 | 1 |
-| 315 | `local call fetch_keeper_context/2` | 1 | 1 |
-| 316 | `local call find_run_by_monitor/3` | 1 | 1 |
-| 317 | `local call find_section_in_raw_text/2` | 1 | 1 |
-| 318 | `local call finish_run/2` | 1 | 1 |
-| 319 | `local call format_error/1` | 1 | 1 |
-| 320 | `local call format_llm_error/1` | 1 | 1 |
-| 321 | `local call format_messages_as_context/1` | 1 | 1 |
-| 322 | `local call forward_to_team_components/1` | 1 | 1 |
-| 323 | `local call get_local_llm_status/0` | 1 | 1 |
-| 324 | `local call get_or_init_bucket/2` | 1 | 1 |
-| 325 | `local call get_server_configs/0` | 1 | 1 |
-| 326 | `local call handle_acp_message/2` | 1 | 1 |
-| 327 | `local call init_buckets/0` | 1 | 1 |
-| 328 | `local call keyword_fallback/2` | 1 | 1 |
-| 329 | `local call keyword_match/2` | 1 | 1 |
-| 330 | `local call load_config_from_db/0` | 1 | 1 |
-| 331 | `local call load_entities/1` | 1 | 1 |
-| 332 | `local call load_playlist/0` | 1 | 1 |
-| 333 | `local call load_prior_messages/1` | 1 | 1 |
-| 334 | `local call load_session_messages/1` | 1 | 1 |
-| 335 | `local call mark_run_cancelled/1` | 1 | 1 |
-| 336 | `local call maybe_continue_for_issue/2` | 1 | 1 |
-| 337 | `local call maybe_load_from_db/1` | 1 | 1 |
-| 338 | `local call maybe_track_cost/2` | 1 | 1 |
-| 339 | `local call notification_title/1` | 1 | 1 |
-| 340 | `local call parse_shell_result/1` | 1 | 1 |
-| 341 | `local call process_buffer/1` | 1 | 1 |
-| 342 | `local call process_changes/2` | 1 | 1 |
-| 343 | `local call queue_has_run?/2` | 1 | 1 |
-| 344 | `local call refill/1` | 1 | 1 |
-| 345 | `local call refresh_orchestrator_state/1` | 1 | 1 |
-| 346 | `local call reload_prs/1` | 1 | 1 |
-| 347 | `local call resolve_executable/1` | 1 | 1 |
-| 348 | `local call resolve_interactive_command/3` | 1 | 1 |
-| 349 | `local call room/1` | 1 | 1 |
-| 350 | `local call route_permission_response/4` | 1 | 1 |
-| 351 | `local call run_agentic_loop/5` | 1 | 1 |
-| 352 | `local call schedule_chunk/1` | 1 | 1 |
-| 353 | `local call schedule_debounce/1` | 1 | 1 |
-| 354 | `local call seed_repos_from_config/1` | 1 | 1 |
-| 355 | `local call should_process?/2` | 1 | 1 |
-| 356 | `local call sweep/0` | 1 | 1 |
-| 357 | `local call to_float/1` | 1 | 1 |
-| 358 | `local call update_metrics/2` | 1 | 1 |
-| 359 | `module attribute @default_github_client as a value` | 1 | 1 |
-| 360 | `module attribute @default_health_interval as a value` | 1 | 1 |
-| 361 | `module attribute @default_interval_ms as a value` | 1 | 1 |
-| 362 | `module attribute @default_ttl as a value` | 1 | 1 |
-| 363 | `module attribute @initial_delay as a value` | 1 | 1 |
-| 364 | `module attribute @table as a value` | 1 | 1 |
-| 365 | `operator /` | 1 | 1 |
-| 366 | `pin ^x in a pattern` | 1 | 1 |
-| 367 | `raise not in tail position` | 1 | 1 |
-| 368 | `unsupported type` | 1 | 1 |
-| 369 | `unsupported type AcpClient.request_id()` | 1 | 1 |
-| 370 | `unsupported type AcpClient.t()` | 1 | 1 |
+| 1 | `local helper is not a pure expression` | 242 | 40 |
+| 2 | `imported/macro call assign/3` | 82 | 14 |
+| 3 | `imported/macro call assign/2` | 44 | 4 |
+| 4 | `if/case as a statement (its value is discarded)` | 23 | 12 |
+| 5 | `message pattern is not an atom or tagged tuple` | 22 | 9 |
+| 6 | `statement in init/1` | 21 | 15 |
+| 7 | `local helper with a rescue block` | 20 | 11 |
+| 8 | `anonymous fn (only `fn x -> e end`)` | 19 | 14 |
+| 9 | `a statement with an effect inside a block expression` | 16 | 9 |
+| 10 | `Runs.get_run!/1` | 11 | 6 |
+| 11 | `map pattern with a non-literal key` | 10 | 4 |
+| 12 | `Runs.update_run/2` | 9 | 5 |
+| 13 | `init/1 return form (only {:ok, state})` | 9 | 9 |
+| 14 | `Enum.reduce/3` | 8 | 6 |
+| 15 | `:ets.lookup/2` | 5 | 3 |
+| 16 | `:ets.new/2` | 5 | 5 |
+| 17 | `Kernel.is_reference/1` | 5 | 3 |
+| 18 | `Kernel.put_in/3` | 5 | 2 |
+| 19 | `Protocol.path_to_uri/1` | 5 | 1 |
+| 20 | `binding a pattern that may not match` | 5 | 5 |
+| 21 | `fixed-length list pattern` | 5 | 3 |
+| 22 | `imported/macro call put_flash/3` | 5 | 3 |
+| 23 | `no @type state and no init/1 to infer one from` | 5 | 5 |
+| 24 | `receive not the whole body of a one-argument def` | 5 | 5 |
+| 25 | `send as a sub-expression` | 5 | 3 |
+| 26 | `struct pattern of a module outside this file` | 5 | 3 |
+| 27 | `:ets.insert/2` | 4 | 2 |
+| 28 | `Enum.map_join/3` | 4 | 2 |
+| 29 | `Events.emit/1` | 4 | 2 |
+| 30 | `Map.fetch!/2` | 4 | 4 |
+| 31 | `Map.new/2` | 4 | 4 |
+| 32 | `Process.demonitor/2` | 4 | 3 |
+| 33 | `PubSub topic is not a string literal or an attribute bound to one` | 4 | 2 |
+| 34 | `Task.start/1` | 4 | 2 |
+| 35 | `call on an expression` | 4 | 4 |
+| 36 | `imported/macro call push_navigate/2` | 4 | 3 |
+| 37 | `imported/macro call send_update/2` | 4 | 1 |
+| 38 | `last statement is not a GenServer return form` | 4 | 2 |
+| 39 | `sigil` | 4 | 3 |
+| 40 | `try/rescue` | 4 | 3 |
+| 41 | `unsupported type map()` | 4 | 2 |
+| 42 | `Comms.send_to/3` | 3 | 1 |
+| 43 | `Enum.join/2` | 3 | 1 |
+| 44 | `imported/macro call connected?/1` | 3 | 1 |
+| 45 | `init/1 parameter pattern` | 3 | 3 |
+| 46 | `local helper called as a statement` | 3 | 2 |
+| 47 | `local helper with a catch block` | 3 | 3 |
+| 48 | `module attribute @defaults as a value` | 3 | 1 |
+| 49 | `record-shaped map type %{field: T}` | 3 | 2 |
+| 50 | `unsupported pattern` | 3 | 2 |
+| 51 | `unsupported type port()` | 3 | 3 |
+| 52 | `:ets.tab2list/1` | 2 | 1 |
+| 53 | `AgentExecutions.list_executions/1` | 2 | 1 |
+| 54 | `AgentLoop.run/2` | 2 | 1 |
+| 55 | `AgentRegistry.agents_for_trigger/1` | 2 | 1 |
+| 56 | `Blinks.count_blinks/0` | 2 | 1 |
+| 57 | `Comms.broadcast/2` | 2 | 2 |
+| 58 | `Ecto.UUID.generate/0` | 2 | 2 |
+| 59 | `Enum.each/2` | 2 | 2 |
+| 60 | `EventProcessor.append_event/2` | 2 | 1 |
+| 61 | `File.read/1` | 2 | 2 |
+| 62 | `Kernel.get_in/2` | 2 | 2 |
+| 63 | `Loom.Permissions.Manager.grant/3` | 2 | 2 |
+| 64 | `Loom.Teams.Tasks.complete_task/2` | 2 | 1 |
+| 65 | `Map.from_struct/1` | 2 | 2 |
+| 66 | `Map.update/4` | 2 | 2 |
+| 67 | `ModelRouter.record_success/4` | 2 | 1 |
+| 68 | `ModelRouter.select/2` | 2 | 1 |
+| 69 | `Path.join/2` | 2 | 2 |
+| 70 | `Process.cancel_timer/1` | 2 | 2 |
+| 71 | `Protocol.initialize_params/1` | 2 | 1 |
+| 72 | `Search.populate/1` | 2 | 1 |
+| 73 | `SessionMessages.create_message/1` | 2 | 1 |
+| 74 | `SessionMessages.next_sequence/1` | 2 | 1 |
+| 75 | `Settings.put/2` | 2 | 1 |
+| 76 | `String.trim/1` | 2 | 2 |
+| 77 | `System.cmd/3` | 2 | 1 |
+| 78 | `imported/macro call push_event/3` | 2 | 2 |
+| 79 | `:ets.delete/2` | 1 | 1 |
+| 80 | `:ets.whereis/1` | 1 | 1 |
+| 81 | `:telemetry.execute/3` | 1 | 1 |
+| 82 | `:telemetry.span/3` | 1 | 1 |
+| 83 | `AcpClient.receive_data/2` | 1 | 1 |
+| 84 | `AcpClient.send_notification/3` | 1 | 1 |
+| 85 | `AcpClient.send_response/3` | 1 | 1 |
+| 86 | `AgentDispatcher.get_state/0` | 1 | 1 |
+| 87 | `AgentLoop.default_run_tool/3` | 1 | 1 |
+| 88 | `AgentLoop.resume/3` | 1 | 1 |
+| 89 | `AgentRegistry.get_agent/1` | 1 | 1 |
+| 90 | `Architect.run/3` | 1 | 1 |
+| 91 | `BlameHistory.blame_lines/3` | 1 | 1 |
+| 92 | `BlameHistory.line_evolution/3` | 1 | 1 |
+| 93 | `Categorizer.categorize/1` | 1 | 1 |
+| 94 | `CostTracker.team_cost_summary/1` | 1 | 1 |
+| 95 | `DateTime.to_iso8601/1` | 1 | 1 |
+| 96 | `DiffEngine.parse_unified_diff/1` | 1 | 1 |
+| 97 | `DynamicSupervisor.start_child/2` | 1 | 1 |
+| 98 | `Ensemble.MonitoredRepos.list_enabled_repos/0` | 1 | 1 |
+| 99 | `Enum.find/2` | 1 | 1 |
+| 100 | `Enum.find_index/2` | 1 | 1 |
+| 101 | `Enum.flat_map/2` | 1 | 1 |
+| 102 | `Enum.sort_by/2` | 1 | 1 |
+| 103 | `Enum.split_with/2` | 1 | 1 |
+| 104 | `Enum.uniq/1` | 1 | 1 |
+| 105 | `Enum.uniq_by/2` | 1 | 1 |
+| 106 | `Exqlite.Sqlite3.open/1` | 1 | 1 |
+| 107 | `File.cwd!/0` | 1 | 1 |
+| 108 | `GenServer.cast/2` | 1 | 1 |
+| 109 | `GenServer.reply/2` | 1 | 1 |
+| 110 | `GenServer.whereis/1` | 1 | 1 |
+| 111 | `GitHub.get_authenticated_user/0` | 1 | 1 |
+| 112 | `GitHub.get_commits_for_file/2` | 1 | 1 |
+| 113 | `GitHub.get_pr/2` | 1 | 1 |
+| 114 | `GitHub.get_pr_diff/2` | 1 | 1 |
+| 115 | `GitHub.list_user_repos/0` | 1 | 1 |
+| 116 | `GitHub.search_repos/1` | 1 | 1 |
+| 117 | `IO.iodata_to_binary/1` | 1 | 1 |
+| 118 | `Jason.encode!/1` | 1 | 1 |
+| 119 | `Kernel.binary_part/3` | 1 | 1 |
+| 120 | `Kernel.byte_size/1` | 1 | 1 |
+| 121 | `Kernel.ceil/1` | 1 | 1 |
+| 122 | `Kernel.is_port/1` | 1 | 1 |
+| 123 | `Kernel.put_in/2` | 1 | 1 |
+| 124 | `Kernel.update_in/3` | 1 | 1 |
+| 125 | `Linkifier.linkify/2` | 1 | 1 |
+| 126 | `List.delete/2` | 1 | 1 |
+| 127 | `List.flatten/1` | 1 | 1 |
+| 128 | `Loom.LSP.Supervisor.start_from_config/0` | 1 | 1 |
+| 129 | `Loom.MCP.Client.refresh/0` | 1 | 1 |
+| 130 | `Loom.MCP.ClientSupervisor.enabled?/0` | 1 | 1 |
+| 131 | `Loom.Teams.ModelRouter.default_model/0` | 1 | 1 |
+| 132 | `Loom.Teams.Tasks.fail_task/2` | 1 | 1 |
+| 133 | `Loom.Teams.Tasks.get_task/1` | 1 | 1 |
+| 134 | `Loom.Telemetry.Metrics.session_metrics/1` | 1 | 1 |
+| 135 | `LoomWeb.DiffComponent.parse_edit_result/1` | 1 | 1 |
+| 136 | `Map.merge/2` | 1 | 1 |
+| 137 | `Map.new/1` | 1 | 1 |
+| 138 | `Map.update!/3` | 1 | 1 |
+| 139 | `ModelRouter.escalation_enabled?/0` | 1 | 1 |
+| 140 | `ModelRouter.record_failure/3` | 1 | 1 |
+| 141 | `ModelRouter.should_escalate?/3` | 1 | 1 |
+| 142 | `Path.relative_to/2` | 1 | 1 |
+| 143 | `Persistence.update_session/2` | 1 | 1 |
+| 144 | `Port.command/2` | 1 | 1 |
+| 145 | `Port.info/1` | 1 | 1 |
+| 146 | `Process.send_after/3` | 1 | 1 |
+| 147 | `Projects.list_projects/0` | 1 | 1 |
+| 148 | `Protocol.did_close_params/1` | 1 | 1 |
+| 149 | `Protocol.did_open_params/3` | 1 | 1 |
+| 150 | `QueryBuilder.apply_negatives/2` | 1 | 1 |
+| 151 | `QueryBuilder.build/1` | 1 | 1 |
+| 152 | `QueryBuilder.determine_facets/1` | 1 | 1 |
+| 153 | `ReqLLM.Context.system/1` | 1 | 1 |
+| 154 | `ReqLLM.Context.user/1` | 1 | 1 |
+| 155 | `Search.build_index/0` | 1 | 1 |
+| 156 | `Search.db_path/0` | 1 | 1 |
+| 157 | `Search.execute_facet_counts/2` | 1 | 1 |
+| 158 | `Search.execute_search/3` | 1 | 1 |
+| 159 | `Search.get_full_content/1` | 1 | 1 |
+| 160 | `Search.index_exists?/0` | 1 | 1 |
+| 161 | `Search.search/2` | 1 | 1 |
+| 162 | `SentryConnections.get_connection/0` | 1 | 1 |
+| 163 | `SentryProjects.list_projects/0` | 1 | 1 |
+| 164 | `Session.update_model/2` | 1 | 1 |
+| 165 | `String.contains?/2` | 1 | 1 |
+| 166 | `System.unique_integer/1` | 1 | 1 |
+| 167 | `Task.Supervisor.async_nolink/2` | 1 | 1 |
+| 168 | `Task.Supervisor.start_child/2` | 1 | 1 |
+| 169 | `TextGenerator.parse_issue_response/1` | 1 | 1 |
+| 170 | `Toml.decode_file/1` | 1 | 1 |
+| 171 | `Tools.schemas/0` | 1 | 1 |
+| 172 | `float literal` | 1 | 1 |
+| 173 | `list cons [h \| t] in an expression` | 1 | 1 |
+| 174 | `module attribute @default_github_client as a value` | 1 | 1 |
+| 175 | `module attribute @default_health_interval as a value` | 1 | 1 |
+| 176 | `module attribute @default_interval_ms as a value` | 1 | 1 |
+| 177 | `module attribute @default_ttl as a value` | 1 | 1 |
+| 178 | `module attribute @initial_delay as a value` | 1 | 1 |
+| 179 | `module attribute @table as a value` | 1 | 1 |
+| 180 | `operator /` | 1 | 1 |
+| 181 | `pattern alias = on a non-map, non-struct` | 1 | 1 |
+| 182 | `pin ^x in a pattern` | 1 | 1 |
+| 183 | `raise not in tail position` | 1 | 1 |
+| 184 | `unsupported type` | 1 | 1 |
+| 185 | `unsupported type AcpClient.request_id()` | 1 | 1 |
+| 186 | `unsupported type AcpClient.t()` | 1 | 1 |
 
 ## Modules
 
 | Project | Module | File | Kind | Translated | Blockers | Distance | Top constructs |
 |---|---|---|---|---|---:|---:|---|
-| loom | `Loom.Config` | `loom/config.ex` | GenServer | no | 14 | 8 | `module attribute @defaults as a value` (3), `local call store_config/1` (2), `statement in init/1` (2), `:ets.new/2` |
-| loom | `Loom.LSP.Client` | `loom/lsp/client.ex` | GenServer | no | 58 | 19 | `string literal` (7), `Protocol.path_to_uri/1` (5), `variable binding x = e` (5), `if/case not at body level` (4) |
+| loom | `Loom.Config` | `loom/config.ex` | GenServer | no | 10 | 6 | `local helper is not a pure expression` (3), `module attribute @defaults as a value` (3), `:ets.new/2`, `Path.join/2` |
+| loom | `Loom.LSP.Client` | `loom/lsp/client.ex` | GenServer | no | 25 | 10 | `local helper is not a pure expression` (6), `Protocol.path_to_uri/1` (5), `Protocol.initialize_params/1` (2), `if/case as a statement (its value is discarded)` (2) |
 | loom | `Loom.LSP.ConfigListener` | `loom/lsp/supervisor.ex` | GenServer | no | 1 | 1 | `Loom.LSP.Supervisor.start_from_config/0` |
-| loom | `Loom.MCP.Client` | `loom/mcp/client.ex` | GenServer | no | 14 | 8 | `Enum.reduce/3` (2), `anonymous fn (only `fn x -> e end`)` (2), `local call sync_tools/2` (2), `List.flatten/0` |
-| loom | `Loom.MCP.ConfigListener` | `loom/mcp/client_supervisor.ex` | GenServer | no | 13 | 9 | `module alias as a value` (3), `if/case not at body level` (2), `DynamicSupervisor.start_child/2`, `GenServer.whereis/1` |
-| loom | `Loom.RepoIntel.Index` | `loom/repo_intel/index.ex` | GenServer | no | 25 | 9 | `statement in init/1` (4), `anonymous fn (only `fn x -> e end`)` (3), `if/case not at body level` (3), `local call do_build/1` (3) |
-| loom | `Loom.RepoIntel.Watcher` | `loom/repo_intel/watcher.ex` | GenServer | no | 26 | 13 | `local call do_watch/2` (3), `MapSet.new/0` (2), `MapSet.size/1` (2), `local call stop_watcher/1` (2) |
+| loom | `Loom.MCP.Client` | `loom/mcp/client.ex` | GenServer | no | 13 | 8 | `local helper is not a pure expression` (3), `Enum.reduce/3` (2), `anonymous fn (only `fn x -> e end`)` (2), `local helper with a rescue block` (2) |
+| loom | `Loom.MCP.ConfigListener` | `loom/mcp/client_supervisor.ex` | GenServer | no | 6 | 5 | `if/case as a statement (its value is discarded)` (2), `DynamicSupervisor.start_child/2`, `GenServer.whereis/1`, `Loom.MCP.Client.refresh/0` |
+| loom | `Loom.RepoIntel.Index` | `loom/repo_intel/index.ex` | GenServer | no | 17 | 7 | `local helper is not a pure expression` (6), `:ets.tab2list/1` (2), `anonymous fn (only `fn x -> e end`)` (2), `:ets.lookup/2` |
+| loom | `Loom.RepoIntel.Watcher` | `loom/repo_intel/watcher.ex` | GenServer | no | 14 | 8 | `local helper is not a pure expression` (7), `Kernel.get_in/2`, `Path.relative_to/2`, `a statement with an effect inside a block expression` |
 | loom | `Loom.Session.Architect` | `loom/session/architect.ex` | receive loop | no | 2 | 2 | `no @type state and no init/1 to infer one from`, `receive not the whole body of a one-argument def` |
-| loom | `Loom.Session` | `loom/session/session.ex` | GenServer | no | 71 | 26 | `string interpolation / binary` (9), `statement in init/1` (6), `Keyword.get/3` (4), `Logger.info/1` (4) |
-| loom | `Loom.Teams.Agent` | `loom/teams/agent.ex` | GenServer | no | 191 | 34 | `string interpolation / binary` (36), `string literal` (17), `if/case not at body level` (15), `local call set_status/2` (11) |
-| loom | `Loom.Teams.ContextKeeper` | `loom/teams/context_keeper.ex` | GenServer | no | 56 | 16 | `statement in init/1` (12), `if/case not at body level` (6), `Keyword.get/3` (5), `string literal` (3) |
-| loom | `Loom.Teams.Debate` | `loom/teams/debate.ex` | receive loop | no | 6 | 5 | `record-shaped map type %{field: T}` (2), `no @type state and no init/1 to infer one from`, `receive not the whole body of a one-argument def`, `unsupported type` |
-| loom | `Loom.Teams.QueryRouter` | `loom/teams/query_router.ex` | GenServer | no | 19 | 12 | `Comms.send_to/3` (3), `Kernel.put_in/3` (3), `System.monotonic_time/1` (2), `Comms.broadcast/2` |
-| loom | `Loom.Teams.RateLimiter` | `loom/teams/rate_limiter.ex` | GenServer | no | 21 | 11 | `Access.get/2` (4), `Kernel.put_in/3` (2), `local call ensure_team/3` (2), `Kernel.ceil/1` |
+| loom | `Loom.Session` | `loom/session/session.ex` | GenServer | no | 28 | 17 | `local helper is not a pure expression` (4), `Kernel.is_reference/1` (3), `message pattern is not an atom or tagged tuple` (3), `struct pattern of a module outside this file` (3) |
+| loom | `Loom.Teams.Agent` | `loom/teams/agent.ex` | GenServer | no | 56 | 19 | `local helper is not a pure expression` (8), `if/case as a statement (its value is discarded)` (7), `local helper with a rescue block` (4), `Enum.join/2` (3) |
+| loom | `Loom.Teams.ContextKeeper` | `loom/teams/context_keeper.ex` | GenServer | no | 23 | 11 | `local helper is not a pure expression` (8), `local helper with a rescue block` (4), `Loom.Teams.ModelRouter.default_model/0`, `Map.from_struct/1` |
+| loom | `Loom.Teams.Debate` | `loom/teams/debate.ex` | receive loop | no | 5 | 4 | `record-shaped map type %{field: T}` (2), `no @type state and no init/1 to infer one from`, `receive not the whole body of a one-argument def`, `unsupported type` |
+| loom | `Loom.Teams.QueryRouter` | `loom/teams/query_router.ex` | GenServer | no | 13 | 8 | `Comms.send_to/3` (3), `Kernel.put_in/3` (3), `Comms.broadcast/2`, `Ecto.UUID.generate/0` |
+| loom | `Loom.Teams.RateLimiter` | `loom/teams/rate_limiter.ex` | GenServer | no | 10 | 4 | `local helper is not a pure expression` (5), `Kernel.put_in/3` (2), `Kernel.ceil/1`, `Map.new/2` |
 | loom | `Loom.Teams.TableRegistry` | `loom/teams/table_registry.ex` | GenServer | yes | 0 | 0 |  |
-| loom | `Loom.Telemetry.Metrics` | `loom/telemetry/metrics.ex` | GenServer | no | 21 | 5 | `statement in init/1` (5), `if/case not at body level` (4), `:ets.insert/2` (3), `:ets.lookup/2` (3) |
+| loom | `Loom.Telemetry.Metrics` | `loom/telemetry/metrics.ex` | GenServer | no | 16 | 5 | `statement in init/1` (4), `:ets.insert/2` (3), `:ets.lookup/2` (3), `fixed-length list pattern` (3) |
 | loom | `Loom.Tools.Shell` | `loom/tools/shell.ex` | receive loop | no | 2 | 2 | `no @type state and no init/1 to infer one from`, `receive not the whole body of a one-argument def` |
-| loom | `LoomWeb.CostDashboardLive` | `loom_web/live/cost_dashboard_live.ex` | GenServer | no | 2 | 2 | `local call assign_metrics/1`, `no @type state and no init/1 to infer one from` |
-| loom | `LoomWeb.TeamActivityComponent` | `loom_web/live/team_activity_component.ex` | GenServer | no | 43 | 10 | `string interpolation / binary` (10), `local call append_event/2` (9), `local call build_event/3` (9), `if/case not at body level` (3) |
-| loom | `LoomWeb.TeamCostComponent` | `loom_web/live/team_cost_component.ex` | GenServer | no | 7 | 5 | `local call load_cost_data/1` (2), `DateTime.utc_now/0`, `imported/macro call assign/2`, `imported/macro call load_cost_data/0` |
-| loom | `LoomWeb.TeamDashboardComponent` | `loom_web/live/team_dashboard_component.ex` | GenServer | no | 18 | 9 | `local call reload_tasks/2` (4), `if/case not at body level` (3), `imported/macro call assign/2` (2), `imported/macro call assign/3` (2) |
-| loom | `LoomWeb.WorkspaceLive` | `loom_web/live/workspace_live.ex` | GenServer | no | 157 | 26 | `keyword list literal` (32), `imported/macro call assign/2` (28), `string literal` (14), `if/case not at body level` (12) |
-| ensemble | `Ensemble.AgentDispatcher` | `ensemble/agent_dispatcher.ex` | GenServer | no | 46 | 14 | `string literal` (8), `DateTime.utc_now/0` (4), `statement in init/1` (3), `string interpolation / binary` (3) |
-| ensemble | `Ensemble.AgentRunner.ClaudeCode` | `ensemble/agent_runner/claude_code.ex` | GenServer | no | 58 | 23 | `statement in init/1` (5), `string literal` (5), `string interpolation / binary` (4), `Logger.info/1` (3) |
-| ensemble | `Ensemble.AgentRunner.Codex` | `ensemble/agent_runner/codex.ex` | GenServer | no | 39 | 17 | `string literal` (5), `statement in init/1` (4), `if/case not at body level` (3), `DateTime.utc_now/0` (2) |
-| ensemble | `Ensemble.AgentRunner.LocalLLM` | `ensemble/agent_runner/local_llm.ex` | GenServer | no | 72 | 21 | `string literal` (26), `statement in init/1` (5), `variable binding x = e` (5), `DateTime.utc_now/0` (3) |
-| ensemble | `Ensemble.AgentRunner.OpenCode` | `ensemble/agent_runner/opencode.ex` | GenServer | no | 43 | 25 | `statement in init/1` (4), `string literal` (3), `unsupported type String.t()` (3), `unsupported type map()` (3) |
-| ensemble | `Ensemble.AI.TextGenerator` | `ensemble/ai/text_generator.ex` | receive loop | no | 3 | 3 | `no @type state and no init/1 to infer one from`, `receive not the whole body of a one-argument def`, `unsupported type String.t()` |
-| ensemble | `Ensemble.Alerts` | `ensemble/alerts.ex` | GenServer | no | 4 | 4 | `:ets.new/2`, `module attribute @table as a value`, `record-shaped map type %{field: T}`, `statement in init/1` |
-| ensemble | `Ensemble.IssueOrchestrator` | `ensemble/issue_orchestrator.ex` | GenServer | no | 16 | 3 | `statement in init/1` (6), `Keyword.get/3` (4), `local call do_dispatch_issue/2` (2), `local call do_poll/1` (2) |
-| ensemble | `Ensemble.LocalLLM.Client` | `ensemble/local_llm/client.ex` | GenServer | no | 38 | 17 | `if/case not at body level` (5), `string literal` (4), `Task.start/1` (3), `anonymous fn (only `fn x -> e end`)` (3) |
-| ensemble | `Ensemble.LocalLLM.Speculator` | `ensemble/local_llm/speculator.ex` | GenServer | no | 25 | 13 | `statement in init/1` (4), `System.monotonic_time/1` (3), `if/case not at body level` (3), `block as a sub-expression` (2) |
-| ensemble | `Ensemble.LogStore` | `ensemble/log_store.ex` | GenServer | no | 4 | 4 | `binding a pattern x = e`, `block as a sub-expression`, `if/case not at body level`, `variable binding x = e` |
-| ensemble | `Ensemble.Orchestrator` | `ensemble/orchestrator.ex` | GenServer | no | 58 | 16 | `string literal` (12), `Keyword.get/3` (4), `if/case not at body level` (3), `local call dispatch_next_from_queue/1` (3) |
-| ensemble | `Ensemble.PRMonitor` | `ensemble/pr_monitor.ex` | GenServer | no | 23 | 9 | `statement in init/1` (7), `local call do_poll/1` (3), `Keyword.get/3` (2), `local call schedule_poll/1` (2) |
-| ensemble | `Ensemble.SentryMonitor` | `ensemble/sentry_monitor.ex` | GenServer | no | 12 | 8 | `local call do_poll/1` (2), `try/rescue` (2), `Logger.info/1`, `Process.cancel_timer/1` |
-| ensemble | `Ensemble.SessionCompactor` | `ensemble/session_compactor.ex` | GenServer | no | 8 | 4 | `local call compact_runs/0` (2), `local call schedule_compaction/1` (2), `statement in init/1` (2), `Keyword.get/3` |
-| ensemble | `EnsembleWeb.AgentsLive` | `ensemble_web/live/agents_live.ex` | GenServer | no | 16 | 10 | `if/case not at body level` (3), `imported/macro call assign/3` (3), `AgentExecutions.list_executions/1` (2), `keyword list literal` (2) |
-| ensemble | `EnsembleWeb.DashboardLive` | `ensemble_web/live/dashboard_live.ex` | GenServer | no | 46 | 12 | `string literal` (15), `if/case not at body level` (4), `imported/macro call assign/3` (4), `imported/macro call assign/2` (3) |
-| ensemble | `EnsembleWeb.DecisionGraphLive` | `ensemble_web/live/decision_graph_live.ex` | GenServer | no | 3 | 2 | `local call load_repo/2` (2), `no @type state and no init/1 to infer one from` |
-| ensemble | `EnsembleWeb.IssuesLive` | `ensemble_web/live/issues_live.ex` | GenServer | no | 17 | 8 | `imported/macro call assign/2` (5), `keyword list literal` (5), `local call load_issues/1` (2), `Kernel.is_reference/1` |
-| ensemble | `EnsembleWeb.LogsLive` | `ensemble_web/live/logs_live.ex` | GenServer | no | 2 | 2 | `imported/macro call assign/3`, `no @type state and no init/1 to infer one from` |
-| ensemble | `EnsembleWeb.PRDashboardLive` | `ensemble_web/live/pr_dashboard_live.ex` | GenServer | no | 58 | 11 | `imported/macro call assign/2` (19), `pipe \|>` (8), `imported/macro call assign/3` (5), `Access.get/2` (3) |
-| ensemble | `EnsembleWeb.PRReviewLive` | `ensemble_web/live/pr_review_live.ex` | GenServer | no | 65 | 24 | `string literal` (7), `if/case not at body level` (6), `imported/macro call assign/2` (5), `map pattern with a non-literal key` (5) |
-| ensemble | `EnsembleWeb.RunDetailLive` | `ensemble_web/live/run_detail_live.ex` | GenServer | no | 25 | 11 | `imported/macro call assign/2` (5), `imported/macro call assign/3` (4), `string literal` (4), `EventProcessor.append_event/2` (2) |
-| ensemble | `EnsembleWeb.SentryLive` | `ensemble_web/live/sentry_live.ex` | GenServer | no | 21 | 4 | `local call reload_issues/1` (6), `imported/macro call assign/3` (5), `imported/macro call assign/2` (3), `imported/macro call put_flash/2` (2) |
-| ensemble | `EnsembleWeb.SettingsLive` | `ensemble_web/live/settings_live.ex` | GenServer | no | 47 | 11 | `keyword list literal` (12), `local call forward_to_llm_component/1` (8), `message pattern is not an atom or tagged tuple` (6), `imported/macro call send_update/2` (4) |
-| blinks_backend | `BlinksBackend.Links.LinkCheck` | `blinks_backend/links/link_check.ex` | GenServer | no | 7 | 7 | `Logger.info/1`, `Process.send_after/3`, `binding a pattern x = e`, `local call sweep/0` |
-| blinks_backend | `BlinksBackendWeb.LinksLive` | `blinks_backend_web/live/links_live.ex` | GenServer | no | 29 | 12 | `keyword list literal` (6), `imported/macro call assign/1` (3), `imported/macro call assign/2` (3), `message pattern is not an atom or tagged tuple` (3) |
-| big_bill | `BigBill.Search.Server` | `big_bill/search/server.ex` | GenServer | no | 13 | 5 | `statement in init/1` (4), `Search.populate/1` (2), `Exqlite.Sqlite3.open/1`, `Search.db_path/0` |
-| big_bill | `BigBillWeb.DrilldownLive` | `big_bill_web/live/drilldown_live.ex` | GenServer | no | 28 | 12 | `imported/macro call assign/2` (6), `pipe \|>` (3), `if/case not at body level` (2), `string literal` (2) |
-| big_bill | `BigBillWeb.SearchLive` | `big_bill_web/live/search_live.ex` | GenServer | no | 5 | 4 | `Search.build_index/0`, `imported/macro call assign/2`, `imported/macro call run_search/2`, `no @type state and no init/1 to infer one from` |
-| bobs_broadcast | `BobsBroadcast.Radio.Broadcaster` | `bobs_broadcast/radio/broadcaster.ex` | GenServer | no | 17 | 8 | `local call start_track/1` (2), `local call stop_timer/1` (2), `:telemetry.execute/3`, `Kernel.binary_part/3` |
+| loom | `LoomWeb.CostDashboardLive` | `loom_web/live/cost_dashboard_live.ex` | GenServer | no | 1 | 1 | `local helper is not a pure expression` |
+| loom | `LoomWeb.TeamActivityComponent` | `loom_web/live/team_activity_component.ex` | GenServer | no | 7 | 4 | `imported/macro call assign/2` (3), `local helper is not a pure expression` (2), `Map.update/4`, `unsupported pattern` |
+| loom | `LoomWeb.TeamCostComponent` | `loom_web/live/team_cost_component.ex` | GenServer | no | 3 | 2 | `local helper is not a pure expression` (2), `imported/macro call assign/3` |
+| loom | `LoomWeb.TeamDashboardComponent` | `loom_web/live/team_dashboard_component.ex` | GenServer | no | 9 | 4 | `imported/macro call assign/3` (4), `local helper is not a pure expression` (3), `CostTracker.team_cost_summary/1`, `float literal` |
+| loom | `LoomWeb.WorkspaceLive` | `loom_web/live/workspace_live.ex` | GenServer | no | 65 | 15 | `imported/macro call assign/2` (30), `local helper is not a pure expression` (7), `if/case as a statement (its value is discarded)` (4), `a statement with an effect inside a block expression` (3) |
+| ensemble | `Ensemble.AgentDispatcher` | `ensemble/agent_dispatcher.ex` | GenServer | no | 26 | 10 | `local helper is not a pure expression` (10), `AgentRegistry.agents_for_trigger/1` (2), `Enum.reduce/3` (2), `Settings.put/2` (2) |
+| ensemble | `Ensemble.AgentRunner.ClaudeCode` | `ensemble/agent_runner/claude_code.ex` | GenServer | no | 41 | 16 | `local helper is not a pure expression` (18), `a statement with an effect inside a block expression` (3), `Runs.get_run!/1` (2), `Runs.update_run/2` (2) |
+| ensemble | `Ensemble.AgentRunner.Codex` | `ensemble/agent_runner/codex.ex` | GenServer | no | 24 | 11 | `local helper is not a pure expression` (9), `Runs.get_run!/1` (2), `Runs.update_run/2` (2), `message pattern is not an atom or tagged tuple` (2) |
+| ensemble | `Ensemble.AgentRunner.LocalLLM` | `ensemble/agent_runner/local_llm.ex` | GenServer | no | 27 | 14 | `Events.emit/1` (3), `Runs.get_run!/1` (3), `Runs.update_run/2` (3), `a statement with an effect inside a block expression` (3) |
+| ensemble | `Ensemble.AgentRunner.OpenCode` | `ensemble/agent_runner/opencode.ex` | GenServer | no | 47 | 16 | `local helper is not a pure expression` (25), `unsupported type map()` (3), `last statement is not a GenServer return form` (2), `message pattern is not an atom or tagged tuple` (2) |
+| ensemble | `Ensemble.AI.TextGenerator` | `ensemble/ai/text_generator.ex` | receive loop | no | 2 | 2 | `no @type state and no init/1 to infer one from`, `receive not the whole body of a one-argument def` |
+| ensemble | `Ensemble.Alerts` | `ensemble/alerts.ex` | GenServer | no | 3 | 3 | `:ets.new/2`, `module attribute @table as a value`, `record-shaped map type %{field: T}` |
+| ensemble | `Ensemble.IssueOrchestrator` | `ensemble/issue_orchestrator.ex` | GenServer | no | 17 | 2 | `local helper is not a pure expression` (16), `local helper with a rescue block` |
+| ensemble | `Ensemble.LocalLLM.Client` | `ensemble/local_llm/client.ex` | GenServer | no | 24 | 14 | `local helper is not a pure expression` (4), `Task.start/1` (3), `anonymous fn (only `fn x -> e end`)` (3), `System.cmd/3` (2) |
+| ensemble | `Ensemble.LocalLLM.Speculator` | `ensemble/local_llm/speculator.ex` | GenServer | no | 12 | 9 | `:ets.delete/2`, `:ets.insert/2`, `:ets.lookup/2`, `:ets.new/2` |
+| ensemble | `Ensemble.LogStore` | `ensemble/log_store.ex` | GenServer | no (translator) | 0 | 0 |  |
+| ensemble | `Ensemble.Orchestrator` | `ensemble/orchestrator.ex` | GenServer | no | 27 | 9 | `local helper is not a pure expression` (16), `Runs.get_run!/1` (2), `map pattern with a non-literal key` (2), `Events.emit/1` |
+| ensemble | `Ensemble.PRMonitor` | `ensemble/pr_monitor.ex` | GenServer | no | 16 | 4 | `local helper is not a pure expression` (13), `Ensemble.MonitoredRepos.list_enabled_repos/0`, `module attribute @default_github_client as a value`, `statement in init/1` |
+| ensemble | `Ensemble.SentryMonitor` | `ensemble/sentry_monitor.ex` | GenServer | no | 12 | 4 | `local helper is not a pure expression` (8), `try/rescue` (2), `Process.cancel_timer/1`, `if/case as a statement (its value is discarded)` |
+| ensemble | `Ensemble.SessionCompactor` | `ensemble/session_compactor.ex` | GenServer | no | 14 | 3 | `local helper is not a pure expression` (12), `module attribute @default_interval_ms as a value`, `statement in init/1` |
+| ensemble | `EnsembleWeb.AgentsLive` | `ensemble_web/live/agents_live.ex` | GenServer | no | 8 | 5 | `imported/macro call assign/3` (3), `AgentExecutions.list_executions/1` (2), `AgentDispatcher.get_state/0`, `Enum.find/2` |
+| ensemble | `EnsembleWeb.DashboardLive` | `ensemble_web/live/dashboard_live.ex` | GenServer | no | 18 | 4 | `imported/macro call assign/3` (7), `local helper is not a pure expression` (7), `map pattern with a non-literal key` (2), `imported/macro call push_event/3` |
+| ensemble | `EnsembleWeb.DecisionGraphLive` | `ensemble_web/live/decision_graph_live.ex` | GenServer | no | 2 | 2 | `local helper is not a pure expression`, `local helper with a rescue block` |
+| ensemble | `EnsembleWeb.IssuesLive` | `ensemble_web/live/issues_live.ex` | GenServer | no | 11 | 6 | `imported/macro call assign/2` (5), `local helper is not a pure expression` (2), `Kernel.is_reference/1`, `Process.demonitor/2` |
+| ensemble | `EnsembleWeb.LogsLive` | `ensemble_web/live/logs_live.ex` | GenServer | no | 1 | 1 | `imported/macro call assign/3` |
+| ensemble | `EnsembleWeb.PRDashboardLive` | `ensemble_web/live/pr_dashboard_live.ex` | GenServer | no | 33 | 4 | `imported/macro call assign/3` (24), `local helper is not a pure expression` (4), `GitHub.get_authenticated_user/0`, `GitHub.get_pr/2` |
+| ensemble | `EnsembleWeb.PRReviewLive` | `ensemble_web/live/pr_review_live.ex` | GenServer | no | 33 | 14 | `imported/macro call assign/3` (9), `map pattern with a non-literal key` (5), `local helper is not a pure expression` (3), `unsupported pattern` (2) |
+| ensemble | `EnsembleWeb.RunDetailLive` | `ensemble_web/live/run_detail_live.ex` | GenServer | no | 16 | 6 | `imported/macro call assign/3` (9), `EventProcessor.append_event/2` (2), `Runs.get_run!/1`, `imported/macro call push_navigate/2` |
+| ensemble | `EnsembleWeb.SentryLive` | `ensemble_web/live/sentry_live.ex` | GenServer | no | 19 | 2 | `local helper is not a pure expression` (9), `imported/macro call assign/3` (8), `imported/macro call put_flash/3` (2) |
+| ensemble | `EnsembleWeb.SettingsLive` | `ensemble_web/live/settings_live.ex` | GenServer | no | 21 | 7 | `message pattern is not an atom or tagged tuple` (6), `imported/macro call assign/3` (5), `imported/macro call send_update/2` (4), `Projects.list_projects/0` |
+| blinks_backend | `BlinksBackend.Links.LinkCheck` | `blinks_backend/links/link_check.ex` | GenServer | no | 6 | 4 | `local helper is not a pure expression` (3), `Process.send_after/3`, `module attribute @initial_delay as a value`, `statement in init/1` |
+| blinks_backend | `BlinksBackendWeb.LinksLive` | `blinks_backend_web/live/links_live.ex` | GenServer | no | 18 | 7 | `imported/macro call assign/2` (6), `local helper is not a pure expression` (3), `message pattern is not an atom or tagged tuple` (3), `Blinks.count_blinks/0` (2) |
+| big_bill | `BigBill.Search.Server` | `big_bill/search/server.ex` | GenServer | no | 10 | 4 | `Search.populate/1` (2), `statement in init/1` (2), `Exqlite.Sqlite3.open/1`, `Search.db_path/0` |
+| big_bill | `BigBillWeb.DrilldownLive` | `big_bill_web/live/drilldown_live.ex` | GenServer | no | 19 | 7 | `imported/macro call assign/3` (6), `local helper is not a pure expression` (3), `Enum.flat_map/2`, `Enum.sort_by/2` |
+| big_bill | `BigBillWeb.SearchLive` | `big_bill_web/live/search_live.ex` | GenServer | no | 2 | 2 | `Search.build_index/0`, `imported/macro call assign/3` |
+| bobs_broadcast | `BobsBroadcast.Radio.Broadcaster` | `bobs_broadcast/radio/broadcaster.ex` | GenServer | no | 9 | 5 | `local helper is not a pure expression` (4), `:telemetry.execute/3`, `Kernel.binary_part/3`, `Kernel.byte_size/1` |
 | bobs_broadcast | `BobsBroadcastWeb.StreamController` | `bobs_broadcast_web/controllers/stream_controller.ex` | receive loop | no | 2 | 2 | `no @type state and no init/1 to infer one from`, `receive not the whole body of a one-argument def` |
-| bobs_broadcast | `BobsBroadcastWeb.RadioLive` | `bobs_broadcast_web/live/radio_live.ex` | GenServer | no | 4 | 3 | `imported/macro call assign/2` (2), `no @type state and no init/1 to infer one from`, `pipe \|>` |
+| bobs_broadcast | `BobsBroadcastWeb.RadioLive` | `bobs_broadcast_web/live/radio_live.ex` | GenServer | no | 2 | 1 | `imported/macro call assign/3` (2) |
 
 ## Per-module detail
 
@@ -628,18 +433,14 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 ### Loom.Config (loom)
 
-`loom/config.ex`, GenServer; translator: failed: `Config.init/1: unsupported statement table = :ets.new(:loom_config, [:named_table, :set, :public, read_concurrency: true])`; translated: no.
+`loom/config.ex`, GenServer; translator: failed: `Config.init/1: Config.store_config/1 is called for its effect, but a local helper is a pure expression`; translated: no.
 
+- `local helper is not a pure expression` at 124, 142, 156
 - `module attribute @defaults as a value` at 88, 99, 102
-- `local call store_config/1` at 88, 105
-- `statement in init/1` at 87, 88
 - `:ets.new/2` at 87
 - `Path.join/2` at 94
 - `Toml.decode_file/1` at 97
-- `if/case not at body level` at 97
-- `local call atomize_keys/1` at 99
-- `local call deep_merge/2` at 99
-- `string literal` at 94
+- `statement in init/1` at 88
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 89
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
@@ -649,41 +450,29 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 `loom/lsp/client.ex`, GenServer; translator: failed: `Client: try/rescue is only supported around external resource calls (:ets.*), which are no-ops in the model; got try do`; translated: no.
 
-- `string literal` at 80, 107, 126, 153, 167, 173, 183
+- `local helper is not a pure expression` at 230, 250, 257, 262, 272, 288
 - `Protocol.path_to_uri/1` at 103, 122, 137, 164, 181
-- `variable binding x = e` at 164, 166, 172, 181, 182
-- `if/case not at body level` at 163, 167, 180, 201
-- `binding a pattern x = e` at 104, 123, 152
-- `local call next_id/1` at 104, 123, 152
-- `local call send_request/4` at 107, 126, 153
-- `Keyword.fetch!/2` at 81, 82
-- `Logger.warning/1` at 113, 197
 - `Protocol.initialize_params/1` at 106, 125
-- `block as a sub-expression` at 163, 180
-- `local call send_notification/3` at 173, 183
-- `local call start_server/1` at 101, 120
+- `if/case as a statement (its value is discarded)` at 163, 180
 - `message pattern is not an atom or tagged tuple` at 190, 196
-- `string interpolation / binary` at 113, 197
 - `Enum.each/2` at 200
 - `File.read/1` at 167
 - `GenServer.reply/2` at 201
 - `IO.iodata_to_binary/1` at 191
-- `Keyword.get/3` at 83
 - `Protocol.did_close_params/1` at 182
 - `Protocol.did_open_params/3` at 172
 - `anonymous fn (only `fn x -> e end`)` at 200
 - `init/1 return form (only {:ok, state})` at 92
-- `local call process_buffer/1` at 192
-- `operator <>` at 191
-- `statement in init/1` at 80
+- *Logger.warning/1 dropped (no effect in the model)* at 113, 197
 - *dotted module name (translated under its last segment)* at 1
+- *init/1 option list modelled as empty (Keyword.get takes its default)* at 79
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
 - *no @type state (inferred from init/1: untyped mode)* at 1
 - *terminate/2 ignored by the translator* at 212
 
 ### Loom.LSP.ConfigListener (loom)
 
-`loom/lsp/supervisor.ex`, GenServer; translator: failed: `Supervisor.init/1: unsupported statement children = [`; translated: no.
+`loom/lsp/supervisor.ex`, GenServer; translator: failed: `Supervisor.init/1 must end in {:ok, state}, got Supervisor.init(children, strategy: :one_for_all)`; translated: no.
 
 - `Loom.LSP.Supervisor.start_from_config/0` at 113
 - *dotted module name (translated under its last segment)* at 97
@@ -694,15 +483,12 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 `loom/mcp/client.ex`, GenServer; translator: failed: `Client: declare the type of struct field endpoints in @type t :: %__MODULE__{endpoints: ..}`; translated: no.
 
+- `local helper is not a pure expression` at 154, 161, 191
 - `Enum.reduce/3` at 97, 139
 - `anonymous fn (only `fn x -> e end`)` at 97, 139
-- `local call sync_tools/2` at 140, 148
-- `List.flatten/0` at 109
+- `local helper with a rescue block` at 208, 237
+- `List.flatten/1` at 109
 - `Map.new/2` at 122
-- `Map.values/0` at 108
-- `local call connect_server/2` at 98
-- `local call get_server_configs/0` at 94
-- `pipe |>` at 109
 - `send as a sub-expression` at 88
 - `statement in init/1` at 88
 - *dotted module name (translated under its last segment)* at 1
@@ -711,18 +497,15 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 ### Loom.MCP.ConfigListener (loom)
 
-`loom/mcp/client_supervisor.ex`, GenServer; translator: failed: `ClientSupervisor.init/1: unsupported statement children = [`; translated: no.
+`loom/mcp/client_supervisor.ex`, GenServer; translator: failed: `ClientSupervisor.init/1 must end in {:ok, state}, got Supervisor.init(children, strategy: :one_for_one)`; translated: no.
 
-- `module alias as a value` at 57, 63
-- `if/case not at body level` at 57, 63
+- `if/case as a statement (its value is discarded)` at 57, 63
 - `DynamicSupervisor.start_child/2` at 63
 - `GenServer.whereis/1` at 57
-- `Logger.info/1` at 65
-- `Logger.warning/1` at 68
 - `Loom.MCP.Client.refresh/0` at 57
 - `Loom.MCP.ClientSupervisor.enabled?/0` at 62
-- `string interpolation / binary` at 68
-- `string literal` at 65
+- *Logger.info/1 dropped (no effect in the model)* at 65
+- *Logger.warning/1 dropped (no effect in the model)* at 68
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 51
 - *dotted module name (translated under its last segment)* at 38
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 38
@@ -730,55 +513,40 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 ### Loom.RepoIntel.Index (loom)
 
-`loom/repo_intel/index.ex`, GenServer; translator: failed: `Index.init/1: unsupported statement project_path = Keyword.get(opts, :project_path)`; translated: no.
+`loom/repo_intel/index.ex`, GenServer; translator: failed: `Index.init/1: unsupported statement if project_path do`; translated: no.
 
-- `statement in init/1` at 78, 80, 87, 90
-- `anonymous fn (only `fn x -> e end`)` at 133, 137, 140
-- `if/case not at body level` at 81, 90, 116
-- `local call do_build/1` at 90, 99, 105
+- `local helper is not a pure expression` at 46, 153, 163, 193, 233, 240
 - `:ets.tab2list/1` at 125, 131
+- `anonymous fn (only `fn x -> e end`)` at 133, 140
 - `:ets.lookup/2` at 116
 - `:ets.new/2` at 84
 - `:ets.whereis/1` at 81
-- `Enum.group_by/1` at 137
 - `Enum.reduce/3` at 140
-- `Keyword.get/2` at 78
-- `Map.new/1` at 138
-- `local call apply_filters/2` at 126
-- `local call do_refresh/1` at 110
-- `pipe |>` at 138
+- `Map.new/2` at 138
+- `fixed-length list pattern` at 117
+- `statement in init/1` at 90
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 87, 142
 - *dotted module name (translated under its last segment)* at 1
+- *init/1 option list modelled as empty (Keyword.get takes its default)* at 77
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
 - *no @type state (inferred from init/1: untyped mode)* at 1
 
 ### Loom.RepoIntel.Watcher (loom)
 
-`loom/repo_intel/watcher.ex`, GenServer; translator: failed: `Watcher.init/1: unsupported statement state = %{`; translated: no.
+`loom/repo_intel/watcher.ex`, GenServer; translator: failed: `Watcher.init/1 must end in {:ok, state}, got if project_path = nil do`; translated: no.
 
-- `local call do_watch/2` at 62, 68, 133
-- `MapSet.new/0` at 48, 122
-- `MapSet.size/1` at 82, 112
-- `local call stop_watcher/1` at 67, 74
-- `Access.get/2` at 130
+- `local helper is not a pure expression` at 150, 181, 188, 198, 250, 260, 298
 - `Kernel.get_in/2` at 127
-- `Logger.info/1` at 104
-- `MapSet.put/2` at 94
-- `MapSet.to_list/1` at 118
 - `Path.relative_to/2` at 90
-- `block as a sub-expression` at 112
-- `if/case not at body level` at 112
+- `a statement with an effect inside a block expression` at 113
+- `if/case as a statement (its value is discarded)` at 112
 - `init/1 return form (only {:ok, state})` at 53
-- `local call classify_event/2` at 93
-- `local call process_changes/2` at 113
-- `local call schedule_debounce/1` at 95
-- `local call should_process?/2` at 92
-- `operator &&` at 132
-- `operator ||` at 130
-- `statement in init/1` at 45
-- `string literal` at 104
+- `local helper with a catch block` at 208
+- `local helper with a rescue block` at 172
+- *Logger.info/1 dropped (no effect in the model)* at 104
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 45, 79
 - *dotted module name (translated under its last segment)* at 1
+- *init/1 option list modelled as empty (Keyword.get takes its default)* at 42
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
 - *no @type state (inferred from init/1: untyped mode)* at 1
 - *terminate/2 ignored by the translator* at 143
@@ -796,42 +564,29 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 `loom/session/session.ex`, GenServer; translator: failed: `Session: unsupported registered name {:via, Registry, {Loom.SessionRegistry, session_id, :idle}}`; translated: no.
 
-- `string interpolation / binary` at 138, 180, 187, 209, 226, 243, 244, 259, 284
-- `statement in init/1` at 104, 105, 106, 107, 108, 110
-- `Keyword.get/3` at 105, 106, 108, 110
-- `Logger.info/1` at 138, 180, 187, 209
-- `local call broadcast/2` at 181, 190, 227, 244
-- `local call update_status/2` at 139, 211, 229, 246
+- `local helper is not a pure expression` at 293, 339, 350, 400
 - `Kernel.is_reference/1` at 204, 221, 240
 - `message pattern is not an atom or tagged tuple` at 195, 204, 221
-- `string literal` at 277, 282
 - `struct pattern of a module outside this file` at 208, 225, 242
-- `Logger.error/1` at 226, 243
 - `Process.demonitor/2` at 205, 222
-- `if/case after a statement with an effect (it would have to be pushed into every branch)` at 207, 224
-- `if/case not at body level` at 277, 282
+- `local helper with a rescue block` at 354, 394
 - `Architect.run/3` at 144
-- `Enum.uniq/0` at 189
+- `Enum.uniq/1` at 189
 - `File.cwd!/0` at 106
-- `Keyword.fetch!/2` at 104
-- `Keyword.get/2` at 107
-- `Logger.debug/1` at 259
 - `Loom.Permissions.Manager.grant/3` at 278
 - `Persistence.update_session/2` at 157
 - `PubSub topic is not a string literal or an attribute bound to one` at 188
 - `Task.Supervisor.async_nolink/2` at 143
 - `anonymous fn (only `fn x -> e end`)` at 143
+- `if/case as a statement (its value is discarded)` at 277
 - `init/1 return form (only {:ok, state})` at 112
-- `keyword list literal` at 144
 - `list cons [h | t] in an expression` at 189
-- `local call check_child_team_completion/2` at 197
-- `local call default_model/0` at 105
-- `local call format_error/1` at 227
-- `module alias as a value` at 143
-- `operator in` at 282
-- `pipe |>` at 189
+- *Logger.debug/1 dropped (no effect in the model)* at 259
+- *Logger.error/1 dropped (no effect in the model)* at 226, 243
+- *Logger.info/1 dropped (no effect in the model)* at 138, 180, 187, 209
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 157, 260
 - *dotted module name (translated under its last segment)* at 1
+- *init/1 option list modelled as empty (Keyword.get takes its default)* at 103
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
 - *no @type reply in the file (inferred from the literal replies: untyped mode)* at 212, 230, 247
 - *no @type state (inferred from init/1: untyped mode)* at 1
@@ -840,66 +595,41 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 `loom/teams/agent.ex`, GenServer; translator: failed: `Agent: unsupported registered name {:via, Registry, {Loom.Teams.AgentRegistry, {team_id, name}, %{role: opts[:role], status: :idle}}}`; translated: no.
 
-- `string interpolation / binary` at 224, 235, 260, 282, 295, 304, 311, 327, 331, 339, 343, 344 (+24 more)
-- `string literal` at 246, 247, 256, 385, 387, 408, 410, 442, 484, 500, 516, 539
-- `if/case not at body level` at 140, 154, 157, 246, 256, 281, 320, 385, 408, 442, 449, 539 (+3 more)
-- `local call set_status/2` at 127, 146, 179, 185, 346, 358, 366, 372, 581, 596, 604
-- `Access.get/2` at 138, 151, 207, 343, 576
-- `local call broadcast_team/2` at 132, 347, 359, 367, 582, 597
-- `Kernel.to_string/1` at 247, 290, 310, 381
-- `operator &&` at 138, 151, 157, 158, 576
-- `statement in init/1` at 88, 89, 90, 91, 93
-- `Logger.debug/1` at 282, 331, 339, 450
-- `local call spawn_debate_response/4` at 473, 488, 504, 520
+- `local helper is not a pure expression` at 615, 665, 696, 742, 782, 849, 902, 964
+- `if/case as a statement (its value is discarded)` at 140, 246, 281, 320, 449, 577, 585
+- `local helper with a rescue block` at 653, 807, 870, 974
+- `Enum.join/2` at 387, 410, 465
 - `Enum.map_join/3` at 484, 500, 516
-- `Keyword.fetch!/2` at 88, 89, 90
-- `Logger.info/1` at 224, 311, 344
 - `PubSub topic is not a string literal or an attribute bound to one` at 460, 533, 550
-- `block as a sub-expression` at 154, 254, 256
-- `if/case after a statement with an effect (it would have to be pushed into every branch)` at 136, 313, 353
-- `local call track_usage/2` at 145, 356, 580
-- `operator <>` at 387, 410, 538
-- `variable binding x = e` at 255, 257, 263
 - `AgentLoop.run/2` at 136, 353
-- `Enum.join/2` at 387, 410
-- `Logger.error/1` at 363, 594
 - `Loom.Teams.Tasks.complete_task/2` at 357, 586
 - `ModelRouter.record_success/4` at 141, 577
 - `ModelRouter.select/2` at 225, 315
 - `last statement is not a GenServer return form` at 214, 216
-- `local call build_loop_opts/1` at 134, 351
-- `local call do_change_role/2` at 214, 216
-- `local call maybe_prefetch_context/2` at 228, 317
-- `operator ||` at 343
 - `send as a sub-expression` at 264, 321
 - `AgentLoop.default_run_tool/3` at 258
 - `AgentLoop.resume/3` at 263
 - `Comms.broadcast/2` at 210
 - `Ecto.UUID.generate/0` at 209
-- `Kernel.inspect/1` at 365
-- `Keyword.get/2` at 91
-- `Keyword.get/3` at 93
-- `Logger.warning/1` at 327
 - `Loom.Permissions.Manager.grant/3` at 247
 - `Loom.Teams.Tasks.fail_task/2` at 365
 - `Loom.Teams.Tasks.get_task/1` at 313
 - `Map.from_struct/1` at 202
-- `Map.put/2` at 172
 - `ModelRouter.escalation_enabled?/0` at 157
 - `ModelRouter.record_failure/3` at 155
 - `ModelRouter.should_escalate?/3` at 158
 - `Task.Supervisor.start_child/2` at 254
+- `a statement with an effect inside a block expression` at 155
 - `anonymous fn (only `fn x -> e end`)` at 254
-- `imported/macro call set_status/1` at 174
-- `imported/macro call track_usage/1` at 173
 - `init/1 return form (only {:ok, state})` at 95
-- `local call attempt_escalation/2` at 160
-- `module alias as a value` at 254
-- `operator in` at 256
-- `pipe |>` at 174
 - `try/rescue` at 427
+- *Logger.debug/1 dropped (no effect in the model)* at 282, 331, 339, 450
+- *Logger.error/1 dropped (no effect in the model)* at 363, 594
+- *Logger.info/1 dropped (no effect in the model)* at 224, 311, 344
+- *Logger.warning/1 dropped (no effect in the model)* at 327
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 129, 235, 293, 304, 315, 316, 349, 390, 413, 443, 462, 535 (+2 more)
 - *dotted module name (translated under its last segment)* at 1
+- *init/1 option list modelled as empty (Keyword.get takes its default)* at 87
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
 - *no @type state (inferred from init/1: untyped mode)* at 1
 
@@ -907,70 +637,49 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 `loom/teams/context_keeper.ex`, GenServer; translator: failed: `ContextKeeper: unsupported registered name {:via, Registry,`; translated: no.
 
-- `statement in init/1` at 92, 93, 94, 95, 96, 97, 98, 100, 102, 115, 118, 121
-- `if/case not at body level` at 122, 153, 161, 162, 181, 235
-- `Keyword.get/3` at 94, 95, 96, 97, 98
-- `string literal` at 94, 95, 197
-- `Keyword.fetch!/2` at 92, 93
-- `local call estimate_tokens/1` at 100, 135
-- `local call schedule_persist/1` at 123, 145
-- `local call update_registry_tokens/1` at 118, 144
-- `string interpolation / binary` at 202, 221
-- `DateTime.utc_now/0` at 110
+- `local helper is not a pure expression` at 303, 308, 317, 347, 379, 395, 425, 429
+- `local helper with a rescue block` at 279, 337, 389, 400
 - `Loom.Teams.ModelRouter.default_model/0` at 194
 - `Map.from_struct/1` at 227
 - `Map.merge/2` at 133
 - `Process.cancel_timer/1` at 154
 - `ReqLLM.Context.system/1` at 197
 - `ReqLLM.Context.user/1` at 202
-- `block as a sub-expression` at 153
-- `imported/macro call format_messages_as_context/0` at 214
-- `local call call_llm/2` at 205
-- `local call do_persist/1` at 162
-- `local call extract_answer/1` at 207
-- `local call format_messages_as_context/1` at 192
-- `local call keyword_fallback/2` at 214
-- `local call keyword_match/2` at 184
-- `local call maybe_load_from_db/1` at 115
-- `local call maybe_track_cost/2` at 208
-- `pipe |>` at 214
+- `a statement with an effect inside a block expression` at 154
+- `pattern alias = on a non-map, non-struct` at 164
 - `raise not in tail position` at 164
+- `statement in init/1` at 118
 - `try/rescue` at 236
 - *dotted module name (translated under its last segment)* at 1
+- *init/1 option list modelled as empty (Keyword.get takes its default)* at 91
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
 - *no @type state (inferred from init/1: untyped mode)* at 1
 - *terminate/2 ignored by the translator* at 258
 
 ### Loom.Teams.Debate (loom)
 
-`loom/teams/debate.ex`, receive loop; translator: failed: `Debate declares no messages: add @type msg (or @type cast, info, call)`; translated: no.
+`loom/teams/debate.ex`, receive loop; translator: failed: `Debate declares no @type state and has no init/1 to infer it from`; translated: no.
 
 - `record-shaped map type %{field: T}` at 1
 - `no @type state and no init/1 to infer one from` at 1
 - `receive not the whole body of a one-argument def` at 244
 - `unsupported type` at 1
-- `unsupported type String.t()` at 1
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
 
 ### Loom.Teams.QueryRouter (loom)
 
-`loom/teams/query_router.ex`, GenServer; translator: failed: `unsupported expression Ecto.UUID.generate()`; translated: no.
+`loom/teams/query_router.ex`, GenServer; translator: failed: `QueryRouter.fetch_keeper_context/2: a local helper with a rescue block is not supported`; translated: no.
 
 - `Comms.send_to/3` at 73, 88, 117
 - `Kernel.put_in/3` at 67, 85, 115
-- `System.monotonic_time/1` at 63, 139
 - `Comms.broadcast/2` at 75
 - `Ecto.UUID.generate/0` at 48
-- `Enum.split_with/1` at 143
-- `Keyword.get/2` at 49
-- `Keyword.get/3` at 50
+- `Enum.split_with/2` at 143
 - `Map.new/1` at 145
 - `anonymous fn (only `fn x -> e end`)` at 143
-- `binding a pattern x = e` at 141
-- `if/case not at body level` at 72
-- `local call fetch_keeper_context/2` at 53
-- `pipe |>` at 143
+- `if/case as a statement (its value is discarded)` at 72
+- `local helper with a rescue block` at 155
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 43, 55
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
@@ -978,24 +687,13 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 ### Loom.Teams.RateLimiter (loom)
 
-`loom/teams/rate_limiter.ex`, GenServer; translator: failed: `RateLimiter.init/1: unsupported statement state = %{buckets: init_buckets(), teams: %{}}`; translated: no.
+`loom/teams/rate_limiter.ex`, GenServer; translator: failed: `case scrutinee must be a variable, Map.get/Map.fetch, :queue.out/peek or an Enum call of known type, got Loom.Config.get(:teams, :budget)`; translated: no.
 
-- `Access.get/2` at 85, 86, 115, 132
+- `local helper is not a pure expression` at 151, 164, 184, 198, 218
 - `Kernel.put_in/3` at 72, 100
-- `local call ensure_team/3` at 84, 130
 - `Kernel.ceil/1` at 77
-- `Kernel.max/2` at 78
 - `Map.new/2` at 121
-- `binding a pattern x = e` at 67
-- `cond` at 103
-- `if/case after a statement with an effect (it would have to be pushed into every branch)` at 70
-- `imported/macro call ensure_team/2` at 113
-- `local call get_or_init_bucket/2` at 67
-- `local call init_buckets/0` at 58
-- `local call refill/1` at 68
-- `operator *` at 77
 - `operator /` at 77
-- `statement in init/1` at 57
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 57, 117, 134
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
@@ -1012,18 +710,16 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 ### Loom.Telemetry.Metrics (loom)
 
-`loom/telemetry/metrics.ex`, GenServer; translator: failed: `Metrics.init/1: unsupported statement table = :ets.new(:loom_telemetry_metrics, [:named_table, :public, :set, read_concurrency: true])`; translated: no.
+`loom/telemetry/metrics.ex`, GenServer; translator: failed: `Metrics.init/1: Metrics.attach_handlers/0 is called for its effect, but a local helper is a pure expression`; translated: no.
 
-- `statement in init/1` at 93, 95, 96, 97, 99
-- `if/case not at body level` at 109, 121, 133, 139
+- `statement in init/1` at 95, 96, 97, 99
 - `:ets.insert/2` at 95, 96, 97
 - `:ets.lookup/2` at 109, 121, 133
-- `local call default_global_metrics/0` at 95, 123
+- `fixed-length list pattern` at 110, 122, 134
 - `:ets.new/2` at 93
 - `call on an expression` at 141
-- `local call attach_handlers/0` at 99
-- `local call default_session_metrics/0` at 111
-- *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 101
+- `local helper is not a pure expression` at 148
+- *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 101, 329, 337, 343
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
 - *no @type state (inferred from init/1: untyped mode)* at 1
@@ -1039,138 +735,96 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 ### LoomWeb.CostDashboardLive (loom)
 
-`loom_web/live/cost_dashboard_live.ex`, GenServer; translator: failed: `CostDashboardLive declares no @type state and has no init/1 to infer it from`; translated: no.
+`loom_web/live/cost_dashboard_live.ex`, GenServer; translator: failed: `unsupported expression assign(socket,`; translated: no.
 
-- `local call assign_metrics/1` at 15
-- `no @type state and no init/1 to infer one from` at 1
+- `local helper is not a pure expression` at 18
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### LoomWeb.TeamActivityComponent (loom)
 
-`loom_web/live/team_activity_component.ex`, GenServer; translator: failed: `TeamActivityComponent declares no @type state and has no init/1 to infer it from`; translated: no.
+`loom_web/live/team_activity_component.ex`, GenServer; translator: failed: `unsupported expression socket.assigns.events`; translated: no.
 
-- `string interpolation / binary` at 67, 68, 69, 70, 89, 96, 97, 105, 110, 116
-- `local call append_event/2` at 74, 79, 85, 90, 101, 106, 112, 117, 145
-- `local call build_event/3` at 73, 78, 84, 89, 100, 105, 111, 116, 144
-- `if/case not at body level` at 60, 66, 95
 - `imported/macro call assign/2` at 122, 134, 141
-- `keyword list literal` at 122, 134, 141
-- `string literal` at 121, 138
-- `Kernel.inspect/1` at 83
+- `local helper is not a pure expression` at 308, 319
 - `Map.update/4` at 127
-- `String.length/1` at 143
-- `no @type state and no init/1 to infer one from` at 1
+- `unsupported pattern` at 96
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### LoomWeb.TeamCostComponent (loom)
 
-`loom_web/live/team_cost_component.ex`, GenServer; translator: failed: `TeamCostComponent declares no @type state and has no init/1 to infer it from`; translated: no.
+`loom_web/live/team_cost_component.ex`, GenServer; translator: failed: `unsupported pattern [] at type Term`; translated: no.
 
-- `local call load_cost_data/1` at 168, 186
-- `DateTime.utc_now/0` at 176
-- `imported/macro call assign/2` at 181
-- `imported/macro call load_cost_data/0` at 182
-- `no @type state and no init/1 to infer one from` at 1
-- `pipe |>` at 182
+- `local helper is not a pure expression` at 41, 103
+- `imported/macro call assign/3` at 181
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 172
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### LoomWeb.TeamDashboardComponent (loom)
 
-`loom_web/live/team_dashboard_component.ex`, GenServer; translator: failed: `TeamDashboardComponent declares no @type state and has no init/1 to infer it from`; translated: no.
+`loom_web/live/team_dashboard_component.ex`, GenServer; translator: failed: `case scrutinee must be a variable, Map.get/Map.fetch, :queue.out/peek or an Enum call of known type, got Tasks.list_by_agent(team_id, agent_name)`; translated: no.
 
-- `local call reload_tasks/2` at 93, 97, 101, 105
-- `if/case not at body level` at 86, 111, 125
-- `imported/macro call assign/2` at 130, 131
-- `imported/macro call assign/3` at 89, 114
-- `Access.get/2` at 121
+- `imported/macro call assign/3` at 89, 114, 130, 131
+- `local helper is not a pure expression` at 62, 77, 138
 - `CostTracker.team_cost_summary/1` at 119
 - `float literal` at 121
-- `local call to_float/1` at 120
-- `no @type state and no init/1 to infer one from` at 1
-- `operator ||` at 121
-- `pipe |>` at 131
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 131
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### LoomWeb.WorkspaceLive (loom)
 
 `loom_web/live/workspace_live.ex`, GenServer; translator: failed: `WorkspaceLive: message tag tool_complete is matched with 2 and 3 arguments; declare its shape with a @type`; translated: no.
 
-- `keyword list literal` at 198, 204, 213, 218, 222, 226, 231, 236, 241, 250, 254, 265 (+20 more)
-- `imported/macro call assign/2` at 198, 204, 213, 218, 222, 226, 231, 236, 241, 250, 254, 265 (+16 more)
-- `string literal` at 217, 240, 248, 252, 322, 329, 339, 468
-- `if/case not at body level` at 202, 217, 240, 275, 280, 283, 339, 423, 426, 442, 466, 487
-- `local call forward_to_dashboard/1` at 373, 378, 384, 389, 394, 399
-- `Access.get/2` at 322, 329
-- `block as a sub-expression` at 247, 466
-- `operator &&` at 202, 217, 329
-- `operator in` at 240, 248, 283, 426
-- `string interpolation / binary` at 217, 472, 479, 488
+- `imported/macro call assign/2` at 198, 204, 213, 218, 222, 226, 231, 236, 241, 250, 254, 265 (+18 more)
+- `local helper is not a pure expression` at 809, 822, 827, 833, 838, 871, 879
+- `if/case as a statement (its value is discarded)` at 275, 280, 423, 487
+- `a statement with an effect inside a block expression` at 468, 472, 479
 - `imported/macro call connected?/1` at 275, 280, 423
-- `local call forward_to_cost/1` at 379, 400, 405
-- `local call subscribe_to_team/1` at 275, 280, 423
-- `Logger.error/1` at 472, 488
-- `imported/macro call assign/1` at 297, 475
 - `imported/macro call assign/3` at 289, 432
 - `imported/macro call push_navigate/2` at 354, 358
-- `imported/macro call put_flash/2` at 298, 476
-- `pipe |>` at 298, 476
-- `variable binding x = e` at 249, 253
+- `imported/macro call put_flash/3` at 298, 476
+- `sigil` at 354, 358
 - `Enum.find_index/2` at 328
 - `File.read/1` at 339
-- `Kernel.is_binary/1` at 225
 - `Kernel.is_reference/1` at 462
 - `List.delete/2` at 439
-- `Logger.debug/1` at 468
-- `Logger.warning/1` at 479
 - `Loom.Telemetry.Metrics.session_metrics/1` at 452
 - `LoomWeb.DiffComponent.parse_edit_result/1` at 249
 - `Path.join/2` at 336
 - `Process.demonitor/2` at 463
 - `Session.update_model/2` at 349
-- `cond` at 247
-- `local call format_llm_error/1` at 476
-- `local call forward_to_team_components/1` at 368
-- `local call parse_shell_result/1` at 253
-- `local call route_permission_response/4` at 362
 - `message pattern is not an atom or tagged tuple` at 462
-- `no @type state and no init/1 to infer one from` at 1
-- `operator ||` at 322
+- *Logger.debug/1 dropped (no effect in the model)* at 468
+- *Logger.error/1 dropped (no effect in the model)* at 472, 488
+- *Logger.warning/1 dropped (no effect in the model)* at 479
+- *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 265, 270
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### Ensemble.AgentDispatcher (ensemble)
 
 `ensemble/agent_dispatcher.ex`, GenServer; translator: failed: `AgentDispatcher: unsupported registered name name`; translated: no.
 
-- `string literal` at 117, 125, 150, 183, 186, 190
-- `DateTime.utc_now/0` at 154, 159, 186, 187
-- `statement in init/1` at 101, 103, 108
-- `string interpolation / binary` at 109, 117, 125
+- `local helper is not a pure expression` at 207, 227, 249, 309, 313, 321, 348, 369, 376, 383
 - `AgentRegistry.agents_for_trigger/1` at 169, 190
 - `Enum.reduce/3` at 172, 193
 - `Settings.put/2` at 117, 125
 - `anonymous fn (only `fn x -> e end`)` at 172, 193
-- `local call broadcast_config_change/0` at 119, 127
-- `local call load_agent_configs/0` at 104, 134
-- `local call load_enabled_agents/0` at 105, 135
-- `local call maybe_execute_agent/4` at 173, 194
-- `local call schedule_cron_tick/0` at 101, 181
-- `Access.get/2` at 159
+- `local helper called as a statement` at 119, 127
+- `local helper with a rescue block` at 237, 286
 - `AgentRegistry.get_agent/1` at 148
-- `DateTime.to_iso8601/0` at 186
+- `DateTime.to_iso8601/1` at 186
 - `Kernel.put_in/2` at 159
-- `Logger.info/1` at 108
-- `MapSet.delete/2` at 126
-- `MapSet.put/2` at 118
-- `local call execute_agent_async/4` at 158
-- `local call extract_event_type/1` at 168
-- `pipe |>` at 186
+- `statement in init/1` at 101
+- *Logger.info/1 dropped (no effect in the model)* at 108
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 150, 183
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
@@ -1180,40 +834,27 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 `ensemble/agent_runner/claude_code.ex`, GenServer; translator: failed: `unknown type port() in ClaudeCode`; translated: no.
 
-- `statement in init/1` at 84, 85, 86, 87, 89
-- `string literal` at 85, 87, 134, 149, 190
-- `string interpolation / binary` at 128, 135, 168, 176
-- `Logger.info/1` at 128, 135, 168
-- `if/case not at body level` at 90, 134, 149
-- `DateTime.utc_now/0` at 87, 163
+- `local helper is not a pure expression` at 215, 225, 250, 259, 307, 321, 333, 365, 375, 382, 460, 472 (+6 more)
+- `a statement with an effect inside a block expression` at 135, 136, 150
 - `Runs.get_run!/1` at 86, 157
 - `Runs.update_run/2` at 87, 160
-- `binding a pattern x = e` at 130, 159
-- `block as a sub-expression` at 134, 149
-- `local call handle_ndjson_line/2` at 136, 150
-- `local call maybe_track_result/2` at 137, 151
 - `message pattern is not an atom or tagged tuple` at 127, 147
-- `operator <>` at 129, 190
-- `unsupported type String.t()` at 1
+- `statement in init/1` at 87, 89
 - `Enum.reduce/3` at 133
 - `Jason.encode!/1` at 190
 - `Kernel.is_port/1` at 188
-- `Logger.warning/1` at 175
 - `Map.fetch!/2` at 84
 - `Port.command/2` at 190
 - `Port.info/1` at 188
 - `anonymous fn (only `fn x -> e end`)` at 133
+- `binding a pattern that may not match` at 159
 - `init/1 parameter pattern` at 83
 - `init/1 return form (only {:ok, state})` at 96
-- `local call build_permission_response/4` at 189
-- `local call determine_status/2` at 156
-- `local call emit_finished/3` at 166
-- `local call resolve_command/2` at 93
-- `local call resolve_interactive_command/3` at 91
-- `local call split_lines/1` at 130
 - `unsupported type map()` at 1
 - `unsupported type port()` at 1
-- *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 87, 160
+- *Logger.info/1 dropped (no effect in the model)* at 128, 135, 168
+- *Logger.warning/1 dropped (no effect in the model)* at 175
+- *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 87, 160, 207
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
 - *no @type state (inferred from init/1: untyped mode)* at 1
@@ -1223,28 +864,20 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 `ensemble/agent_runner/codex.ex`, GenServer; translator: failed: `unknown type port() in Codex`; translated: no.
 
-- `string literal` at 69, 98, 106, 110
-- `statement in init/1` at 67, 68, 69, 71
-- `if/case not at body level` at 98, 106, 110
-- `DateTime.utc_now/0` at 69, 117
+- `local helper is not a pure expression` at 144, 162, 174, 188, 194, 216, 228, 236, 254
 - `Runs.get_run!/1` at 68, 111
 - `Runs.update_run/2` at 69, 114
-- `binding a pattern x = e` at 95, 113
-- `local call handle_ndjson_line/2` at 98, 107
 - `message pattern is not an atom or tagged tuple` at 93, 105
-- `string interpolation / binary` at 123, 131
-- `unsupported type String.t()` at 1
+- `statement in init/1` at 69, 71
 - `Enum.each/2` at 97
-- `Logger.info/1` at 122
-- `Logger.warning/1` at 131
 - `Map.fetch!/2` at 67
+- `binding a pattern that may not match` at 113
+- `if/case as a statement (its value is discarded)` at 106
 - `init/1 parameter pattern` at 66
 - `init/1 return form (only {:ok, state})` at 73
-- `local call emit_finished/3` at 120
-- `local call resolve_command/2` at 71
-- `local call split_lines/1` at 95
-- `operator <>` at 94
 - `unsupported type port()` at 1
+- *Logger.info/1 dropped (no effect in the model)* at 122
+- *Logger.warning/1 dropped (no effect in the model)* at 131
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 69, 114
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
@@ -1255,31 +888,22 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 `ensemble/agent_runner/local_llm.ex`, GenServer; translator: failed: `LocalLLM: declare the type of struct field run_id in @type t :: %__MODULE__{run_id: ..}`; translated: no.
 
-- `string literal` at 73, 79, 82, 88, 96, 101, 105, 118, 123, 128, 137, 140 (+3 more)
-- `statement in init/1` at 51, 52, 53, 54, 56
-- `variable binding x = e` at 109, 110, 116, 126, 144
-- `DateTime.utc_now/0` at 75, 134, 150
 - `Events.emit/1` at 79, 137, 153
 - `Runs.get_run!/1` at 70, 126, 144
 - `Runs.update_run/2` at 73, 128, 146
-- `block as a sub-expression` at 108, 114
+- `a statement with an effect inside a block expression` at 118, 128, 146
 - `SessionMessages.create_message/1` at 88, 118
 - `SessionMessages.next_sequence/1` at 86, 116
-- `if/case not at body level` at 103, 114
-- `operator ||` at 105, 123
+- `local helper is not a pure expression` at 165, 220
 - `:telemetry.span/3` at 108
-- `Kernel.elem/2` at 110
-- `Kernel.inspect/1` at 149
 - `Map.fetch!/2` at 51
 - `String.trim/1` at 96
+- `System.unique_integer/1` at 71
 - `Tools.schemas/0` at 104
 - `anonymous fn (only `fn x -> e end`)` at 108
+- `if/case as a statement (its value is discarded)` at 114
 - `init/1 return form (only {:ok, state})` at 65
-- `keyword list literal` at 103
-- `local call load_prior_messages/1` at 54
-- `local call run_agentic_loop/5` at 109
-- `module alias as a value` at 52
-- `string interpolation / binary` at 71
+- `local helper with a rescue block` at 285
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 73, 79, 88, 96, 101, 105, 110, 118, 128, 137, 146, 153
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
@@ -1289,37 +913,26 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 `ensemble/agent_runner/opencode.ex`, GenServer; translator: failed: `unknown type port() in OpenCode`; translated: no.
 
-- `statement in init/1` at 114, 115, 116, 118
-- `string literal` at 116, 200
-- `unsupported type String.t()` at 1
+- `local helper is not a pure expression` at 234, 406, 430, 498, 528, 553, 583, 612, 631, 654, 672, 685 (+13 more)
 - `unsupported type map()` at 1
-- `if/case not at body level` at 172, 198
 - `last statement is not a GenServer return form` at 166, 183
 - `message pattern is not an atom or tagged tuple` at 162, 180
 - `AcpClient.receive_data/2` at 163
 - `AcpClient.send_notification/3` at 200
 - `AcpClient.send_response/3` at 217
-- `DateTime.utc_now/0` at 116
 - `Enum.reduce/3` at 166
-- `Logger.warning/1` at 191
 - `Map.fetch!/2` at 114
 - `Runs.get_run!/1` at 115
 - `Runs.update_run/2` at 116
 - `anonymous fn (only `fn x -> e end`)` at 166
-- `binding a pattern x = e` at 163
-- `block as a sub-expression` at 198
 - `init/1 parameter pattern` at 113
 - `init/1 return form (only {:ok, state})` at 120
-- `local call build_permission_result/3` at 216
-- `local call finish_run/2` at 183
-- `local call handle_acp_message/2` at 172
-- `local call resolve_executable/1` at 118
 - `pin ^x in a pattern` at 215
-- `string interpolation / binary` at 191
+- `statement in init/1` at 116
 - `unsupported type AcpClient.request_id()` at 1
 - `unsupported type AcpClient.t()` at 1
 - `unsupported type port()` at 1
-- `variable binding x = e` at 199
+- *Logger.warning/1 dropped (no effect in the model)* at 191
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 116
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
@@ -1332,18 +945,16 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 - `no @type state and no init/1 to infer one from` at 1
 - `receive not the whole body of a one-argument def` at 180
-- `unsupported type String.t()` at 1
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
 
 ### Ensemble.Alerts (ensemble)
 
-`ensemble/alerts.ex`, GenServer; translator: failed: `Alerts.init/1: unsupported statement table = :ets.new(@table, [:named_table, :set, :public, read_concurrency: true])`; translated: no.
+`ensemble/alerts.ex`, GenServer; translator: failed: `Alerts.init/1: state expression uses table, which is not a parameter`; translated: no.
 
 - `:ets.new/2` at 99
 - `module attribute @table as a value` at 99
 - `record-shaped map type %{field: T}` at 1
-- `statement in init/1` at 99
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 100
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
@@ -1351,14 +962,12 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 ### Ensemble.IssueOrchestrator (ensemble)
 
-`ensemble/issue_orchestrator.ex`, GenServer; translator: failed: `IssueOrchestrator.init/1: unsupported statement trackers = Keyword.get(opts, :trackers, [])`; translated: no.
+`ensemble/issue_orchestrator.ex`, GenServer; translator: failed: `IssueOrchestrator.init/1: Keyword.get(opts, :max_concurrent_by_state, %{}) needs a literal default (the option list is not modelled, so the default is what the state gets)`; translated: no.
 
-- `statement in init/1` at 95, 96, 97, 98, 100, 102
-- `Keyword.get/3` at 95, 96, 97, 98
-- `local call do_dispatch_issue/2` at 115, 120
-- `local call do_poll/1` at 130, 140
-- `local call schedule_poll/1` at 100, 141
+- `local helper is not a pure expression` at 151, 155, 171, 182, 201, 212, 229, 238, 261, 283, 295, 329 (+4 more)
+- `local helper with a rescue block` at 276
 - *dotted module name (translated under its last segment)* at 1
+- *init/1 option list modelled as empty (Keyword.get takes its default)* at 94
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
 - *no @type state (inferred from init/1: untyped mode)* at 1
 
@@ -1366,26 +975,20 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 `ensemble/local_llm/client.ex`, GenServer; translator: failed: `Client: unsupported registered name name`; translated: no.
 
-- `if/case not at body level` at 110, 146, 168, 200, 227
-- `string literal` at 168, 200
+- `local helper is not a pure expression` at 241, 273, 288, 297
 - `Task.start/1` at 115, 167, 199
 - `anonymous fn (only `fn x -> e end`)` at 115, 167, 199
-- `block as a sub-expression` at 115, 168, 200
 - `System.cmd/3` at 168, 200
-- `keyword list literal` at 168, 200
-- `local call run_health_check/1` at 97, 225
-- `local call schedule_health_check/1` at 98, 235
+- `a statement with an effect inside a block expression` at 170, 202
 - `send as a sub-expression` at 176, 208
 - `GenServer.cast/2` at 117
 - `Kernel.update_in/3` at 151
-- `Keyword.get/2` at 109
-- `Keyword.get/3` at 107
 - `call on an expression` at 116
+- `if/case as a statement (its value is discarded)` at 227
 - `init/1 return form (only {:ok, state})` at 92
-- `local call update_metrics/2` at 148
+- `local helper with a catch block` at 282
 - `module attribute @default_health_interval as a value` at 83
-- `statement in init/1` at 76
-- `variable binding x = e` at 116
+- `struct pattern of a module outside this file` at 147
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 76, 84, 134
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
@@ -1396,22 +999,18 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 `ensemble/local_llm/speculator.ex`, GenServer; translator: failed: `Speculator: unsupported registered name name`; translated: no.
 
-- `statement in init/1` at 33, 34, 36, 44
-- `System.monotonic_time/1` at 53, 85, 97
-- `if/case not at body level` at 51, 53, 83
-- `block as a sub-expression` at 53, 80
-- `local call schedule_cleanup/0` at 44, 111
 - `:ets.delete/2` at 56
 - `:ets.insert/2` at 85
 - `:ets.lookup/2` at 51
 - `:ets.new/2` at 34
 - `Task.start/1` at 80
+- `a statement with an effect inside a block expression` at 56
 - `anonymous fn (only `fn x -> e end`)` at 80
 - `call on an expression` at 83
-- `module alias as a value` at 38
+- `fixed-length list pattern` at 52
+- `local helper is not a pure expression` at 115
 - `module attribute @default_ttl as a value` at 40
-- `string literal` at 81
-- `variable binding x = e` at 81
+- `statement in init/1` at 44
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 36, 81
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
@@ -1419,12 +1018,8 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 ### Ensemble.LogStore (ensemble)
 
-`ensemble/log_store.ex`, GenServer; translator: failed: `LogStore: unsupported registered name Keyword.get(opts, :name, __MODULE__)`; translated: no.
+`ensemble/log_store.ex`, GenServer; translator: failed: `the reply entries has type List Term, but the reply type was inferred as the opaque term(); declare @type reply :: ...`; translated: no (translator failed, walker found nothing: see notes).
 
-- `binding a pattern x = e` at 84
-- `block as a sub-expression` at 85
-- `if/case not at body level` at 85
-- `variable binding x = e` at 86
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
 - *no @type state (inferred from init/1: untyped mode)* at 1
@@ -1433,36 +1028,18 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 `ensemble/orchestrator.ex`, GenServer; translator: failed: `Orchestrator: unsupported registered name name`; translated: no.
 
-- `string literal` at 202, 206, 271, 272, 278, 281
-- `Keyword.get/3` at 126, 127, 128, 129
-- `if/case not at body level` at 184, 206, 271
-- `local call dispatch_next_from_queue/1` at 155, 212, 290
-- `string interpolation / binary` at 263, 274, 299
+- `local helper is not a pure expression` at 305, 317, 329, 361, 402, 415, 463, 475, 508, 529, 533, 574 (+4 more)
 - `Runs.get_run!/1` at 170, 269
-- `local call do_dispatch/3` at 138, 247
-- `local call maybe_retry/3` at 207, 289
-- `local call schedule_stall_check/0` at 123, 238
-- `local call slots_available?/1` at 137, 246
 - `map pattern with a non-literal key` at 197, 221
-- `statement in init/1` at 123, 125
-- `string pattern` at 197, 221
-- `DateTime.utc_now/0` at 275
 - `Events.emit/1` at 278
-- `Logger.debug/1` at 299
-- `Logger.warning/1` at 263
 - `Map.update!/3` at 226
 - `Runs.update_run/2` at 272
+- `a statement with an effect inside a block expression` at 272
 - `anonymous fn (only `fn x -> e end`)` at 159
-- `block as a sub-expression` at 271
-- `cond` at 152
-- `local call cancel_active_run/2` at 154
-- `local call create_and_dispatch_continuation/3` at 172
-- `local call detect_stalled_agents/1` at 237
-- `local call dispatch_permission_response/5` at 186
-- `local call find_run_by_monitor/3` at 261
-- `local call mark_run_cancelled/1` at 161
-- `local call maybe_continue_for_issue/2` at 209
-- `local call queue_has_run?/2` at 158
+- `if/case as a statement (its value is discarded)` at 271
+- `statement in init/1` at 123
+- *Logger.debug/1 dropped (no effect in the model)* at 299
+- *Logger.warning/1 dropped (no effect in the model)* at 263
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 272, 278
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
@@ -1470,21 +1047,13 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 ### Ensemble.PRMonitor (ensemble)
 
-`ensemble/pr_monitor.ex`, GenServer; translator: failed: `PRMonitor.init/1: unsupported statement poll_interval_ms = Keyword.get(opts, :poll_interval_ms, config(:poll_interval_ms) || 60000)`; translated: no.
+`ensemble/pr_monitor.ex`, GenServer; translator: failed: `PRMonitor.init/1: Keyword.get(`; translated: no.
 
-- `statement in init/1` at 74, 77, 80, 86, 89, 91, 93
-- `local call do_poll/1` at 111, 117, 133
-- `Keyword.get/3` at 75, 77
-- `local call schedule_poll/1` at 91, 134
+- `local helper is not a pure expression` at 154, 172, 203, 207, 217, 235, 262, 274, 288, 303, 311, 362 (+1 more)
 - `Ensemble.MonitoredRepos.list_enabled_repos/0` at 86
-- `Logger.warning/1` at 141
-- `local call build_initial_cache/1` at 89
-- `local call config/1` at 75
-- `local call seed_repos_from_config/1` at 80
 - `module attribute @default_github_client as a value` at 77
-- `operator *` at 139
-- `operator ||` at 75
-- `string interpolation / binary` at 142
+- `statement in init/1` at 80
+- *Logger.warning/1 dropped (no effect in the model)* at 141
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 93
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
@@ -1494,16 +1063,11 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 `ensemble/sentry_monitor.ex`, GenServer; translator: failed: `SentryMonitor: try/rescue is only supported around external resource calls (:ets.*), which are no-ops in the model; got try do`; translated: no.
 
-- `local call do_poll/1` at 105, 115
+- `local helper is not a pure expression` at 140, 178, 200, 204, 231, 261, 289, 298
 - `try/rescue` at 75, 124
-- `Logger.info/1` at 121
 - `Process.cancel_timer/1` at 122
-- `if/case after a statement with an effect (it would have to be pushed into every branch)` at 124
-- `if/case not at body level` at 122
-- `local call load_config_from_db/0` at 125
-- `local call schedule_poll/1` at 116
-- `statement in init/1` at 74
-- `string literal` at 121
+- `if/case as a statement (its value is discarded)` at 122
+- *Logger.info/1 dropped (no effect in the model)* at 121
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
 - *no @type state (inferred from init/1: untyped mode)* at 1
@@ -1512,11 +1076,9 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 `ensemble/session_compactor.ex`, GenServer; translator: failed: `SessionCompactor: unsupported registered name name`; translated: no.
 
-- `local call compact_runs/0` at 168, 174
-- `local call schedule_compaction/1` at 162, 175
-- `statement in init/1` at 161, 162
-- `Keyword.get/3` at 161
+- `local helper is not a pure expression` at 52, 84, 101, 181, 185, 195, 201, 212, 241, 245, 251, 259
 - `module attribute @default_interval_ms as a value` at 161
+- `statement in init/1` at 162
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 163
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
@@ -1524,214 +1086,159 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 ### EnsembleWeb.AgentsLive (ensemble)
 
-`ensemble_web/live/agents_live.ex`, GenServer; translator: failed: `AgentsLive declares no @type state and has no init/1 to infer it from`; translated: no.
+`ensemble_web/live/agents_live.ex`, GenServer; translator: failed: `unsupported expression AgentRegistry.builtin_agents()`; translated: no.
 
-- `if/case not at body level` at 49, 64, 66
 - `imported/macro call assign/3` at 54, 66, 71
 - `AgentExecutions.list_executions/1` at 50, 51
-- `keyword list literal` at 50, 51
 - `AgentDispatcher.get_state/0` at 59
 - `Enum.find/2` at 65
-- `block as a sub-expression` at 64
-- `local call build_agent_list/1` at 60
-- `no @type state and no init/1 to infer one from` at 1
-- `variable binding x = e` at 65
+- `local helper is not a pure expression` at 822
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### EnsembleWeb.DashboardLive (ensemble)
 
-`ensemble_web/live/dashboard_live.ex`, GenServer; translator: failed: `DashboardLive declares no @type state and has no init/1 to infer it from`; translated: no.
+`ensemble_web/live/dashboard_live.ex`, GenServer; translator: failed: `DashboardLive.load_goals/1: a local helper with a rescue block is not supported`; translated: no.
 
-- `string literal` at 255, 271, 295, 303, 304, 306
-- `if/case not at body level` at 270, 271, 304, 306
-- `imported/macro call assign/3` at 251, 258, 276, 314
-- `imported/macro call assign/2` at 273, 300, 301
-- `imported/macro call refresh_orchestrator_state/0` at 274, 302
-- `local call refresh_grouped_runs/1` at 262, 282
-- `local call rescope_to_project/2` at 319, 323
+- `imported/macro call assign/3` at 251, 258, 273, 276, 300, 301, 314
+- `local helper is not a pure expression` at 741, 775, 798, 813, 821, 858, 900
 - `map pattern with a non-literal key` at 285, 294
-- `pipe |>` at 274, 303
-- `string pattern` at 285, 294
-- `Access.get/2` at 295
-- `imported/macro call push_event/2` at 303
-- `local call notification_title/1` at 296
-- `local call refresh_orchestrator_state/1` at 288
-- `no @type state and no init/1 to infer one from` at 1
-- `operator in` at 271
-- `operator ||` at 295
-- `string interpolation / binary` at 305
-- *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 303
+- `imported/macro call push_event/3` at 303
+- `local helper with a rescue block` at 870
+- *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 303, 895
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### EnsembleWeb.DecisionGraphLive (ensemble)
 
-`ensemble_web/live/decision_graph_live.ex`, GenServer; translator: failed: `DecisionGraphLive declares no @type state and has no init/1 to infer it from`; translated: no.
+`ensemble_web/live/decision_graph_live.ex`, GenServer; translator: failed: `DecisionGraphLive.load_graph/1: a local helper with a rescue block is not supported`; translated: no.
 
-- `local call load_repo/2` at 151, 156
-- `no @type state and no init/1 to infer one from` at 1
+- `local helper is not a pure expression` at 327
+- `local helper with a rescue block` at 341
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### EnsembleWeb.IssuesLive (ensemble)
 
 `ensemble_web/live/issues_live.ex`, GenServer; translator: failed: `unsupported message pattern {ref, _result}`; translated: no.
 
 - `imported/macro call assign/2` at 246, 255, 264, 272, 280
-- `keyword list literal` at 246, 255, 264, 272, 280
-- `local call load_issues/1` at 235, 239
+- `local helper is not a pure expression` at 730, 735
 - `Kernel.is_reference/1` at 287
 - `Process.demonitor/2` at 288
 - `TextGenerator.parse_issue_response/1` at 243
 - `message pattern is not an atom or tagged tuple` at 287
-- `no @type state and no init/1 to infer one from` at 1
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### EnsembleWeb.LogsLive (ensemble)
 
-`ensemble_web/live/logs_live.ex`, GenServer; translator: failed: `LogsLive declares no @type state and has no init/1 to infer it from`; translated: no.
+`ensemble_web/live/logs_live.ex`, GenServer; translator: failed: `unsupported expression assign(socket, :entries, socket.assigns.entries ++ [entry])`; translated: no.
 
 - `imported/macro call assign/3` at 50
-- `no @type state and no init/1 to infer one from` at 1
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### EnsembleWeb.PRDashboardLive (ensemble)
 
-`ensemble_web/live/pr_dashboard_live.ex`, GenServer; translator: failed: `PRDashboardLive declares no @type state and has no init/1 to infer it from`; translated: no.
+`ensemble_web/live/pr_dashboard_live.ex`, GenServer; translator: failed: `socket.assigns: socket is not a struct (Term)`; translated: no.
 
-- `imported/macro call assign/2` at 342, 343, 353, 366, 387, 388, 389, 406, 407, 408, 415, 416 (+7 more)
-- `pipe |>` at 343, 354, 367, 389, 408, 417, 426, 435
-- `imported/macro call assign/3` at 329, 335, 346, 360, 446
-- `Access.get/2` at 353, 360, 366
-- `local call scoped_repos/1` at 353, 360, 366
-- `string interpolation / binary` at 396, 399, 426
-- `string literal` at 378, 435
-- `if/case not at body level` at 324, 378
-- `imported/macro call reload_prs/0` at 354, 367
-- `local call rescope_to_project/2` at 451, 455
+- `imported/macro call assign/3` at 329, 335, 342, 343, 346, 353, 360, 366, 387, 388, 389, 406 (+12 more)
+- `local helper is not a pure expression` at 1062, 1082, 1087, 1118
 - `GitHub.get_authenticated_user/0` at 324
 - `GitHub.get_pr/2` at 402
 - `GitHub.list_user_repos/0` at 333
 - `GitHub.search_repos/1` at 378
 - `String.contains?/2` at 401
-- `binding a pattern x = e` at 377
-- `local call reload_prs/1` at 319
-- `no @type state and no init/1 to infer one from` at 1
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 406
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### EnsembleWeb.PRReviewLive (ensemble)
 
-`ensemble_web/live/pr_review_live.ex`, GenServer; translator: failed: `PRReviewLive declares no @type state and has no init/1 to infer it from`; translated: no.
+`ensemble_web/live/pr_review_live.ex`, GenServer; translator: failed: `a comprehension generator must bind a variable, got {{file, line}, val}`; translated: no.
 
-- `string literal` at 201, 204, 205
-- `if/case not at body level` at 150, 163, 166, 173, 201, 221
-- `imported/macro call assign/2` at 131, 132, 133, 138, 139
+- `imported/macro call assign/3` at 131, 132, 133, 138, 139, 156, 179, 214, 227
 - `map pattern with a non-literal key` at 183, 190, 199, 218
-- `imported/macro call assign/3` at 156, 179, 214, 227
-- `pipe |>` at 133, 139, 149, 205
-- `string pattern` at 183, 190, 199, 218
-- `MapSet.delete/2` at 133, 139, 227
-- `local call finish_ai_walkthrough/2` at 185, 194, 224
-- `Access.get/2` at 204, 205
+- `local helper is not a pure expression` at 1109, 1134, 1208
+- `unsupported pattern` at 202, 207
 - `BlameHistory.blame_lines/3` at 150
 - `BlameHistory.line_evolution/3` at 164
 - `Categorizer.categorize/1` at 125
 - `DiffEngine.parse_unified_diff/1` at 124
-- `Enum.filter/1` at 204
-- `Enum.map_join/2` at 205
-- `Enum.reduce/2` at 149
+- `Enum.map_join/3` at 205
+- `Enum.reduce/3` at 149
 - `GitHub.get_commits_for_file/2` at 166
 - `GitHub.get_pr_diff/2` at 122
 - `Kernel.get_in/2` at 201
-- `Kernel.is_binary/1` at 184
-- `Kernel.is_map/1` at 204
 - `Map.new/2` at 126
 - `anonymous fn (only `fn x -> e end`)` at 149
-- `binding a pattern x = e` at 124
+- `binding a pattern that may not match` at 124
 - `imported/macro call push_navigate/2` at 231
-- `keyword list literal` at 231
-- `no @type state and no init/1 to infer one from` at 1
-- `operator &&` at 204
-- `operator <>` at 214
-- `operator ||` at 145
-- `string interpolation / binary` at 138
+- `sigil` at 231
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 167, 178
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### EnsembleWeb.RunDetailLive (ensemble)
 
-`ensemble_web/live/run_detail_live.ex`, GenServer; translator: failed: `RunDetailLive declares no @type state and has no init/1 to infer it from`; translated: no.
+`ensemble_web/live/run_detail_live.ex`, GenServer; translator: failed: `unsupported expression Runs.get_run_chain(run)`; translated: no.
 
-- `imported/macro call assign/2` at 282, 283, 295, 296, 297
-- `imported/macro call assign/3` at 270, 276, 304, 308
-- `string literal` at 274, 283
+- `imported/macro call assign/3` at 270, 276, 282, 283, 295, 296, 297, 304, 308
 - `EventProcessor.append_event/2` at 269, 275
-- `pipe |>` at 283, 297
-- `DateTime.utc_now/0` at 308
 - `Runs.get_run!/1` at 291
 - `imported/macro call push_navigate/2` at 312
-- `keyword list literal` at 312
-- `local call load_session_messages/1` at 296
+- `local helper is not a pure expression` at 926
 - `map pattern with a non-literal key` at 288
-- `no @type state and no init/1 to infer one from` at 1
-- `string pattern` at 288
+- `sigil` at 312
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### EnsembleWeb.SentryLive (ensemble)
 
-`ensemble_web/live/sentry_live.ex`, GenServer; translator: failed: `SentryLive declares no @type state and has no init/1 to infer it from`; translated: no.
+`ensemble_web/live/sentry_live.ex`, GenServer; translator: failed: `case scrutinee must be a variable, Map.get/Map.fetch, :queue.out/peek or an Enum call of known type, got SentryClient.get_issue_details(issue.sentry_id, opts)`; translated: no.
 
-- `local call reload_issues/1` at 495, 516, 520, 524, 529, 533
-- `imported/macro call assign/3` at 516, 520, 524, 529, 533
-- `imported/macro call assign/2` at 495, 496, 504
-- `imported/macro call put_flash/2` at 497, 505
-- `pipe |>` at 497, 505
-- `local call determine_view_state/1` at 512
-- `local call fetch_issues_from_sentry/0` at 491
-- `no @type state and no init/1 to infer one from` at 1
+- `local helper is not a pure expression` at 61, 338, 353, 395, 412, 433, 453, 463, 478
+- `imported/macro call assign/3` at 495, 496, 504, 516, 520, 524, 529, 533
+- `imported/macro call put_flash/3` at 497, 505
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### EnsembleWeb.SettingsLive (ensemble)
 
 `ensemble_web/live/settings_live.ex`, GenServer; translator: failed: `unsupported message pattern {event, _project}`; translated: no.
 
-- `keyword list literal` at 118, 127, 136, 148, 164, 172, 177, 182, 187, 192, 197, 202
-- `local call forward_to_llm_component/1` at 164, 172, 177, 182, 187, 192, 197, 202
 - `message pattern is not an atom or tagged tuple` at 114, 171, 176, 181, 186, 191
+- `imported/macro call assign/3` at 123, 156, 157, 165, 198
 - `imported/macro call send_update/2` at 118, 127, 136, 148
-- `module alias as a value` at 118, 127, 136, 148
-- `imported/macro call assign/3` at 123, 165, 198
-- `imported/macro call assign/2` at 156, 157
 - `Projects.list_projects/0` at 116
 - `SentryConnections.get_connection/0` at 145
 - `SentryProjects.list_projects/0` at 146
 - `imported/macro call put_flash/3` at 207
-- `local call get_local_llm_status/0` at 163
-- `no @type state and no init/1 to infer one from` at 1
-- `operator in` at 115
-- `pipe |>` at 157
+- `local helper is not a pure expression` at 389
+- `local helper with a catch block` at 393
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### BlinksBackend.Links.LinkCheck (blinks_backend)
 
 `blinks_backend/links/link_check.ex`, GenServer; translator: failed: `LinkCheck.init/1: unsupported statement Process.send_after(self(), :sweep, @initial_delay)`; translated: no.
 
-- `Logger.info/1` at 29
+- `local helper is not a pure expression` at 36, 51, 71
 - `Process.send_after/3` at 22
-- `binding a pattern x = e` at 28
-- `local call sweep/0` at 28
 - `module attribute @initial_delay as a value` at 22
 - `statement in init/1` at 22
-- `string interpolation / binary` at 29
+- *Logger.info/1 dropped (no effect in the model)* at 29
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
 - *no @type state (inferred from init/1: untyped mode)* at 1
@@ -1740,37 +1247,30 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 `blinks_backend_web/live/links_live.ex`, GenServer; translator: failed: `unsupported message pattern {event, %Blinks.Blink{}}`; translated: no.
 
-- `keyword list literal` at 640, 652, 661, 665, 669, 676
-- `imported/macro call assign/1` at 652, 661, 665
-- `imported/macro call assign/2` at 640, 669, 676
+- `imported/macro call assign/2` at 640, 652, 661, 665, 669, 676
+- `local helper is not a pure expression` at 304, 309, 315
 - `message pattern is not an atom or tagged tuple` at 659, 672, 682
-- `pipe |>` at 656, 661, 665
-- `imported/macro call reload/0` at 656, 661
-- `binding a pattern x = e` at 636
-- `if/case after a statement with an effect (it would have to be pushed into every branch)` at 638
-- `imported/macro call push_event/2` at 665
-- `local call room/1` at 638
-- `no @type state and no init/1 to infer one from` at 1
-- `operator &&` at 638
-- `operator in` at 660
-- `string literal` at 665
+- `Blinks.count_blinks/0` at 653, 661
+- `Map.update/4` at 642
+- `binding a pattern that may not match` at 636
+- `imported/macro call push_event/3` at 665
 - `struct pattern of a module outside this file` at 649
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### BigBill.Search.Server (big_bill)
 
 `big_bill/search/server.ex`, GenServer; translator: failed: `Server: unsupported registered name name`; translated: no.
 
-- `statement in init/1` at 61, 62, 63, 65
 - `Search.populate/1` at 66, 74
+- `statement in init/1` at 63, 65
 - `Exqlite.Sqlite3.open/1` at 63
 - `Search.db_path/0` at 61
 - `Search.execute_facet_counts/2` at 84
 - `Search.execute_search/3` at 79
 - `Search.index_exists?/0` at 62
 - `call on an expression` at 89
-- `if/case not at body level` at 65
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 69
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
@@ -1779,62 +1279,46 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 ### BigBillWeb.DrilldownLive (big_bill)
 
-`big_bill_web/live/drilldown_live.ex`, GenServer; translator: failed: `DrilldownLive declares no @type state and has no init/1 to infer it from`; translated: no.
+`big_bill_web/live/drilldown_live.ex`, GenServer; translator: failed: `unsupported expression Scope.to_duckdb(assigns)`; translated: no.
 
-- `imported/macro call assign/2` at 309, 310, 311, 334, 335, 336
-- `pipe |>` at 311, 329, 336
-- `if/case not at body level` at 299, 321
-- `string literal` at 299, 321
-- `Enum.flat_map/1` at 325
-- `Enum.sort_by/1` at 328
-- `Enum.take/1` at 329
-- `Enum.uniq_by/1` at 326
+- `imported/macro call assign/3` at 309, 310, 311, 334, 335, 336
+- `local helper is not a pure expression` at 345, 404, 410
+- `Enum.flat_map/2` at 325
+- `Enum.sort_by/2` at 328
+- `Enum.uniq_by/2` at 326
 - `Linkifier.linkify/2` at 305
-- `QueryBuilder.apply_negatives/1` at 327
+- `QueryBuilder.apply_negatives/2` at 327
 - `QueryBuilder.build/1` at 317
 - `QueryBuilder.determine_facets/1` at 318
 - `Search.get_full_content/1` at 295
 - `Search.search/2` at 325
 - `String.trim/1` at 321
-- `keyword list literal` at 305
-- `local call find_section_in_raw_text/2` at 300
-- `local call load_entities/1` at 291
-- `no @type state and no init/1 to infer one from` at 1
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 295
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### BigBillWeb.SearchLive (big_bill)
 
-`big_bill_web/live/search_live.ex`, GenServer; translator: failed: `SearchLive declares no @type state and has no init/1 to infer it from`; translated: no.
+`big_bill_web/live/search_live.ex`, GenServer; translator: failed: `case scrutinee must be a variable, Map.get/Map.fetch, :queue.out/peek or an Enum call of known type, got Search.validate_and_search(query, tab)`; translated: no.
 
 - `Search.build_index/0` at 61
-- `imported/macro call assign/2` at 65
-- `imported/macro call run_search/2` at 66
-- `no @type state and no init/1 to infer one from` at 1
-- `pipe |>` at 66
+- `imported/macro call assign/3` at 65
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
 ### BobsBroadcast.Radio.Broadcaster (bobs_broadcast)
 
-`bobs_broadcast/radio/broadcaster.ex`, GenServer; translator: failed: `Broadcaster.init/1: unsupported statement state = %{`; translated: no.
+`bobs_broadcast/radio/broadcaster.ex`, GenServer; translator: failed: `unsupported expression PubSub.broadcast(BobsBroadcast.PubSub, "radio:now_playing", {:now_playing, track_info})`; translated: no.
 
-- `local call start_track/1` at 70, 101
-- `local call stop_timer/1` at 53, 76
+- `local helper is not a pure expression` at 129, 159, 169, 175
 - `:telemetry.execute/3` at 112
 - `Kernel.binary_part/3` at 104
 - `Kernel.byte_size/1` at 95
-- `Kernel.min/2` at 103
-- `Kernel.rem/2` at 99
-- `Logger.warning/1` at 58
-- `binding a pattern x = e` at 94
-- `if/case after a statement with an effect (it would have to be pushed into every branch)` at 97
-- `local call broadcast_now_playing/1` at 77
-- `local call load_playlist/0` at 54
-- `local call schedule_chunk/1` at 123
-- `statement in init/1` at 37
-- `string literal` at 58
+- `binding a pattern that may not match` at 94
+- `local helper called as a statement` at 77
+- *Logger.warning/1 dropped (no effect in the model)* at 58
 - *atom-keyed map literal %{field: ..} (a record state, or an assoc list)* at 37, 114
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
@@ -1851,11 +1335,10 @@ Every distinct blocking construct per module with its line numbers (notes in ita
 
 ### BobsBroadcastWeb.RadioLive (bobs_broadcast)
 
-`bobs_broadcast_web/live/radio_live.ex`, GenServer; translator: failed: `RadioLive declares no @type state and has no init/1 to infer it from`; translated: no.
+`bobs_broadcast_web/live/radio_live.ex`, GenServer; translator: failed: `unsupported expression assign(assign(socket, :now_playing, track_info), :playing, track_info != nil)`; translated: no.
 
-- `imported/macro call assign/2` at 27, 28
-- `no @type state and no init/1 to infer one from` at 1
-- `pipe |>` at 28
+- `imported/macro call assign/3` at 27, 28
 - *dotted module name (translated under its last segment)* at 1
 - *no @type msg/cast/info/call (inferred from the clause patterns: untyped mode)* at 1
+- *no @type state and no init/1 (inferred from the callbacks' state patterns)* at 1
 
