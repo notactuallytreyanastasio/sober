@@ -240,7 +240,10 @@ defmodule V.Run do
     # untyped mode again: the reply type is probed from the clause bodies (a
     # list), and the LiveView's socket is the record of the assigns it touches
     {"LogStore", "elixir/real/log_store.ex", "Leanactors.Gen.LogStore", []},
-    {"LogsLive", "elixir/real/logs_live.ex", "Leanactors.Gen.LogsLive", []}
+    {"LogsLive", "elixir/real/logs_live.ex", "Leanactors.Gen.LogsLive", []},
+    # and a third: a chain of assigns folded into one record update, and a
+    # payload inferred `term() | nil` from the `!= nil` the body writes
+    {"RadioLive", "elixir/real/radio_live.ex", "Leanactors.Gen.RadioLive", []}
   ]
 
   @drivers [

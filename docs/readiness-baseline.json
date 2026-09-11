@@ -9,7 +9,7 @@
   ],
   "projects": [
     {
-      "blockers": 286,
+      "blockers": 285,
       "candidates": 22,
       "families": 60,
       "files": 117,
@@ -34,14 +34,14 @@
         {"blockers": 1, "distance": 1, "file": "loom_web/live/cost_dashboard_live.ex", "module": "LoomWeb.CostDashboardLive", "translated": false},
         {"blockers": 3, "distance": 3, "file": "loom_web/live/team_activity_component.ex", "module": "LoomWeb.TeamActivityComponent", "translated": false},
         {"blockers": 2, "distance": 1, "file": "loom_web/live/team_cost_component.ex", "module": "LoomWeb.TeamCostComponent", "translated": false},
-        {"blockers": 6, "distance": 4, "file": "loom_web/live/team_dashboard_component.ex", "module": "LoomWeb.TeamDashboardComponent", "translated": false},
+        {"blockers": 5, "distance": 3, "file": "loom_web/live/team_dashboard_component.ex", "module": "LoomWeb.TeamDashboardComponent", "translated": false},
         {"blockers": 33, "distance": 15, "file": "loom_web/live/workspace_live.ex", "module": "LoomWeb.WorkspaceLive", "translated": false}
       ],
       "name": "loom",
       "translated": 1
     },
     {
-      "blockers": 403,
+      "blockers": 383,
       "candidates": 25,
       "families": 67,
       "files": 145,
@@ -62,15 +62,15 @@
         {"blockers": 12, "distance": 4, "file": "ensemble/sentry_monitor.ex", "module": "Ensemble.SentryMonitor", "translated": false},
         {"blockers": 14, "distance": 3, "file": "ensemble/session_compactor.ex", "module": "Ensemble.SessionCompactor", "translated": false},
         {"blockers": 5, "distance": 4, "file": "ensemble_web/live/agents_live.ex", "module": "EnsembleWeb.AgentsLive", "translated": false},
-        {"blockers": 12, "distance": 4, "file": "ensemble_web/live/dashboard_live.ex", "module": "EnsembleWeb.DashboardLive", "translated": false},
+        {"blockers": 11, "distance": 4, "file": "ensemble_web/live/dashboard_live.ex", "module": "EnsembleWeb.DashboardLive", "translated": false},
         {"blockers": 2, "distance": 2, "file": "ensemble_web/live/decision_graph_live.ex", "module": "EnsembleWeb.DecisionGraphLive", "translated": false},
         {"blockers": 6, "distance": 5, "file": "ensemble_web/live/issues_live.ex", "module": "EnsembleWeb.IssuesLive", "translated": false},
         {"blockers": 0, "distance": 0, "file": "ensemble_web/live/logs_live.ex", "module": "EnsembleWeb.LogsLive", "translated": true},
-        {"blockers": 20, "distance": 4, "file": "ensemble_web/live/pr_dashboard_live.ex", "module": "EnsembleWeb.PRDashboardLive", "translated": false},
-        {"blockers": 27, "distance": 14, "file": "ensemble_web/live/pr_review_live.ex", "module": "EnsembleWeb.PRReviewLive", "translated": false},
-        {"blockers": 10, "distance": 6, "file": "ensemble_web/live/run_detail_live.ex", "module": "EnsembleWeb.RunDetailLive", "translated": false},
-        {"blockers": 12, "distance": 2, "file": "ensemble_web/live/sentry_live.ex", "module": "EnsembleWeb.SentryLive", "translated": false},
-        {"blockers": 17, "distance": 7, "file": "ensemble_web/live/settings_live.ex", "module": "EnsembleWeb.SettingsLive", "translated": false}
+        {"blockers": 9, "distance": 3, "file": "ensemble_web/live/pr_dashboard_live.ex", "module": "EnsembleWeb.PRDashboardLive", "translated": false},
+        {"blockers": 24, "distance": 14, "file": "ensemble_web/live/pr_review_live.ex", "module": "EnsembleWeb.PRReviewLive", "translated": false},
+        {"blockers": 7, "distance": 6, "file": "ensemble_web/live/run_detail_live.ex", "module": "EnsembleWeb.RunDetailLive", "translated": false},
+        {"blockers": 11, "distance": 2, "file": "ensemble_web/live/sentry_live.ex", "module": "EnsembleWeb.SentryLive", "translated": false},
+        {"blockers": 16, "distance": 7, "file": "ensemble_web/live/settings_live.ex", "module": "EnsembleWeb.SettingsLive", "translated": false}
       ],
       "name": "ensemble",
       "translated": 2
@@ -88,31 +88,31 @@
       "translated": 0
     },
     {
-      "blockers": 28,
+      "blockers": 24,
       "candidates": 3,
-      "families": 10,
+      "families": 9,
       "files": 60,
       "modules": [
         {"blockers": 10, "distance": 4, "file": "big_bill/search/server.ex", "module": "BigBill.Search.Server", "translated": false},
-        {"blockers": 17, "distance": 7, "file": "big_bill_web/live/drilldown_live.ex", "module": "BigBillWeb.DrilldownLive", "translated": false},
+        {"blockers": 13, "distance": 6, "file": "big_bill_web/live/drilldown_live.ex", "module": "BigBillWeb.DrilldownLive", "translated": false},
         {"blockers": 1, "distance": 1, "file": "big_bill_web/live/search_live.ex", "module": "BigBillWeb.SearchLive", "translated": false}
       ],
       "name": "big_bill",
       "translated": 0
     },
     {
-      "blockers": 12,
+      "blockers": 11,
       "candidates": 3,
-      "families": 8,
+      "families": 7,
       "files": 18,
       "modules": [
         {"blockers": 9, "distance": 5, "file": "bobs_broadcast/radio/broadcaster.ex", "module": "BobsBroadcast.Radio.Broadcaster", "translated": false},
         {"blockers": 2, "distance": 2, "file": "bobs_broadcast_web/controllers/stream_controller.ex", "module": "BobsBroadcastWeb.StreamController", "translated": false},
-        {"blockers": 1, "distance": 1, "file": "bobs_broadcast_web/live/radio_live.ex", "module": "BobsBroadcastWeb.RadioLive", "translated": false}
+        {"blockers": 0, "distance": 0, "file": "bobs_broadcast_web/live/radio_live.ex", "module": "BobsBroadcastWeb.RadioLive", "translated": true}
       ],
       "name": "bobs_broadcast",
-      "translated": 0
+      "translated": 1
     }
   ],
-  "total": {"blockers": 747, "candidates": 55, "families": 106, "files": 373, "translated": 3}
+  "total": {"blockers": 721, "candidates": 55, "families": 106, "files": 373, "translated": 4}
 }
