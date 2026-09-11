@@ -107,6 +107,16 @@ defmodule Readiness do
     # (a struct `Mod.t()`, an enum `Mod.level()`); a struct type
     # `%__MODULE__{f: T}` / `%Mod{f: T}` is the module's defstruct
     local_remote_types: "Mod.name() for a module of this file",
+    # Phoenix LiveView: a socket is a struct with an `assigns` map, and the
+    # imported `assign/2,3` is a functional update of it, which the
+    # translator rewrites to the record update `%{socket | k: e}`. Nothing
+    # else about LiveView is modelled (not the lifecycle, not `handle_event`).
+    liveview: [
+      "assign(socket, :key, e)",
+      "assign(socket, key: e, ..)",
+      "assign(socket, %{key: e, ..})",
+      "socket.assigns.key"
+    ],
     # statements before the return form (see `sends` in the translator)
     statements: [
       "send(Name | :name | pid_expr, msg)",
@@ -585,6 +595,24 @@ defmodule Readiness do
   end
 
   @kernel_funs MapSet.new(Kernel.__info__(:functions) ++ Kernel.__info__(:macros))
+
+  # `assign(socket, :k, e)`, `assign(socket, k: e, ..)` and
+  # `assign(socket, %{k: e, ..})`: the LiveView assigns update the translator
+  # rewrites to `%{socket | k: e}`. A computed key, or a socket that is not a
+  # variable, is not one of these and stays a blocker.
+  defp live_assign?({:assign, _, [{v, _, nil}, k, _]}) when is_atom(v),
+    do: is_atom(k) and k not in [nil, true, false]
+
+  defp live_assign?({:assign, _, [{v, _, nil}, kvs]}) when is_atom(v) and is_list(kvs),
+    do: assign_keys?(kvs)
+
+  defp live_assign?({:assign, _, [{v, _, nil}, {:%{}, _, kvs}]}) when is_atom(v) and is_list(kvs),
+    do: assign_keys?(kvs)
+
+  defp live_assign?(_), do: false
+
+  defp assign_keys?(kvs),
+    do: Keyword.keyword?(kvs) and kvs != [] and Enum.all?(kvs, fn {k, _} -> k not in [nil, true, false] end)
 
   # label for an unsupported zero-module call
   defp call_kind(mod, f, n) do
@@ -1900,6 +1928,10 @@ defmodule Readiness do
           # a helper of this module: translated as its own Lean definition,
           # and reported (once) at that definition, not here
           local_call?(mod, f, n) -> Enum.flat_map(args, &check_expr(mod, &1, l))
+          # Phoenix LiveView's imported `assign/2,3` on a variable socket
+          # with literal atom keys: a functional update of the socket's
+          # assigns, which the translator models as a record field update
+          live_assign?(e) -> Enum.flat_map(tl(args), &check_expr(mod, &1, l))
           String.starts_with?(Atom.to_string(f), "sigil_") -> blk.("sigil")
           true -> [finding(:blocker, l, call_kind(mod, f, n), str(e)) | Enum.flat_map(args, &check_expr(mod, &1, l))]
         end
