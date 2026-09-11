@@ -12,6 +12,10 @@ elixir elixir/to_lean.exs elixir/src/task.ex Leanactors.Gen.Task --pid Caller=ca
 elixir elixir/to_lean.exs elixir/src/watchdog.ex Leanactors.Gen.Watchdog --pid Watchdog=watchdog > /tmp/Gen.Watchdog.lean
 elixir elixir/to_lean.exs elixir/src/ttl.ex Leanactors.Gen.Ttl > /tmp/Gen.Ttl.lean
 elixir elixir/to_lean.exs elixir/src/registry.ex Leanactors.Gen.Registry > /tmp/Gen.Registry.lean
+# untyped mode: no @type anywhere, no --pid flag (the name is derived from
+# `GenServer.start_link(__MODULE__, opts, name: __MODULE__)`, so the Lean
+# constant is `table_registry`)
+elixir elixir/to_lean.exs elixir/real/table_registry.ex Leanactors.Gen.TableRegistry > /tmp/Gen.TableRegistry.lean
 diff -q /tmp/Gen.Lock.lean Leanactors/Gen/Lock.lean
 diff -q /tmp/Gen.Bank.lean Leanactors/Gen/Bank.lean
 diff -q /tmp/Gen.Supervisor.lean Leanactors/Gen/Supervisor.lean
@@ -19,6 +23,7 @@ diff -q /tmp/Gen.Task.lean Leanactors/Gen/Task.lean
 diff -q /tmp/Gen.Watchdog.lean Leanactors/Gen/Watchdog.lean
 diff -q /tmp/Gen.Ttl.lean Leanactors/Gen/Ttl.lean
 diff -q /tmp/Gen.Registry.lean Leanactors/Gen/Registry.lean
+diff -q /tmp/Gen.TableRegistry.lean Leanactors/Gen/TableRegistry.lean
 echo "   generated files are up to date"
 
 echo "== translator fixtures"
@@ -37,6 +42,7 @@ elixir elixir/task.exs | tail -1
 elixir elixir/watchdog.exs | tail -1
 elixir elixir/ttl.exs | tail -1
 elixir elixir/registry.exs | tail -1
+elixir elixir/table_registry.exs | tail -1
 
 echo "== differential fuzz (Lean replay vs BEAM)"
 # lake build above also built .lake/build/bin/replay (a default target).
