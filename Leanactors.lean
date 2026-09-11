@@ -22,6 +22,7 @@ import Leanactors.Examples.TaskProof
 import Leanactors.Gen.Watchdog
 import Leanactors.Examples.Watchdog
 import Leanactors.Examples.WatchdogProof
+import Leanactors.Examples.WatchdogLive
 import Leanactors.Examples.SysPropsDemo
 import Leanactors.Gen.Ttl
 import Leanactors.Examples.Ttl
