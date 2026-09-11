@@ -1,0 +1,20 @@
+{
+  "modules": [
+    {
+      "bytes": 1809,
+      "example": "Leanactors/Examples/TableRegistry.lean",
+      "file": "elixir/real/table_registry.ex",
+      "flags": [],
+      "gen": "Leanactors/Gen/TableRegistry.lean",
+      "lines": 69,
+      "md5": "b086fe063889bcbdad204b5ca544914c",
+      "module": "Loom.Teams.TableRegistry",
+      "name": "TableRegistry",
+      "namespace": "Leanactors.Gen.TableRegistry",
+      "origin": "/Users/bg/code/loom/lib/loom/teams/table_registry.ex",
+      "origin_rel": "lib/loom/teams/table_registry.ex",
+      "project": "loom"
+    }
+  ],
+  "note": "Real modules copied verbatim out of other projects. One entry per file under elixir/real/, written by elixir/land_real.exs and checked by elixir/real_provenance.exs (which check.sh runs): the copy must still be byte-identical to the origin it was taken from."
+}
