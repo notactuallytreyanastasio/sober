@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "8a0d3677-2bce-4b09-960f-5f6d2103c1c2",
+  "created_at": "2026-09-10T21:12:42.871463-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 65
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Untyped mode with opaque Term as the default, annotations as refinement (that is what gradual typing means here); four builders: untyped+records+ets (loom file), structs+Enum+queue (log store shape), PubSub effect, readiness harness",
+  "updated_at": "2026-09-10T21:12:42.871463-04:00"
+}

@@ -6082,6 +6082,61 @@
       "created_at": "2026-09-10T21:11:48.655555-04:00",
       "updated_at": "2026-09-10T21:11:48.655555-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":85}"
+    },
+    {
+      "id": 555,
+      "change_id": "f101305a-f935-4499-a266-36103de516d1",
+      "node_type": "goal",
+      "title": "Round 6: real-file readiness. Untyped mode (infer message shapes, opaque Term for unknown fields), record-shaped state maps with field access/update, Map.pop, opaque external resources (ets refs) and try/rescue as no-ops, public API wrappers ignored; structs + Enum + :queue; PubSub broadcast as a core effect; a readiness harness that reports unsupported constructs for any .ex file; translate loom TableRegistry and ensemble LogStore end to end",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T21:12:42.700962-04:00",
+      "updated_at": "2026-09-10T21:12:42.700962-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":50,\"prompt\":\"/loop until you can work on a real program like the one I linked up in another session\"}"
+    },
+    {
+      "id": 556,
+      "change_id": "1d7ffc54-d184-4f44-95a3-1a42f0ce7403",
+      "node_type": "option",
+      "title": "Require the user to add @type annotations before translating a real file",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T21:12:42.760718-04:00",
+      "updated_at": "2026-09-10T21:12:42.760718-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":40}"
+    },
+    {
+      "id": 557,
+      "change_id": "324a90d4-baec-4737-ba48-509cd6914f6d",
+      "node_type": "option",
+      "title": "Untyped mode: infer constructors from handle_* patterns, unknown field types become an opaque Term with decidable equality, refinable later with @type",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T21:12:42.795226-04:00",
+      "updated_at": "2026-09-10T21:12:42.795226-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":70}"
+    },
+    {
+      "id": 558,
+      "change_id": "8a0d3677-2bce-4b09-960f-5f6d2103c1c2",
+      "node_type": "decision",
+      "title": "Untyped mode with opaque Term as the default, annotations as refinement (that is what gradual typing means here); four builders: untyped+records+ets (loom file), structs+Enum+queue (log store shape), PubSub effect, readiness harness",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T21:12:42.871463-04:00",
+      "updated_at": "2026-09-10T21:12:42.871463-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":65}"
+    },
+    {
+      "id": 559,
+      "change_id": "afd0f133-9e43-4450-8402-ca2a949969d3",
+      "node_type": "action",
+      "title": "Workflow round 6 root",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T21:12:42.950976-04:00",
+      "updated_at": "2026-09-10T21:12:42.950976-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":60}"
     }
   ],
   "edges": [
@@ -13113,6 +13168,72 @@
       "weight": 1.0,
       "rationale": "what round 5 showed",
       "created_at": "2026-09-10T21:11:58.110976-04:00"
+    },
+    {
+      "id": 661,
+      "from_node_id": 553,
+      "to_node_id": 555,
+      "from_change_id": "5dc88787-198c-4b2f-a164-947ae1478c4f",
+      "to_change_id": "f101305a-f935-4499-a266-36103de516d1",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "the survey and two real files define the gap",
+      "created_at": "2026-09-10T21:12:42.727260-04:00"
+    },
+    {
+      "id": 662,
+      "from_node_id": 555,
+      "to_node_id": 556,
+      "from_change_id": "f101305a-f935-4499-a266-36103de516d1",
+      "to_change_id": "1d7ffc54-d184-4f44-95a3-1a42f0ce7403",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T21:12:42.815743-04:00"
+    },
+    {
+      "id": 663,
+      "from_node_id": 555,
+      "to_node_id": 557,
+      "from_change_id": "f101305a-f935-4499-a266-36103de516d1",
+      "to_change_id": "324a90d4-baec-4737-ba48-509cd6914f6d",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "considered",
+      "created_at": "2026-09-10T21:12:42.837151-04:00"
+    },
+    {
+      "id": 664,
+      "from_node_id": 557,
+      "to_node_id": 558,
+      "from_change_id": "324a90d4-baec-4737-ba48-509cd6914f6d",
+      "to_change_id": "8a0d3677-2bce-4b09-960f-5f6d2103c1c2",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "chosen",
+      "created_at": "2026-09-10T21:12:42.895734-04:00"
+    },
+    {
+      "id": 665,
+      "from_node_id": 556,
+      "to_node_id": 558,
+      "from_change_id": "1d7ffc54-d184-4f44-95a3-1a42f0ce7403",
+      "to_change_id": "8a0d3677-2bce-4b09-960f-5f6d2103c1c2",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "rejected as the only path: real files have no specs",
+      "created_at": "2026-09-10T21:12:42.916615-04:00"
+    },
+    {
+      "id": 666,
+      "from_node_id": 558,
+      "to_node_id": 559,
+      "from_change_id": "8a0d3677-2bce-4b09-960f-5f6d2103c1c2",
+      "to_change_id": "afd0f133-9e43-4450-8402-ca2a949969d3",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "launched",
+      "created_at": "2026-09-10T21:12:42.972164-04:00"
     }
   ]
 }
