@@ -63,11 +63,24 @@
 #   while awaiting is re-enqueued to self, encoding selective receive.
 #   Raw processes: instead of callbacks a module may define exactly one loop
 #   `def run(state) do receive do pat [when g] -> body ... end end` (any
-#   name). Each receive clause is a handle_info clause with the parameter as
-#   the state pattern; a body ending in `run(e)` continues with state e,
+#   name, `def` or `defp`: visibility is an Elixir rule with no counterpart
+#   in the model, and the function that IS the whole life of a process is
+#   usually private, entered from a public wrapper). Each receive clause is
+#   a handle_info clause with the parameter as the state pattern; a body ending in `run(e)` continues with state e,
 #   `exit(r)` exits with the current state, any other last expression means
 #   the loop returns (exit :normal). If the receive has no catch-all clause
 #   a defer clause re-enqueues unmatched messages to self: selective receive.
+#   The loop must take ONE argument and every call to it must be in tail
+#   position -- of the loop's own arms, or of the wrapper that enters it.
+#   Both are the same requirement: the loop is the whole life of a process,
+#   which is what lets its tail decide what the process does next and lets
+#   falling out of it be `exit :normal`. `v = collect(acc)` in the middle of
+#   a function is a blocking receive whose value the caller goes on to use;
+#   the model's only blocking form is `GenServer.call`, which splits the
+#   clause into an await state, and a receive has nothing to split. Such a
+#   helper is an error rather than a loop, at any arity -- a multi-argument
+#   loop would be an n-tuple state the model already has, but every one in
+#   the measured projects is a synchronous collect, not a process.
 #   `pid = spawn(Mod, :run, [a])`, `pid = spawn_link(Mod, :run, [a])` and
 #   `{pid, _ref} = spawn_monitor(Mod, :run, [a])` map to spawn/spawnLink/
 #   spawnMonitor with Mod's state constructor applied to a.
@@ -2623,18 +2636,51 @@ defmodule ToLean do
   # {loop name, state parameter, receive arms, after body | nil} of a raw
   # process module, or nil
   defp loop_of(body) do
-    loops = for {:def, _, [head, [do: {:receive, _, [opts]}]]} <- body, do: {head_parts(head), opts}
+    loops = for {d, _, [head, [do: {:receive, _, [opts]}]]} <- body, d in [:def, :defp], do: {head_parts(head), opts}
     handlers =
       for {:def, _, [head, _]} <- body, {f, _, _} = head_parts(head), f in [:handle_cast, :handle_info, :handle_call, :handle_continue], do: f
     case loops do
       [] -> nil
       [_ | _] when handlers != [] -> fail("a module cannot mix GenServer callbacks with a receive loop")
-      [{{fname, [param], nil}, [do: arms]}] -> {fname, param, arms, nil}
-      [{{fname, [param], nil}, [do: arms, after: [{:->, _, [[_t], ab]}]]}] -> {fname, param, arms, ab}
+      [{{fname, [param], nil}, [do: arms]}] -> check_loop_calls(fname, body); {fname, param, arms, nil}
+      [{{fname, [param], nil}, [do: arms, after: [{:->, _, [[_t], ab]}]]}] -> check_loop_calls(fname, body); {fname, param, arms, ab}
       [{{fname, _, _}, _}] -> fail("receive loop #{fname} must take one argument and have no guard; `after` takes one clause")
       _ -> fail("more than one receive loop in a module")
     end
   end
+
+  # A receive loop models the WHOLE life of a process: its tail decides what
+  # the process does next (`loop(e)` continues, anything else exits normally).
+  # That reading is only faithful when every call to the loop is in tail
+  # position -- `v = loop(e)` in the middle of a function is a blocking
+  # receive whose value the caller goes on to use, and the model has no way
+  # to express one (the only blocking form it has is `GenServer.call`, which
+  # splits the clause into an await state). So a non-tail call is an error,
+  # not a loop.
+  defp check_loop_calls(fname, body) do
+    bodies = for {d, _, [_, [do: b]]} <- body, d in [:def, :defp], do: b
+    tails = Enum.flat_map(bodies, &tail_exprs/1)
+    call? = fn {f, _, args} when is_list(args) -> f == fname and length(args) == 1; _ -> false end
+    {_, n} = Macro.prewalk(bodies, 0, fn node, acc -> {node, if(call?.(node), do: acc + 1, else: acc)} end)
+    if n > Enum.count(tails, call?) do
+      fail("receive loop #{fname} is called outside tail position: a receive in the middle of a " <>
+             "computation is a blocking receive, which the model cannot express")
+    end
+    :ok
+  end
+
+  # the expressions a body can end in (through blocks, if/case/cond branches
+  # and the arms of a receive); anything else is a leaf
+  defp tail_exprs({:__block__, _, xs}), do: (case List.last(xs) do nil -> []; last -> tail_exprs(last) end)
+  defp tail_exprs({:if, _, [_, kw]}) when is_list(kw),
+    do: Enum.flat_map([kw[:do], kw[:else]], fn nil -> []; b -> tail_exprs(b) end)
+  defp tail_exprs({:case, _, [_, [do: arms]]}) when is_list(arms), do: arm_tails(arms)
+  defp tail_exprs({:cond, _, [[do: arms]]}) when is_list(arms), do: arm_tails(arms)
+  defp tail_exprs({:receive, _, [opts]}) when is_list(opts),
+    do: arm_tails((opts[:do] || []) ++ (opts[:after] || []))
+  defp tail_exprs(e), do: [e]
+
+  defp arm_tails(arms), do: Enum.flat_map(arms, fn {:->, _, [_, b]} -> tail_exprs(b); _ -> [] end)
 
   # Rewrite the tail of a receive-clause body: `loop(e)` continues with state
   # e (re-arming the after-timer if the loop has one), `exit(r)`, `raise`
