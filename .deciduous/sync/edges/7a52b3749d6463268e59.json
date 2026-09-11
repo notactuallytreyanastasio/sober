@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-11T00:00:39.488694-04:00",
+  "edge_id": "7a52b3749d6463268e59",
+  "edge_type": "leads_to",
+  "from_change_id": "9d819722-96ad-4d91-94c4-15100c7bf88e",
+  "rationale": "why the fold is unconditional except for a duplicate key",
+  "to_change_id": "15336dc2-5a31-4593-9970-a5bdf9ce9f61",
+  "weight": 1.0
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "c7c671fa-8fbd-4499-89fb-56bc7de9bb89",
+  "created_at": "2026-09-11T00:33:40.548345-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Extended: one finding per (helper, family), not one per helper. Reporting only the FIRST blocker inside a helper swapped one fiction for another -- LoomWeb.TeamCostComponent read 'distance 2: float literal, operator /' when behind those sit CostTracker.get_call_history/2, DateTime.diff/add and Enum.group_by. Per family it reads distance 8, and EnsembleWeb.SentryLive 13 instead of 2. Call sites still collapse into the helper (that was a deliberate earlier decision and stays), so the unit of a blocker is now 'one feature, in one helper'. This RAISES the blocker count without the translator having got worse: the old number was hiding 40 modules' remote surface behind a single line each.",
+  "updated_at": "2026-09-11T00:33:40.548345-04:00"
+}

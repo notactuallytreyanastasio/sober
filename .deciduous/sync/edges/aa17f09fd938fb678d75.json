@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T23:48:49.744516-04:00",
+  "edge_id": "aa17f09fd938fb678d75",
+  "edge_type": "leads_to",
+  "from_change_id": "50aaa679-1527-444f-a3dc-f9d7b0710186",
+  "rationale": "approach considered for the cross-module blocker",
+  "to_change_id": "fcbc6799-189e-45a4-9631-9a2defec0c27",
+  "weight": 1.0
+}

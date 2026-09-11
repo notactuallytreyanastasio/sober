@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "77c079b2-80d4-409c-bcf8-ae235c945c77",
+  "created_at": "2026-09-11T00:01:33.759146-04:00",
+  "description": "LoomWeb.TeamCostComponent is listed at distance 1 with two blockers, both -local helper is not a pure expression-. That is one family, so the table says one feature away. It is not: the walker reports a helper at its FIRST unsupported construct and does not walk the rest of its body, so load_cost_data/1 is reported only as -float literal 5.0- while the rest of it also reads CostTracker.get_team_usage/1 (an ETS table), and build_timeline/1 is reported only as -is_nil- while the rest of it calls DateTime.diff/3, Enum.min/2 and Enum.max/2 with a module comparator. The model has no Float and no clock, so the true distance is four or five families, not one. LoomWeb.CostDashboardLive and Loom.LSP.ConfigListener are undercounted the same way (see node 750). The ranking is still useful as a rough order, but a module at distance 1 whose one family is -local helper is not a pure expression- or -call to SomeModule- should be read as -at least one-, and checked by running the translator before it is planned as a target.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Distance 1 in the closest table can be an undercount: the walker stops at the helper",
+  "updated_at": "2026-09-11T00:01:33.759146-04:00"
+}

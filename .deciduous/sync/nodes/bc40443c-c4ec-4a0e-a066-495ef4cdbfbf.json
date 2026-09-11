@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "bc40443c-c4ec-4a0e-a066-495ef4cdbfbf",
+  "created_at": "2026-09-11T00:50:34.515652-04:00",
+  "description": "After merging wf8/tooling and wf8/batch-c into main, all 13 Gen files regenerate byte-identically from check.sh's own commands, all 81 expected fixture files regenerate byte-identically (regen_expected.sh produced an empty git diff), and the readiness baseline re-measured identically to batch-c's (4/55, 738 blockers, 188 families). The only file the integration itself changed is elixir/real/MANIFEST.json: the three batch builders landed their modules by hand rather than through land_real.exs, so the manifest had one entry and check.sh fails on a file under elixir/real/ with no entry. Re-running land_real.exs on each origin path added the three missing entries and touched nothing else -- it reported the copies already landed and byte-identical, the Gen files unchanged, the check.sh lines present, the examples left alone and the imports already there.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Integration verified nothing drifted",
+  "updated_at": "2026-09-11T00:50:34.515652-04:00"
+}

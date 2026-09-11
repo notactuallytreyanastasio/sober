@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-11T00:24:55.989431-04:00",
+  "edge_id": "7a2846659e0dbd1630fb",
+  "edge_type": "leads_to",
+  "from_change_id": "dc8ae10c-27cc-4d1c-92f5-3247afda1218",
+  "rationale": "rejected: distance counts families, and one family ('local helper is not a pure expression') hides whatever the helper actually calls",
+  "to_change_id": "f5f5f344-02a8-44c3-ab57-a8cc23ee4b92",
+  "weight": 1.0
+}

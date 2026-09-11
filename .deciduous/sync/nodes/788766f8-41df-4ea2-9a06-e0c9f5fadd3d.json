@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "788766f8-41df-4ea2-9a06-e0c9f5fadd3d",
+  "created_at": "2026-09-11T00:01:14.726061-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 70
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Loom.LSP.ConfigListener: resolve the cross-module call to Loom.LSP.Supervisor.start_from_config/0",
+  "updated_at": "2026-09-11T00:01:14.726061-04:00"
+}

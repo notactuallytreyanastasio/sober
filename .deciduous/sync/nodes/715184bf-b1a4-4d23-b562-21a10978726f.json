@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "715184bf-b1a4-4d23-b562-21a10978726f",
+  "created_at": "2026-09-10T23:43:16.963678-04:00",
+  "description": "check.sh green in /Users/bg/code/lean_analysis-wf/wf8-batch-a at 6e477cb on wf8/batch-a.\nTwelve Gen files up to date, the ten that existed regenerate byte-identically (none deliberately changed). 76/76 translator fixtures, up from 73: three new ones, reply_expr_type and liveview_assigns (expect ok, lean check) and error_assign_key (expect error). 55 ok, 21 error. Readiness self-check 18/18 on elixir/src. lake build: zero errors, zero warnings, no sorry, no axiom. Ten BEAM drivers OK. Differential fuzzer 200/200 scripts agree.\nReadiness over the five real projects, harness command:\nelixir elixir/readiness.exs --markdown /Users/bg/code/loom/lib /Users/bg/code/ensemble/lib /Users/bg/code/blinks_backend/lib /Users/bg/code/big_bill/lib /Users/bg/code/bobs_broadcast/lib\nBEFORE -> AFTER, translated and blockers: loom 1 -> 1, 326 -> 286. ensemble 0 -> 2, 454 -> 403. blinks_backend 0 -> 0, 24 -> 18. big_bill 0 -> 0, 31 -> 28. bobs_broadcast 0 -> 0, 13 -> 12. all 1 -> 3, 848 -> 747. Candidate modules unchanged at 55, families unchanged at 106.\nThe blocker fall is the assigns family: imported/macro call assign/3 was the second most common single construct in the whole survey at 82 occurrences over 14 modules, assign/2 the third at 44 over 4.\nNew closest-to-translatable head: BigBillWeb.SearchLive (1, call to Search), BobsBroadcastWeb.RadioLive (1, an imported call), Loom.LSP.ConfigListener (1), LoomWeb.CostDashboardLive (1, local helper is not a pure expression), LoomWeb.TeamCostComponent (1, same).",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Batch A green: 1 -> 3 translatable, 848 -> 747 blockers",
+  "updated_at": "2026-09-10T23:43:16.963678-04:00"
+}

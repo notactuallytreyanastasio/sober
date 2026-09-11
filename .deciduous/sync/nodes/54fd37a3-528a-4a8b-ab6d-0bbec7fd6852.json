@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "54fd37a3-528a-4a8b-ab6d-0bbec7fd6852",
+  "created_at": "2026-09-11T00:25:04.347183-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "defp loops land (fixture defp_loop.ex), and with them the state inference comes free: clauses/2 turns receive arms into handle_info clauses with the loop parameter as the state pattern, so state_from_clauses/2 reads term() and 'no @type state and no init/1' disappears for a raw loop. StreamController then reaches its real blocker: chunk(conn, data), i.e. Plug.Conn.chunk/2, which writes bytes onto an HTTP socket. Also in the body: check_backpressure!/0 reads Process.info(self(), :message_queue_len) -- the model HAS a mailbox but EBehavior is not handed it -- and raises on a slow client. Left blocked at chunk/2.",
+  "updated_at": "2026-09-11T00:25:04.347183-04:00"
+}

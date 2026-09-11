@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e8fa009c-a210-4fe4-9009-0a711fc5d37f",
+  "created_at": "2026-09-11T00:01:29.963394-04:00",
+  "description": "Found while landing RadioLive, not looked for. The readiness harness runs the translator DRY -- it never compiles what comes out -- so a translator bug that emits well-formed but ill-typed Lean is counted as a translated module. The expression \"track_info != nil\" on an opaque payload rendered as \"(track_info != none)\", which Lean rejects (\"Type mismatch: none has type Option ?m but is expected to have type Term\"), and the harness said \"translated yes\". The fix is the check_nil_cmp/4 refusal, but the class is wider: a rendering that is type-correct by construction is fine, and one that leans on Lean to catch it is invisible to the readiness number. The four modules the harness now reports as translatable all have Gen files that check.sh compiles, so the committed numbers are honest -- but a future round that reports a translatable module WITHOUT landing it has no compile behind that claim. Cheapest fix for a later round: have --strict (or the markdown run) pipe each translated module through \"lake env lean\" in a scratch namespace.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "A generated file that does not elaborate was being counted as translated",
+  "updated_at": "2026-09-11T00:01:29.963394-04:00"
+}

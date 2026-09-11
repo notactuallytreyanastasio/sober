@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T23:21:47.041042-04:00",
+  "edge_id": "586b9b8a004b59045a89",
+  "edge_type": "leads_to",
+  "from_change_id": "2842e094-6533-4f9b-8fda-812d03edef2b",
+  "rationale": "rejected: halving families moved the count by zero",
+  "to_change_id": "d52098b9-8aa4-46d9-8ba9-65964848328c",
+  "weight": 1.0
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "2209bab0-07af-41c6-97a7-74a74ec3f3c0",
+  "created_at": "2026-09-11T00:25:04.453242-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "check_loop_calls/2 + tail_exprs/1 in to_lean.exs. A receive loop models the WHOLE life of a process: its tail says what the process does next and falling out of it is exit(:normal). That is only faithful when every call to the loop is in tail position.  is a blocking receive whose value the caller uses, and the model's only blocking form is GenServer.call, which splits the clause into an await state -- there is nothing here to split. Now an error (fixture error_loop_not_tail.ex) instead of a silently false model.",
+  "updated_at": "2026-09-11T00:25:04.453242-04:00"
+}

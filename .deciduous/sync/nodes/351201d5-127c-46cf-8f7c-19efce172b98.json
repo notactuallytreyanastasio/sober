@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "351201d5-127c-46cf-8f7c-19efce172b98",
+  "created_at": "2026-09-11T00:01:25.638333-04:00",
+  "deleted_at": "2026-09-11T00:01:29.946117-04:00",
+  "description": "Found while landing RadioLive, not looked for. The readiness harness runs the translator DRY -- it never compiles what comes out -- so a translator bug that emits well-formed but ill-typed Lean is counted as a translated module.  on an opaque payload rendered as , which Lean rejects ('Type mismatch: none has type Option ?m but is expected to have type Term'), and the harness said 'translated yes'. The fix is the check_nil_cmp/4 refusal, but the class is wider: any rendering that is type-correct by construction is fine, and any that leans on Lean to catch it is invisible to the readiness number. The three GenServer modules the harness reports as translatable are all also compiled by check.sh (they have Gen files), so the committed numbers are honest -- but a future round that reports a translatable module WITHOUT landing it has no compile behind that claim. Cheapest fix for a later round: have --strict (or the markdown run) pipe each translated module through  in a scratch namespace.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "A generated file that does not elaborate was being counted as translated",
+  "updated_at": "2026-09-11T00:01:25.638333-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "87551387-ffe1-4773-80e3-5ae9ee21fbb8",
+  "created_at": "2026-09-11T00:24:59.343264-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "BLOCKED, and not by a translator gap. Batch B already took it from distance 2 to distance 1: the only walker blocker left is Search.build_index/0 and the translator dies at 'case scrutinee ... got Search.validate_and_search(query, tab)'. Both are calls into BigBill.Search, a SQLite full-text index. build_index/0 is run for its effect on the index; validate_and_search/2 returns {:ok, results, counts} | {:error, :too_short} and is the case scrutinee of run_search/3. Neither has a sound image in the model: the model has no opaque unknown value (Term is a concrete Nat-backed structure with DecidableEq) and EBehavior has no nondeterministic branch, so a case over an unknown tagged union cannot be expressed. Left blocked.",
+  "updated_at": "2026-09-11T00:24:59.343264-04:00"
+}

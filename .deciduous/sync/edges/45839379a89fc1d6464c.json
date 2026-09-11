@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-11T00:00:37.330750-04:00",
+  "edge_id": "45839379a89fc1d6464c",
+  "edge_type": "leads_to",
+  "from_change_id": "9d819722-96ad-4d91-94c4-15100c7bf88e",
+  "rationale": "the module translates, compiles and has a checked and proved property",
+  "to_change_id": "9de282bf-adf5-41ba-8314-8ab74d1e22b6",
+  "weight": 1.0
+}

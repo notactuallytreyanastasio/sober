@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e0237c1f-cb74-46bc-99d7-15162b6d1ff1",
+  "created_at": "2026-09-11T00:50:38.363960-04:00",
+  "description": "Round 8 landed two LiveViews and both had to say, in the generated file and in the example, that handle_event/3 is a real transition of the real process that the model does not carry. That is now the largest honest gap in the landed set: RadioLive's property (playing is true exactly when now_playing holds a track) is TRUE of the mailbox and FALSE of the running view, because handle_event('play', ..) sets playing on its own. Two ways to close it, neither built: (1) model the browser channel as a second message source -- a LiveView process really does receive its events as messages, so handle_event clauses could become ordinary Msg constructors with the socket as state, which would make the property either provable or a counterexample rather than a caveat; (2) leave it out and state the property as a property of a projection, naming the assigns the browser may write. Option 1 is the one that makes the model bigger in the direction real Phoenix code lives, and it costs the same work handle_call already paid: a second callback kind with its own tag space. Node 729 proposes supervision trees for round 9; this is the smaller and more immediately honest of the two.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Round 9 candidate the integration surfaced: the LiveView examples check the mailbox, and the browser is the other half",
+  "updated_at": "2026-09-11T00:50:38.363960-04:00"
+}

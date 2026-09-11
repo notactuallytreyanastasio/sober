@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "26d6b5b5-5b4a-41d1-a6a8-878fd11dd2e7",
+  "created_at": "2026-09-11T00:32:57.235032-04:00",
+  "description": "README.md still says 73 fixtures / 53 expect-ok / 20 expect-error in three places (the Status paragraph, the file table row for elixir/test/fixtures, and the Translator fixtures section). After batches A, B and C the true counts are 81 fixtures, 57 expect: ok, 24 expect: error. The Status paragraph's 'ten generated Gen/ files' and 'Ten worked examples' are also stale: batch A added Gen/LogStore.lean and Gen/LogsLive.lean with their examples, batch B added Gen/RadioLive.lean. Batch C adds no Gen file and no example: it landed no new real module (see the observation on the tail). What batch C did change that the Readiness section should say: a raw-process receive loop may now be a defp, and every call to a receive loop must be in tail position (a receive in the middle of a computation is a blocking receive the model cannot express); and the readiness harness now files a blocker found inside a module-local helper under the family of the construct the helper actually calls, so the 'Closest to translatable' table no longer reads as though the translator were one feature away from modules that are really waiting on another application module.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "README replacement text (README.md is off-limits to this batch; batches A and B did not update it either)",
+  "updated_at": "2026-09-11T00:32:57.235032-04:00"
+}

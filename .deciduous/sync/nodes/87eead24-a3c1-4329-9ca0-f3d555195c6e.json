@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "87eead24-a3c1-4329-9ca0-f3d555195c6e",
+  "created_at": "2026-09-10T23:35:29.011566-04:00",
+  "description": "clock, mapset and strings import Leanactors.Time / .SetList / .Str, which are not dependencies of Leanactors.Sys, so 'lake build Leanactors.Sys' left no oleans for them and 'lake env lean' reported \"object file ... does not exist\". It never showed on a developer machine because .lake was already warm from an earlier full lake build, and it could not fail check.sh because of the grep pipeline above. In a fresh worktree ./check.sh on main fails at the fixtures step for this reason. Fixed by deriving the modules to build from the expected files' own import lines.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Second hole the new gate exposed: run_fixtures built only Leanactors.Sys, so a COLD .lake failed three fixtures",
+  "updated_at": "2026-09-10T23:35:29.011566-04:00"
+}

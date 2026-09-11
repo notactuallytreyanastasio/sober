@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "662ff0e4-1a20-47f9-9190-c5b07dc9ecd7",
+  "created_at": "2026-09-11T00:08:53.974737-04:00",
+  "description": "For the translator section, after the LiveView assigns paragraph: A LiveView writes its socket in a pipeline, and a pipeline of assigns is a nest of calls whose innermost argument is the socket variable and whose outer ones are not. The record update the model has takes a variable at its head, because a record state is the flattened constructor and has no whole value to nest one update inside another on. So the chain is unfolded to that variable and folded into one update. That is not an approximation: the intermediate socket of a chain is anonymous, so no value expression in it can name anything but the original, and Elixir evaluates every value of a record update against that same original. The one thing refused is the same key twice in one chain, and only because dropping the discarded write would hide whatever is inside it.\n\nFor the findings section: the untyped path had been typing every inferred message payload as the opaque term(). One real module showed that a module with no @type still says something about a payload: it compares it with nil. The model has nil only at an Option, so a payload a clause body nil-tests is term() | nil. The other half of the same fix is a refusal -- comparing anything but an Option with nil is now an error naming the type -- and that refusal is the more important half, because before it the translator emitted (x != none) on an opaque Term, which is Lean that does not elaborate, and the readiness harness (which translates dry and never compiles) counted it as a translated module.\n\nFor the approximations section: two real modules in this batch were refused rather than modelled, both at a call into another module. Loom.LSP.Supervisor.start_from_config/0 starts one DynamicSupervisor child per entry of a config file: an unknown number of spawns, decided by data outside the model, under a parent that is not the caller. Loom.Telemetry.Metrics.global_metrics/0 and its siblings read an ETS table, and ETS contents are deliberately not in the model -- a constant would claim the dashboard never changes, a fresh value would claim two reads never agree, and the honest answer is nondeterminism, which a Lean function does not have. Both would need the model to grow, not the translator.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "NOTES.md addition for round 8 batch B",
+  "updated_at": "2026-09-11T00:08:53.974737-04:00"
+}

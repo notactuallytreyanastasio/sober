@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "265fc93f-27fb-431b-b61a-60180949a0fc",
+  "created_at": "2026-09-10T23:29:56.869776-04:00",
+  "description": "'elixir elixir/test/run_fixtures.exs | grep -v \"^PASS \"' reports GREP's exit status, and grep exits 0 exactly when there are FAIL lines to print, so under 'set -e' a fixture failure printed its FAIL lines and check.sh carried on. Demonstrated: sh -c 'set -e; (echo FAIL; exit 1) | grep -v \"^PASS \"; echo CONTINUED' prints CONTINUED. Fixed for both the existing fixture runner and the new land_real self-test by capturing the output to $OUT and making a non-zero exit fatal before the PASS lines are dropped.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "check.sh had a hole: a failing fixture run could not fail the gate",
+  "updated_at": "2026-09-10T23:29:56.869776-04:00"
+}

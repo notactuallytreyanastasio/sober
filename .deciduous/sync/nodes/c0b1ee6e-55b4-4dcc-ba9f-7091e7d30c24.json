@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "c0b1ee6e-55b4-4dcc-ba9f-7091e7d30c24",
+  "created_at": "2026-09-11T00:44:01.555812-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Merge wf8/tooling then wf8/batch-c (subsuming batch-a and batch-b); one conflict in check.sh",
+  "updated_at": "2026-09-11T00:44:01.555812-04:00"
+}

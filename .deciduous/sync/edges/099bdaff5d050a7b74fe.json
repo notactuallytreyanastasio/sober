@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T23:21:47.023468-04:00",
+  "edge_id": "099bdaff5d050a7b74fe",
+  "edge_type": "leads_to",
+  "from_change_id": "7d283c64-be0a-49e4-890f-689fc6f28deb",
+  "rationale": "chosen: the round 7 merge had 5 conflicts in one file; chaining removes them and each batch sees the previous fixes",
+  "to_change_id": "d52098b9-8aa4-46d9-8ba9-65964848328c",
+  "weight": 1.0
+}

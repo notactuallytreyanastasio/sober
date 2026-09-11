@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T23:43:33.603008-04:00",
+  "edge_id": "d817647ccac13b678973",
+  "edge_type": "leads_to",
+  "from_change_id": "fe22c501-f2c0-4b84-855c-a0210518ebfb",
+  "rationale": "reply: a second compile pass, not a new inductive",
+  "to_change_id": "e6420788-617f-4ae1-bab3-c18201bd6724",
+  "weight": 1.0
+}

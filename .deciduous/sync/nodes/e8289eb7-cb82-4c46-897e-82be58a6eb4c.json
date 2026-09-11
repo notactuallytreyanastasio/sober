@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e8289eb7-cb82-4c46-897e-82be58a6eb4c",
+  "created_at": "2026-09-11T00:25:12.151858-04:00",
+  "description": "Loom.Tools.Shell (collect_output/3), Ensemble.AI.TextGenerator (collect_output/3), Loom.Teams.Debate (do_collect/6) and Loom.Session.Architect (a receive inside a case arm of check_editor_permission/3) all look one generalisation away: allow a loop of arity n and make its state an n-tuple, which the model already has. That would be WRONG for every one of them. Each is a synchronous collect: the caller uses the value the receive block returns (extract_result(buffer), {:error, :timeout}, the accumulated responses, :allowed | :denied). The translator's rule for a loop body that does not tail-call the loop is 'the loop returns, so the process exits :normal' -- which would claim the process dies where in fact the caller goes on. So the arity-1 restriction stays, and the new tail-position check makes explicit what it was standing in for: a receive is a process only when it is the whole life of one.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Multi-argument receive helpers are NOT raw-process loops, and I deliberately did not make them one",
+  "updated_at": "2026-09-11T00:25:12.151858-04:00"
+}

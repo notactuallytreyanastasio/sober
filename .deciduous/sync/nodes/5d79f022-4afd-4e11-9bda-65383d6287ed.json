@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "5d79f022-4afd-4e11-9bda-65383d6287ed",
+  "created_at": "2026-09-11T00:01:21.795034-04:00",
+  "description": "The brief asked for a general cross-module mechanism. I chose the sound one (resolve the callee's own def and translate it exactly like a local helper: same inlining, same pure-fragment rule, just across a module boundary in the same compilation unit) and then MEASURED what it would buy, by writing the two callee bodies out as ordinary local helpers of a throwaway GenServer and running the translator and the walker on them.\n\nLoom.LSP.Supervisor.start_from_config/0 (SAME FILE as Loom.LSP.ConfigListener, so it is in reach of a same-file mechanism): refuses at 'unsupported expression Loom.Config.get(:lsp)', and behind that it calls DynamicSupervisor.start_child/2 once per entry of a config file, inside an Enum.each over data the model does not have. That is a SPAWN of an unknown number of processes, decided by a file on disk. Modelling it as a no-op would say ConfigListener does nothing on :config_loaded, which is false about exactly the thing this model is about; modelling it as a spawn by the caller would put the child under the wrong parent and the wrong link. There is no sound rendering, so it stays blocked.\n\nLoom.Telemetry.Metrics.global_metrics/0 etc. (a DIFFERENT file, so out of reach of a same-file mechanism anyway): refuses at ':ets.lookup(:loom_metrics, :global)'. The model deliberately does not carry ETS contents -- :ets writes are dropped and :ets.new is an opaque fresh reference -- so an ETS READ has no value to return. A constant Term would say the dashboard's assigns never change (false); a fresh Term per read would say two reads never agree (also false). The model would need nondeterminism, and EBehavior is a function.\n\nSo the mechanism would have converted one opaque 'call to Mod' blocker into two or three specific ones per module and moved neither module's verdict, at the cost of refactoring local_defs/local_calls_in/reachable_locals/close_locals/rewrite_def_bodies -- the resolution path all thirteen committed Gen files go through. I did not build it. The policy stands recorded (node 743) for a round with a call site whose callee is actually pure.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Why the cross-module resolution was not built this round: both call sites refuse at the callee",
+  "updated_at": "2026-09-11T00:01:21.795034-04:00"
+}

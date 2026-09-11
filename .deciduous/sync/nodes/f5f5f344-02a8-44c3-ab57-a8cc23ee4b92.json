@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "f5f5f344-02a8-44c3-ab57-a8cc23ee4b92",
+  "created_at": "2026-09-11T00:24:55.938209-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Re-derive the tail first: the harness's distance number understates every module whose helper hides a remote call",
+  "updated_at": "2026-09-11T00:24:55.938209-04:00"
+}

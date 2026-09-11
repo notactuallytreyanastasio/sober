@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e1fa0f6b-2227-4233-8c14-3c9d6e06ddfd",
+  "created_at": "2026-09-11T00:25:51.669265-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "All three blocked, none on a translator gap. (1) Loom.LSP.ConfigListener is a 20-line PubSub listener whose one blocker is Loom.LSP.Supervisor.start_from_config/0 -- it reads config and DynamicSupervisor.start_child's an LSP client per entry, so it SPAWNS; a no-op row would claim the process makes no effect where it starts processes. Its file also holds a use Supervisor module whose init/1 ends in Supervisor.init/2, which the translator reads as a GenServer init. (2) LoomWeb.CostDashboardLive: assign_metrics/1 calls Metrics.global_metrics/0, all_sessions/0, model_breakdown/0, tool_stats/0, each of which is a direct :ets.lookup into another process's table; ETS contents are outside the model by construction. (3) LoomWeb.TeamCostComponent: float literals, DateTime.diff/add bucketing and CostTracker.get_call_history/2.",
+  "updated_at": "2026-09-11T00:25:51.669265-04:00"
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "282b8d3b-272c-4a23-a827-1358447b6d8b",
+  "created_at": "2026-09-11T00:33:00.480755-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "family/1 now takes the finding, not just its kind, and the impure-helper finding carries family(first.kind). LoomWeb.CostDashboardLive used to read 'distance 1, local helper is not a pure expression' -- which says build local-helper support; it now reads 'distance 1, call to Metrics', which says model Loom.Telemetry.Metrics, four direct :ets.lookup reads of another process's table. Same blocker count, one finding per helper as before; only the label and the family grouping change, and modules whose helpers call several different modules now show their true distance.",
+  "updated_at": "2026-09-11T00:33:00.480755-04:00"
+}

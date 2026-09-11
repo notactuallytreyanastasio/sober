@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "05d399dd-ca07-46d8-af1d-c21bc323a536",
+  "created_at": "2026-09-11T00:25:56.130420-04:00",
+  "description": "I expanded every candidate module's blockers to their real causes (the walker reports 'local helper is not a pure expression' once per helper and hides what the helper actually calls) and asked of each cause: is it a LANGUAGE feature the model could express, or a call into an application module the model cannot see? Of the 55 candidate modules, ZERO have only language-level causes. Every one of the ten closest dies on one of: a call into a sibling application module (BigBill.Search, Loom.LSP.Supervisor, Loom.Telemetry.Metrics, Loom.Teams.CostTracker, Ensemble.Integrations.Deciduous, Runs, Issues, GitHub, SentryClient); a direct :ets read of another process's table; Ecto/Repo/Req/File/Port I/O; or float and DateTime arithmetic. The one exception in shape -- Ensemble.Alerts, whose three blockers ARE all language-level (:ets.new in init/1, @table __MODULE__ as a value, a record-shaped non-state @type) -- has no callbacks at all: every message it sends is sent from its public API, so its beh would have no clauses and its Msg no constructors. 'Alerts declares no messages' is the right refusal, not a gap. The next real gain is not a translator feature; it is either translating the callee modules too (a whole-application model) or an explicit, declared abstraction for an environment call, which would be an assumption to state, not a translation.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 92
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "The tail is no longer a translator problem: I re-derived it mechanically",
+  "updated_at": "2026-09-11T00:25:56.130420-04:00"
+}

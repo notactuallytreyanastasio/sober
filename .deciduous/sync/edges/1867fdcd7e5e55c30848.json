@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-11T00:33:00.439846-04:00",
+  "edge_id": "1867fdcd7e5e55c30848",
+  "edge_type": "leads_to",
+  "from_change_id": "05d399dd-ca07-46d8-af1d-c21bc323a536",
+  "rationale": "the finding says the report's own labels were the misleading part",
+  "to_change_id": "1207499f-f56e-48ce-a2e2-f2c46cccf488",
+  "weight": 1.0
+}

@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "fe22c501-f2c0-4b84-855c-a0210518ebfb",
+  "created_at": "2026-09-10T23:43:31.557354-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "decision",
+  "status": "pending",
+  "title": "Both gaps close by reusing machinery that already exists: the record state, and a second compile pass",
+  "updated_at": "2026-09-10T23:43:31.557354-04:00"
+}

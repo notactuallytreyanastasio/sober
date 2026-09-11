@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "1fe9aa3d-354f-4802-b9f5-3d857c43201f",
+  "created_at": "2026-09-11T00:39:12.451335-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Batch C measured: 4/55 translatable (unchanged), 738 blockers (721 before, +17 from the walker seeing inside four defp receive loops), 188 families (106 before, the honest distance). Per project loom 1/294, ensemble 2/389, blinks_backend 0/18, big_bill 0/24, bobs_broadcast 1/13. Zero real modules landed: every module in the closest tier waits on an application module the model cannot see. check.sh green, all ten pre-existing Gen files byte-identical, 81 fixtures (57 ok, 24 error).",
+  "updated_at": "2026-09-11T00:39:12.451335-04:00"
+}

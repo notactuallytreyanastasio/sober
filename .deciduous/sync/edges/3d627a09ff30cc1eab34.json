@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-11T00:34:40.361044-04:00",
+  "edge_id": "3d627a09ff30cc1eab34",
+  "edge_type": "leads_to",
+  "from_change_id": "c7c671fa-8fbd-4499-89fb-56bc7de9bb89",
+  "rationale": "corrected: keep the blocker count comparable, move the honesty into the family list",
+  "to_change_id": "7f6377ac-7fd2-4dfe-8610-ca3f4892589e",
+  "weight": 1.0
+}

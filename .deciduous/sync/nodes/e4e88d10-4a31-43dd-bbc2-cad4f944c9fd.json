@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "e4e88d10-4a31-43dd-bbc2-cad4f944c9fd",
+  "created_at": "2026-09-10T23:36:32.208022-04:00",
+  "description": "A supervision-tree round would need: Application.start/2 and the children list as an initial Sys configuration (spawnLink per child in order), {Registry, keys: :duplicate} as a real modelled component since it is a broadcast fan-out, Phoenix.PubSub as a child rather than an ambient effect, and a policy for infrastructure children (Repo/Endpoint/Telemetry) that are outside the model. The payoff is the first property about a real APPLICATION rather than a real module: e.g. every listener registered in the duplicate Registry receives every broadcast.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 80
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Round 9 candidate identified while round 8 runs: we translate individual modules, never a whole application. Every real program is a supervision tree plus interacting GenServers. Smallest real tree: bobs_broadcast (9 children, 33 lines) whose only project-owned worker is Radio.Broadcaster alongside PubSub and a duplicate-key Registry; the rest (Telemetry, Repo, DNSCluster, Endpoint) are infrastructure that would be modelled as opaque or excluded. loom and ensemble have 14 children each",
+  "updated_at": "2026-09-10T23:36:32.208022-04:00"
+}

@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-11T00:01:36.281788-04:00",
+  "edge_id": "0809f6fc74dd4f72a020",
+  "edge_type": "leads_to",
+  "from_change_id": "50aaa679-1527-444f-a3dc-f9d7b0710186",
+  "rationale": "what the per-module tail really looks like, for the next round's planning",
+  "to_change_id": "77c079b2-80d4-409c-bcf8-ae235c945c77",
+  "weight": 1.0
+}

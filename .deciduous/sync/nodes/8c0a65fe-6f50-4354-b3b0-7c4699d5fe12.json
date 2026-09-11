@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "8c0a65fe-6f50-4354-b3b0-7c4699d5fe12",
+  "created_at": "2026-09-10T23:27:11.980229-04:00",
+  "description": "The brief asked to unify every {:reply, r, _} into a Reply inductive so a list- or struct-valued reply gets its own constructor. I did not build the inductive. A wrapper constructor would have to be inserted at every reply site AND unwrapped at every await-resume pattern (the  clause a blocking GenServer.call generates binds v at the reply type), and for a file whose replies all have ONE type the wrapper buys nothing:  gives Msg.reply (a0 : List Term) directly, which is what a caller wants to match on. So: all replies literal -> tagged union (unchanged); no literal replies and the expressions have exactly one type -> that type; anything mixed (a literal atom beside a typed expression, or two different expression types) -> still term(), and the existing error names @type reply. Nothing in the five projects needs the mixed case yet; when one does, the inductive is the right answer and the await-resume unwrap is the work it costs.",
+  "metadata": {
+    "branch": "main"
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Reply inference: a single common type, not a Reply inductive",
+  "updated_at": "2026-09-10T23:27:11.980229-04:00"
+}

@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "7e9af2a9-6c28-4314-ac97-185f85b13166",
+  "created_at": "2026-09-10T23:43:06.055206-04:00",
+  "description": "EnsembleWeb.LogsLive translates, and the model is honest about what it leaves out. A LiveView socket IS modellable: it is a struct with an assigns map and assign/2,3 is a functional update of it, which is exactly the record state the translator already had, so assign(s, :k, e) is rewritten to the map update and s.assigns.k to the field read. What is NOT modelled, and why: mount/3 is the lifecycle (the initial state comes from the spawn site, as it does for a GenServer with no init/1), render/1 is not a transition, and handle_event/3 is driven by the browser channel rather than by this mailbox. That last one is the uncomfortable one -- unlike a public API wrapper, handle_event IS a transition the running process makes, so filing it under \"Not translated (public API, not a callback)\" would have been a quiet lie. The generated file now gives it its own header line saying it is a transition of the real process that the model does not carry, and the example file repeats it. A property proved of this beh is a property of the module's message handling only.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "EnsembleWeb.LogsLive translates; handle_event is named as the transition the model does not carry",
+  "updated_at": "2026-09-10T23:43:06.055206-04:00"
+}

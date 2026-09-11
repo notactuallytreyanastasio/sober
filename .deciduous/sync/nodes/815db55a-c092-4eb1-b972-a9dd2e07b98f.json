@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "815db55a-c092-4eb1-b972-a9dd2e07b98f",
+  "created_at": "2026-09-11T00:44:28.873919-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 95
+  },
+  "node_type": "outcome",
+  "status": "pending",
+  "title": "Manifest re-landed: all four real modules byte-identical to their origins; only MANIFEST.json changed",
+  "updated_at": "2026-09-11T00:44:28.873919-04:00"
+}

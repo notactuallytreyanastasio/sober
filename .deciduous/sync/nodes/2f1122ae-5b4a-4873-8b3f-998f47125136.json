@@ -1,0 +1,13 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "2f1122ae-5b4a-4873-8b3f-998f47125136",
+  "created_at": "2026-09-11T00:25:04.397484-04:00",
+  "metadata": {
+    "branch": "main",
+    "confidence": 90
+  },
+  "node_type": "action",
+  "status": "pending",
+  "title": "Make the defp generalisation SOUND, not just convenient: a receive loop must be called only in tail position",
+  "updated_at": "2026-09-11T00:25:04.397484-04:00"
+}
