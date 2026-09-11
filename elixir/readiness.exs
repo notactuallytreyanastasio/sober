@@ -1,8 +1,10 @@
 # Readiness harness: which real-world modules does elixir/to_lean.exs
 # translate, and what stops the others?
 #
-#   elixir elixir/readiness.exs [--markdown] [--strict] [--no-translate]
-#                               [--exclude FILE]... PATH...
+#   elixir elixir/readiness.exs [--markdown | --json] [--strict] [--no-translate]
+#                               [--jobs N] [--exclude FILE]... PATH...
+#   elixir elixir/readiness.exs --json --update-baseline FILE PATH...
+#   elixir elixir/readiness.exs --check-baseline FILE [PATH...]
 #
 # PATH is a .ex file or a directory (searched recursively for *.ex). For
 # every module that `use GenServer` (or defines GenServer callbacks) or
@@ -33,7 +35,37 @@
 # elixir/src). `--no-translate` skips step 1 (walker only). `--exclude FILE`
 # drops a file from the walk: elixir/src/pubsub.ex is the local transport
 # twin of Phoenix.PubSub, a GenServer the model never translates (PubSub is
-# an effect of Sys, not an actor).
+# an effect of Sys, not an actor). Step 1 runs the translator as a
+# subprocess per file, which dominates the runtime, so the files are walked
+# in parallel (`--jobs N`, default one per scheduler: the five real projects
+# take about 15 seconds instead of 80).
+#
+# Distance. Each module also gets a *distance*: the number of distinct
+# blocker FAMILIES it still hits (`family/1` groups the fine-grained kinds
+# into the feature each would need), not the number of blockers. Twelve
+# `Logger.info/1` calls in one module are one feature to build; one `Logger`
+# call and one `with` are two. `--markdown` reports it per module and adds a
+# "Closest to translatable" section -- the ten untranslatable modules that
+# are fewest features away -- which is how the next round is planned.
+#
+# The regression gate. `--json` prints the per-project numbers (files,
+# candidate modules, translated, blockers, families, and one line per
+# module) as JSON; `--update-baseline FILE` writes them to FILE instead.
+# `docs/readiness-baseline.json` is that file, committed, and
+# `--check-baseline FILE` re-measures and compares: it exits 1 if any
+# project (or the total) translates fewer modules than the baseline records
+# or carries more blockers, printing both numbers per project and naming
+# every module whose verdict changed. That is a check.sh step. With no PATH
+# arguments it measures exactly the paths the baseline was made from (they
+# are in the file), and if one of them is not on this machine it says so and
+# passes -- the five real projects are not part of the repository.
+# A round that lands new translator features is EXPECTED to beat the
+# baseline; refresh it then (the gate says so when it is beaten):
+#
+#   elixir elixir/readiness.exs --json --update-baseline docs/readiness-baseline.json \
+#     ~/code/loom/lib ~/code/ensemble/lib ~/code/blinks_backend/lib \
+#     ~/code/big_bill/lib ~/code/bobs_broadcast/lib
+#   elixir elixir/readiness.exs --markdown <the same paths> > docs/readiness.md
 #
 # The arguments of an unsupported call are walked too, so one line can carry
 # several findings (`Logger.info("x: #{y}")` is a call, a string and an
@@ -160,35 +192,106 @@ defmodule Readiness do
 
   # ---------- entry ----------
 
+  @usage """
+  usage: elixir elixir/readiness.exs [--markdown | --json] [--strict] [--no-translate]
+                                     [--jobs N] [--exclude FILE]... PATH...
+         elixir elixir/readiness.exs --json --update-baseline FILE PATH...
+         elixir elixir/readiness.exs --check-baseline FILE [PATH...]
+  """
+
   def main(argv) do
     {opts, excluded, paths} = parse_argv(argv, [], [], [])
-    md? = "--markdown" in opts
-    strict? = "--strict" in opts
-    translate? = "--no-translate" not in opts
-    if paths == [], do: die("usage: elixir elixir/readiness.exs [--markdown] [--strict] [--no-translate] [--exclude FILE]... PATH...")
+    md? = flag?(opts, "--markdown")
+    json? = flag?(opts, "--json")
+    strict? = flag?(opts, "--strict")
+    translate? = not flag?(opts, "--no-translate")
+    update = opt(opts, "--update-baseline")
+    check = opt(opts, "--check-baseline")
+    jobs = jobs_opt(opt(opts, "--jobs"))
+
+    # --check-baseline with no PATH argument measures exactly the paths the
+    # baseline was made from, so check.sh needs no copy of the project list.
+    paths = if paths == [] and check != nil, do: baseline_paths(check), else: paths
+    if paths == [], do: die(@usage)
+
+    # A path the baseline names but this machine does not have: the gate is
+    # over someone else's checkouts, so say so and pass rather than fail.
+    if check != nil and Enum.any?(paths, &(ex_files(&1) == [])) do
+      for p <- paths, ex_files(p) == [], do: IO.puts("   readiness gate skipped: no .ex files under #{p}")
+      System.halt(0)
+    end
 
     projects =
       for p <- paths do
         files = ex_files(p) -- Enum.flat_map(excluded, &ex_files/1)
         if files == [], do: die("no .ex files under #{p}")
-        %{name: project_name(p), root: p, files: Enum.map(files, &analyze_file(&1, translate?))}
+        %{name: project_name(p), root: p, files: files}
       end
 
-    projects = with_verdicts(projects)
-    if md?, do: IO.puts(markdown(projects)), else: IO.puts(text(projects))
+    projects = projects |> analyze(translate?, jobs) |> with_verdicts()
+
+    cond do
+      check != nil -> System.halt(check_baseline(projects, check))
+      update != nil ->
+        File.write!(update, json_report(projects, paths))
+        IO.puts("wrote #{update} (#{Enum.count(for pr <- projects, f <- pr.files, m <- f.modules, do: m)} candidate modules)")
+      json? -> IO.puts(json_report(projects, paths))
+      md? -> IO.puts(markdown(projects))
+      true -> IO.puts(text(projects))
+    end
 
     mods = for pr <- projects, f <- pr.files, m <- f.modules, do: m
     if strict? and Enum.any?(mods, &(not translatable?(&1))), do: System.halt(1)
   end
 
-  # --flag, --exclude FILE (repeatable), then the paths
+  # The files are independent (the translator runs as a subprocess per file),
+  # so the walk is one `async_stream` over every file of every project; the
+  # results come back in order and are handed back to their projects.
+  defp analyze(projects, translate?, jobs) do
+    all = for pr <- projects, f <- pr.files, do: f
+
+    results =
+      all
+      |> Task.async_stream(&analyze_file(&1, translate?), max_concurrency: jobs, timeout: :infinity, ordered: true)
+      |> Enum.map(fn {:ok, r} -> r end)
+
+    {out, []} =
+      Enum.map_reduce(projects, results, fn pr, rest ->
+        {mine, others} = Enum.split(rest, length(pr.files))
+        {%{pr | files: mine}, others}
+      end)
+
+    out
+  end
+
+  defp jobs_opt(nil), do: System.schedulers_online()
+  defp jobs_opt(s) do
+    case Integer.parse(s) do
+      {n, ""} when n > 0 -> n
+      _ -> die("--jobs needs a positive integer")
+    end
+  end
+
+  # --flag, --flag VALUE, --exclude FILE (repeatable), then the paths
+  @valued ["--exclude", "--jobs", "--update-baseline", "--check-baseline"]
+
   defp parse_argv([], opts, excluded, paths), do: {Enum.reverse(opts), Enum.reverse(excluded), Enum.reverse(paths)}
   defp parse_argv(["--exclude", f | rest], opts, excluded, paths), do: parse_argv(rest, opts, [f | excluded], paths)
-  defp parse_argv(["--exclude"], _opts, _excluded, _paths), do: die("--exclude needs a file")
+  defp parse_argv([a], _opts, _excluded, _paths) when a in @valued, do: die("#{a} needs an argument")
+  defp parse_argv([a, v | rest], opts, excluded, paths) when a in @valued,
+    do: parse_argv(rest, [{a, v} | opts], excluded, paths)
   defp parse_argv([a | rest], opts, excluded, paths) do
     if String.starts_with?(a, "--"),
       do: parse_argv(rest, [a | opts], excluded, paths),
       else: parse_argv(rest, opts, excluded, [a | paths])
+  end
+
+  defp flag?(opts, f), do: f in opts
+  defp opt(opts, f) do
+    Enum.find_value(opts, fn
+      {^f, v} -> v
+      _ -> nil
+    end)
   end
 
   defp die(msg) do
@@ -1305,6 +1408,235 @@ defmodule Readiness do
     end
   end
 
+  # ---------- distance ----------
+
+  # How far a module is from translatable: the number of distinct blocker
+  # *families* it still hits (see `family/1`), not the number of blockers.
+  # Twelve `Logger.info/1` calls are one feature to build; one `Logger` call
+  # and one `with` are two. Distance 0 means the walker found nothing (the
+  # module is translatable, or the translator failed for a reason the walker
+  # cannot see); distance 1 means one feature away.
+  def distance(m), do: length(families(m))
+
+  def families(m), do: m |> blockers() |> Enum.map(&family(&1.kind)) |> Enum.uniq() |> Enum.sort()
+
+  # The modules with the fewest families first, already-translatable ones
+  # dropped: the planning list for the next round. Each keeps its project.
+  @closest_n 10
+
+  defp closest(projects, n) do
+    for(pr <- projects, f <- pr.files, m <- f.modules, not translatable?(m), do: {pr, m})
+    |> Enum.sort_by(fn {pr, m} -> {distance(m), length(blockers(m)), pr.name, m.name} end)
+    |> Enum.take(n)
+  end
+
+  # ---------- the JSON report and the regression gate ----------
+
+  # The numbers the gate compares, as plain string-keyed data so that the
+  # report just written and a baseline read back from disk have the same
+  # shape and can be diffed directly.
+  defp data(projects, paths) do
+    mods = for pr <- projects, f <- pr.files, m <- f.modules, do: m
+
+    %{
+      "note" =>
+        "Readiness baseline for check.sh. Refresh with: elixir elixir/readiness.exs --json " <>
+          "--update-baseline docs/readiness-baseline.json " <> Enum.join(paths, " "),
+      "paths" => Enum.map(paths, &Path.expand/1),
+      "projects" => Enum.map(projects, &project_data/1),
+      "total" => counts(mods, Enum.sum(for pr <- projects, do: length(pr.files)))
+    }
+  end
+
+  defp project_data(pr) do
+    mods = for f <- pr.files, m <- f.modules, do: m
+
+    pr.name
+    |> then(&Map.put(counts(mods, length(pr.files)), "name", &1))
+    |> Map.put("modules", Enum.sort_by(Enum.map(mods, &module_data(&1, pr)), &{&1["file"], &1["module"]}))
+  end
+
+  defp counts(mods, files) do
+    %{
+      "files" => files,
+      "candidates" => length(mods),
+      "translated" => Enum.count(mods, &translatable?/1),
+      "blockers" => mods |> Enum.flat_map(&blockers/1) |> length(),
+      "families" => mods |> Enum.flat_map(&families/1) |> Enum.uniq() |> length()
+    }
+  end
+
+  defp module_data(m, pr) do
+    %{
+      "module" => m.name,
+      "file" => Path.relative_to(m.path, Path.expand(pr.root)),
+      "translated" => translatable?(m),
+      "blockers" => length(blockers(m)),
+      "distance" => distance(m)
+    }
+  end
+
+  def json_report(projects, paths), do: enc(data(projects, paths), "") <> "\n"
+
+  # A tiny pretty-printer: keys in sorted order (so a refresh diffs cleanly),
+  # and a map whose values are all scalars on one line (module entries).
+  defp enc(m, ind) when is_map(m) do
+    kvs = m |> Map.to_list() |> Enum.sort_by(&elem(&1, 0))
+
+    if Enum.all?(kvs, fn {_, v} -> not (is_map(v) or is_list(v)) end) do
+      "{" <> Enum.map_join(kvs, ", ", fn {k, v} -> jstr(k) <> ": " <> enc(v, ind) end) <> "}"
+    else
+      inner = ind <> "  "
+      "{\n" <> Enum.map_join(kvs, ",\n", fn {k, v} -> inner <> jstr(k) <> ": " <> enc(v, inner) end) <> "\n" <> ind <> "}"
+    end
+  end
+
+  defp enc([], _ind), do: "[]"
+
+  defp enc(l, ind) when is_list(l) do
+    inner = ind <> "  "
+    "[\n" <> Enum.map_join(l, ",\n", fn v -> inner <> enc(v, inner) end) <> "\n" <> ind <> "]"
+  end
+
+  defp enc(true, _ind), do: "true"
+  defp enc(false, _ind), do: "false"
+  defp enc(nil, _ind), do: "null"
+  defp enc(n, _ind) when is_integer(n), do: Integer.to_string(n)
+  defp enc(s, _ind) when is_binary(s), do: jstr(s)
+
+  defp jstr(s) do
+    body =
+      s
+      |> to_string()
+      |> String.replace("\\", "\\\\")
+      |> String.replace("\"", "\\\"")
+      |> String.replace("\n", "\\n")
+      |> String.replace("\t", "\\t")
+
+    "\"" <> body <> "\""
+  end
+
+  defp read_baseline(path) do
+    unless File.exists?(path) do
+      die("no baseline at #{path}; write one with: elixir elixir/readiness.exs --json --update-baseline #{path} PATH...")
+    end
+
+    unless Code.ensure_loaded?(:json) do
+      die("reading a baseline needs OTP 27 or later (the :json module); rewrite it with --update-baseline instead")
+    end
+
+    try do
+      :json.decode(File.read!(path))
+    rescue
+      _ -> die("#{path} is not readable JSON; rewrite it with --json --update-baseline #{path} PATH...")
+    end
+  end
+
+  defp baseline_paths(path) do
+    case read_baseline(path) do
+      %{"paths" => ps} when is_list(ps) and ps != [] -> ps
+      _ -> die("#{path} records no paths; give them on the command line")
+    end
+  end
+
+  # The gate. Fails when a project (or the total) translates fewer modules
+  # than the baseline, or carries more blockers. An improvement is not a
+  # failure: it is a reminder to refresh the baseline.
+  defp check_baseline(projects, path) do
+    base = read_baseline(path)
+    now = data(projects, Map.get(base, "paths", []))
+
+    by_name = fn d -> Map.new(d["projects"], &{&1["name"], &1}) end
+    old = by_name.(base)
+    new = by_name.(now)
+
+    rows =
+      for name <- Enum.map(base["projects"], & &1["name"]) ++ [nil] do
+        {label, b, n} =
+          if name == nil,
+            do: {"all", base["total"], now["total"]},
+            else: {name, old[name], new[name]}
+
+        {label, b, n}
+      end
+
+    IO.puts("   baseline #{path} (#{length(base["projects"])} projects)")
+    IO.puts("   #{pad("project", 16)}#{pad("translated", 14)}blockers")
+
+
+    bad =
+      for {label, b, n} <- rows, reduce: [] do
+        acc ->
+          cond do
+            n == nil ->
+              IO.puts("   #{pad(label, 16)}NOT MEASURED in this run")
+              [label | acc]
+
+            true ->
+              t = cmp(b["translated"], n["translated"], :up)
+              k = cmp(b["blockers"], n["blockers"], :down)
+
+              mark =
+                cond do
+                  t.bad and k.bad -> "  <-- REGRESSION (both)"
+                  t.bad -> "  <-- REGRESSION (translated)"
+                  k.bad -> "  <-- REGRESSION (blockers)"
+                  t.better or k.better -> "  (better)"
+                  true -> ""
+                end
+
+              IO.puts(String.trim_trailing("   #{pad(label, 16)}#{pad(t.text, 14)}#{pad(k.text, 16)}#{mark}"))
+              if t.bad or k.bad, do: [label | acc], else: acc
+          end
+      end
+
+    module_diff(base, now)
+
+    cond do
+      bad != [] ->
+        IO.puts("   READINESS REGRESSION in #{Enum.join(Enum.reverse(bad), ", ")}.")
+        IO.puts("   Fewer modules translate, or more blockers, than #{path} records.")
+        1
+
+      improved?(base, now) ->
+        IO.puts("   baseline met, and beaten: refresh it with")
+        IO.puts("     elixir elixir/readiness.exs --json --update-baseline #{path} " <> Enum.join(Map.get(base, "paths", []), " "))
+        0
+
+      true ->
+        IO.puts("   baseline met.")
+        0
+    end
+  end
+
+  defp improved?(base, now) do
+    base["total"]["translated"] < now["total"]["translated"] or
+      base["total"]["blockers"] > now["total"]["blockers"]
+  end
+
+  # translated must not go down, blockers must not go up
+  defp cmp(b, n, dir) do
+    bad = if dir == :up, do: n < b, else: n > b
+    %{bad: bad, better: not bad and n != b, text: "#{b} -> #{n}"}
+  end
+
+  # which modules changed verdict, so a regression names names
+  defp module_diff(base, now) do
+    key = fn pr, m -> pr["name"] <> "/" <> m["file"] <> ":" <> m["module"] end
+    flat = fn d -> for pr <- d["projects"], m <- pr["modules"], into: %{}, do: {key.(pr, m), m} end
+    old = flat.(base)
+    new = flat.(now)
+
+    lost = for {k, m} <- old, m["translated"], new[k] == nil or not new[k]["translated"], do: k
+    gained = for {k, m} <- new, m["translated"], old[k] == nil or not old[k]["translated"], do: k
+
+    for k <- Enum.sort(lost), do: IO.puts("   no longer translated: #{k}")
+    for k <- Enum.sort(gained), do: IO.puts("   newly translated: #{k}")
+    :ok
+  end
+
+  defp pad(s, n), do: String.pad_trailing(to_string(s), n)
+
   # ---------- rendering ----------
 
   defp str(ast) do
@@ -1405,7 +1737,10 @@ defmodule Readiness do
       for({k, n} <- freq_by(mods, &family(&1.kind)),
           do: "  #{String.pad_leading("#{n}", 5)}  #{String.pad_leading("#{spread_by(mods, &family(&1.kind))[k]}", 3)}  #{k}"),
       "blocking constructs by frequency (occurrences / modules):",
-      for({k, n} <- freq(mods), do: "  #{String.pad_leading("#{n}", 5)}  #{String.pad_leading("#{spread(mods)[k]}", 3)}  #{k}")
+      for({k, n} <- freq(mods), do: "  #{String.pad_leading("#{n}", 5)}  #{String.pad_leading("#{spread(mods)[k]}", 3)}  #{k}"),
+      "closest to translatable (distinct blocker families / blockers):",
+      for({pr, m} <- closest(projects, @closest_n),
+          do: "  #{String.pad_leading("#{distance(m)}", 5)}  #{String.pad_leading("#{length(blockers(m))}", 3)}  #{pr.name}/#{m.name}: " <> Enum.join(families(m), ", "))
     ]
     [body, summary] |> List.flatten() |> Enum.join("\n")
   end
@@ -1428,6 +1763,17 @@ defmodule Readiness do
       "Generated by `elixir elixir/readiness.exs --markdown " <> Enum.map_join(projects, " ", & &1.root) <> "`.",
       "Do not edit by hand; regenerate after a translator change.",
       "",
+      "The same numbers are committed as `docs/readiness-baseline.json`, and `check.sh` re-measures them and fails",
+      "if a project translates fewer modules than the baseline records or carries more blockers. A round that lands",
+      "translator features is expected to *beat* the baseline, so refreshing both files is part of landing one:",
+      "",
+      "```",
+      "elixir elixir/readiness.exs --json --update-baseline docs/readiness-baseline.json \\",
+      "  " <> Enum.map_join(projects, " ", & &1.root),
+      "elixir elixir/readiness.exs --markdown \\",
+      "  " <> Enum.map_join(projects, " ", & &1.root) <> " > docs/readiness.md",
+      "```",
+      "",
       "For every module that uses `GenServer` or contains a `receive`, the harness runs the translator on the file",
       "(dry, retrying with `--pid` for unregistered names and `--pubsub` for a PubSub under another name) and",
       "walks the module's AST against the allowlist of forms",
@@ -1438,13 +1784,13 @@ defmodule Readiness do
       "",
       "## Summary",
       "",
-      "| Project | Files | Candidate modules | Translated | Blockers |",
-      "|---|---:|---:|---:|---:|",
+      "| Project | Files | Candidate modules | Translated | Blockers | Blocker families |",
+      "|---|---:|---:|---:|---:|---:|",
       for pr <- projects do
         pm = for f <- pr.files, m <- f.modules, do: m
-        "| #{pr.name} | #{length(pr.files)} | #{length(pm)} | #{Enum.count(pm, &translatable?/1)} | #{pm |> Enum.flat_map(&blockers/1) |> length()} |"
+        "| #{pr.name} | #{length(pr.files)} | #{length(pm)} | #{Enum.count(pm, &translatable?/1)} | #{pm |> Enum.flat_map(&blockers/1) |> length()} | #{pm |> Enum.flat_map(&families/1) |> Enum.uniq() |> length()} |"
       end,
-      "| **all** | #{Enum.sum(for pr <- projects, do: length(pr.files))} | #{length(mods)} | #{yes} | #{total_blockers} |",
+      "| **all** | #{Enum.sum(for pr <- projects, do: length(pr.files))} | #{length(mods)} | #{yes} | #{total_blockers} | #{length(fam)} |",
       "",
       if(skipped == [], do: [], else: [
         "Other modules seen (not GenServers, no `receive`; skipped): " <>
@@ -1461,6 +1807,20 @@ defmodule Readiness do
       "|---:|---|---:|---:|",
       for({{k, n}, i} <- Enum.with_index(fam, 1), do: "| #{i} | `#{md_cell(k)}` | #{n} | #{fsp[k]} |"),
       "",
+      "## Closest to translatable",
+      "",
+      "*Distance* is the number of distinct blocker families a module still hits, not the number of blockers:",
+      "twelve `Logger.info/1` calls in one module are one feature to build, one `Logger` call and one `with` are two.",
+      "It is the per-module column of the table above and the planning list here -- the #{@closest_n} untranslatable",
+      "modules that are fewest features away, nearest first (ties broken by the number of blockers).",
+      "",
+      "| # | Project | Module | Distance | Blockers | Families |",
+      "|---:|---|---|---:|---:|---|",
+      for {{pr, m}, i} <- Enum.with_index(closest(projects, @closest_n), 1) do
+        "| #{i} | #{pr.name} | `#{m.name}` | #{distance(m)} | #{length(blockers(m))} | " <>
+          Enum.map_join(families(m), ", ", &"`#{md_cell(&1)}`") <> " |"
+      end,
+      "",
       "## Blocking constructs by frequency",
       "",
       "Occurrences across all candidate modules, and the number of modules the construct appears in.",
@@ -1474,14 +1834,14 @@ defmodule Readiness do
       "",
       "## Modules",
       "",
-      "| Project | Module | File | Kind | Translated | Blockers | Top constructs |",
-      "|---|---|---|---|---|---:|---|",
+      "| Project | Module | File | Kind | Translated | Blockers | Distance | Top constructs |",
+      "|---|---|---|---|---|---:|---:|---|",
       for pr <- projects, f <- pr.files, m <- f.modules do
         top =
           m |> blockers() |> Enum.frequencies_by(& &1.kind) |> Enum.sort_by(fn {k, n} -> {-n, k} end) |> Enum.take(4)
           |> Enum.map_join(", ", fn {k, n} -> "`#{md_cell(k)}`" <> if(n > 1, do: " (#{n})", else: "") end)
         rel = Path.relative_to(m.path, Path.expand(pr.root))
-        "| #{pr.name} | `#{m.name}` | `#{rel}` | #{kind_name(m.kind)} | #{verdict_short(m)} | #{length(blockers(m))} | #{top} |"
+        "| #{pr.name} | `#{m.name}` | `#{rel}` | #{kind_name(m.kind)} | #{verdict_short(m)} | #{length(blockers(m))} | #{distance(m)} | #{top} |"
       end,
       "",
       "## Per-module detail",

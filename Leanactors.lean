@@ -39,3 +39,4 @@ import Leanactors.Gen.Ringlog
 import Leanactors.Examples.Ringlog
 import Leanactors.Gen.TableRegistry
 import Leanactors.Examples.TableRegistry
+import Leanactors.Examples.TableRegistryProof
