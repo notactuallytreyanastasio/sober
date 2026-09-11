@@ -191,7 +191,7 @@ section 10 says why the task needed it.
 
 ## 3. The translator
 
-`elixir/to_lean.exs` (about 1,990 lines, one module `ToLean`) reads a file
+`elixir/to_lean.exs` (about 3,490 lines, one module `ToLean`) reads a file
 of `GenServer` modules and emits one Lean file per source into
 `Leanactors/Gen/`. The invocation is fixed by `check.sh`, for example
 
@@ -203,9 +203,9 @@ where `--pid Lock=server` says that the registered name `Lock` is the
 constant pid `server` (0 in the generated file). Without any `--pid` flag
 the names are derived from the source (`name: __MODULE__`,
 `Process.register/2`; section 7), which is how `ttl.ex` is translated. The
-generated files are committed, and `check.sh` regenerates all seven and
-fails if any differs; it then runs the 37 translator fixtures under
-`elixir/test/` (section 7).
+generated files are committed, and `check.sh` regenerates all ten and
+fails if any differs; it then runs the 49 translator fixtures under
+`elixir/test/` (section 7) and the readiness self-check of section 11.
 
 ### Conventions
 
@@ -1001,14 +1001,142 @@ runs seven translations, 37 fixtures (29 ok, 8 error), `lake build`
 (proofs, checkers and the `replay` binary), seven drivers and 200 fuzz
 scripts.
 
-## 11. What to try first
+## 11. Round 6
+
+Four builders on `wf6/*` branches under node 559, and for the first time
+the round was planned from measurement rather than from guesses. The
+readiness harness (goal 560) was built first and its report over five real
+applications decided what the other three did: untyped mode with
+record-shaped state and external resources (goal 563), structs with `Enum`
+and `:queue` (goal 561), and PubSub as an effect (goal 562). The
+integrator (goal 612) merged harness, pubsub, structs and untyped in that
+order with `--no-ff`.
+
+* **The readiness harness** (goal 560, node 599). `elixir/readiness.exs`
+  answers "what would it take to translate this file?" for any `.ex`
+  path. It does two independent things per candidate module: it runs the
+  translator with its output discarded (retrying with `--pid`, and now
+  `--pubsub`, because those are configuration rather than constructs), and
+  it walks the module's AST against an allowlist written from the *header*
+  of `to_lean.exs` rather than from its code. The second is what makes the
+  report usable: the translator stops at its first error, the walker
+  reports every unsupported construct with a file, a line and a stable
+  kind. The cross-check that keeps it honest is the fixture corpus — no
+  `expect: ok` fixture may be flagged, and the walker catches 7 of the 12
+  `expect: error` ones, the rest being type and kind errors it deliberately
+  does not check. Three false positives were found that way and fixed
+  before the report was believed.
+
+* **What the report said** (node 599). The three blockers that hit all 55
+  real modules at once were structural: a dotted module name, no `@type
+  state`, no `@type msg`. No real module carries typespecs, so untyped mode
+  plus dotted names was the whole first step, worth more than any library
+  call. And the library calls the round-6 plan had assumed would dominate
+  are a long tail (`Logger` 40 occurrences, `Enum` 31, `Keyword` 30, `:ets`
+  28, `Phoenix.PubSub` 23, `:queue` 4) next to the plain language forms: a
+  variable binding (404 occurrences in 41 modules), a field access
+  (380/38), a call to a helper in the same module (267/41). Two of the
+  three builder pieces were re-aimed at that table.
+
+* **Untyped mode and the first real file** (goal 563, nodes 605, 606).
+  `infer_types/1` synthesises exactly the `@type` declarations a module
+  lacks — messages from the clause patterns, the reply from the literal
+  replies of the file, the state from `init/1`'s literal — so everything
+  downstream stays type-directed and the eight annotated sources still
+  translate byte for byte. Every inferred field is `term()`, which renders
+  as the opaque `Leanactors/Term.lean`: a number and nothing else, which is
+  enough for the `DecidableEq` every map key needs. On top of that, a
+  record-shaped state (named fields, `s.f`, `%{s | f: e}`) and external
+  resources (`:ets.new` as a fresh `Term` from a hidden counter, every
+  other ETS call and its `try/rescue` dropped). With those,
+  `Loom.Teams.TableRegistry` was copied in byte for byte — dotted name and
+  all — and came out with `team_has_one_ref` and `refs_unique` proved.
+  Making it work found a silent translator bug worth remembering: the
+  clause-subsumption test treated a record state pattern as a bare
+  variable, which is right for an association-list map pattern (a variable
+  plus inlined guards) and wrong for a record (real Lean sub-patterns), so
+  a later general clause was dropped as unreachable and replaced by a crash
+  clause — an ignore silently turned into an exit.
+
+* **Structs, `Enum` and `:queue`** (goal 561, nodes 610, 611). A struct
+  used as a value is a Lean `structure` with the defstruct defaults; a
+  GenServer whose `@type state` is its own struct has it *flattened* into
+  the state constructor, one Lean field per defstruct field. Flattening
+  won over keeping the struct as one field because everything the
+  translator already does to a multi-field state — coverage, crash
+  clauses, the whole-state alias, the hidden generation field — keeps
+  working unchanged. The cost is that a value of the state's struct type
+  never exists in the model, so binding one is an error with a message
+  saying what to do instead. Three things surprised: Lean has no forward
+  references, so declarations had to be emitted in dependency order once a
+  struct could appear inside a tagged union; a whole-state part the body
+  never mentions trips the unused-variable linter and is renamed `_part`;
+  and an `.exs` driver cannot write `%Entry{}` at all, because a script is
+  expanded before its `Code.require_file` has run.
+
+* **PubSub as an effect** (goal 562, nodes 581, 595). A `Sys` carries
+  `subs : List (String × Pid)`; `broadcast` is one `deliverAll` in
+  subscription order and a death unsubscribes the dead. The subscriber pid
+  is explicit in the effect, which is what makes an `init/1` subscription
+  expressible at the child's spawn site — and the price is that a root
+  actor that subscribes in `init/1` has no spawn site at all, which the
+  translator now warns about. `Sys.Grows` and `Sys.Frame` were deliberately
+  not extended: an `unsubscribe` shrinks `subs`, so monotonicity is stated
+  under an explicit `Effect.keepsSubs` hypothesis and `SysStep.mem_subs_cases`
+  is the induction workhorse. The local 44-line `pubsub.ex` twin keeps the
+  repository dependency-free while matching Phoenix's function shapes.
+
+* **The merge** (goal 612, node 615). Three branches rewrote
+  `elixir/to_lean.exs`; git found five conflicts against structs and
+  thirteen against untyped, all but one of them mechanical (keep both
+  clauses, thread the extra context argument). The one real clash was the
+  local binding `v = e`: structs renders it as a Lean `let` around the
+  clause result, untyped substitutes the rendered expression at every use,
+  and both clauses matched the same AST. Each branch's committed `Gen` file
+  depended on its own choice, so the resolution keeps both under one rule —
+  a free name is let-bound, a name already in scope (a state field the
+  clause pattern bound, as `refs = Map.put(refs, k, v)` does) is
+  substituted, because the `let` would shadow the part the rest of the
+  clause still reads. All ten `Gen` files and all 49 fixture expectations
+  then regenerated byte-identically, which is the check that the merge did
+  not quietly change the language. The readiness allowlist, written before
+  the other three pieces, had to be taught every form they added; with that
+  done the blocking constructs in real code fell from 2,838 to 1,621 and
+  `Loom.Teams.TableRegistry` became the first real module the harness
+  reports as translatable on its own — an independent confirmation, since
+  the allowlist mirrors the header and not the implementation.
+
+What is still missing, in the order the data suggests: calls to helpers
+defined in the same module (271 occurrences in 41 modules), imported and
+macro calls (156/20, almost all Phoenix LiveView `assign`/`put_flash`),
+strings as values — literals (147/25) and interpolation (85/18), which an
+opaque `Term` with decidable equality would absorb — `if`/`case` below
+body level (98/28) and statements in `init/1` (89/26). A safety proof for
+the registry and for the feed's prefix property is still open, and the
+feed's PubSub topics are still literals: a topic expression language is
+the obvious next step for real files.
+
+Counts after the round: 14,364 lines of hand-written Lean in 33 files
+under `Leanactors/` (`SysProps.lean` 1,759, `Fair.lean` 1,599,
+`WatchdogLive.lean` 1,516, `TaskLive.lean` 1,064, `TtlLive.lean` 949,
+`AssocList.lean` 304, `TableRegistry.lean` 307, `Ringlog.lean` 208,
+`Feed.lean` 178, `Term.lean` 53), 509 generated lines in ten, 796
+theorems, no `sorry`, no `axiom`; the translator is about 3,490 lines and
+the readiness harness about 1,530; `check.sh` runs ten translations, 49
+fixtures (37 ok, 12 error), the readiness self-check over `elixir/src`,
+`lake build`, ten drivers and 200 fuzz scripts, in under two minutes on a
+warm build.
+
+## 12. What to try first
 
 1. `./check.sh` from the repo root (with `export PATH="$HOME/.elan/bin:$PATH"`).
-   It regenerates the seven `Gen/` files and diffs them, runs the 37
-   translator fixtures, runs `lake build` (which runs every `#eval
-   explore` and builds the `replay` binary), greps for `sorry`, runs the
-   seven drivers on the BEAM, and fuzzes the interpreters against the
-   BEAM with 200 seeded scripts. First build takes a few minutes.
+   It regenerates the ten `Gen/` files and diffs them, runs the 49
+   translator fixtures and the readiness self-check over `elixir/src`,
+   runs `lake build` (which runs every `#eval explore` and builds the
+   `replay` binary), greps for `sorry`, runs the ten drivers on the BEAM,
+   and fuzzes the interpreters against the BEAM with 200 seeded scripts.
+   First build takes a few minutes; after that the whole chain is about
+   two.
 2. Read `elixir/src/lock.ex` next to `Leanactors/Gen/Lock.lean` and then
    `Leanactors/Examples/Lock.lean`. The three files are short enough to hold
    in your head at once, and the invariant `Inv` with `Inv.mutex` (an
@@ -1030,12 +1158,20 @@ scripts.
    honest record, including the predictions that turned out wrong; for
    round 5 add 478 (why the ttl corollary is not stated), 484 (what the
    fuzzer may not compare and why), 493 (translator limits the registry
-   found) and 497 (why the watchdog theorem needs nothing of the worker).
+   found) and 497 (why the watchdog theorem needs nothing of the worker);
+   for round 6 add 599 (what the readiness data actually says), 605 (the
+   silent subsumption bug a record state found), 610 (the limits the log
+   store's shape forced) and 615 (the one translator conflict the merge
+   could not resolve mechanically).
 6. Read `Leanactors/Fair.lean`'s header, then `FairDemo` at its end, then
    `SupervisorLive.restart_eventually`: the liveness recipe is two
    `rank_leads_to` stages, and the file is short enough to read whole.
    `TtlLive.lean` is the next shortest liveness file and adds a timer.
-7. To extend it: an eighth `elixir/src/*.ex` within the subset listed in
+7. Run `elixir elixir/readiness.exs lib` over a project of your own (or
+   read `docs/readiness.md` for five of them). It names every construct
+   the translator would need, by frequency and by the feature each group
+   would take, which is how round 6 was planned.
+8. To extend it: an eleventh `elixir/src/*.ex` within the subset listed in
    the header of `elixir/to_lean.exs`, two lines in `check.sh`, a hand
    model with `beh_eq_gen`, `checkInv` and `explore`, and only then the
    proof. A translator change starts with a fixture under
