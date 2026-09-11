@@ -4780,9 +4780,9 @@
       "node_type": "action",
       "title": "Workflow round 5 root",
       "description": null,
-      "status": "pending",
+      "status": "done",
       "created_at": "2026-09-10T19:20:31.876204-04:00",
-      "updated_at": "2026-09-10T19:20:31.876204-04:00",
+      "updated_at": "2026-09-10T21:11:48.695390-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":65}"
     },
     {
@@ -6060,6 +6060,28 @@
       "created_at": "2026-09-10T21:00:58.069194-04:00",
       "updated_at": "2026-09-10T21:00:58.069194-04:00",
       "metadata_json": "{\"branch\":\"main\",\"confidence\":90}"
+    },
+    {
+      "id": 553,
+      "change_id": "5dc88787-198c-4b2f-a164-947ae1478c4f",
+      "node_type": "outcome",
+      "title": "Round 5 complete and verified: TaskLive (open runs SysRunE, EnvFair kick), WatchdogLive (TimerFair derived from per-index weak fairness; hung worker replaced), TtlLive (gen_advances_or_clears), differential fuzzing Lean-vs-BEAM for bank/ttl/lock (200 scripts, 1045 phases, agree; mutants caught), maps as AssocList with a registry example; 724 theorems, 37 fixtures, pushed at e9906c5",
+      "description": null,
+      "status": "pending",
+      "created_at": "2026-09-10T21:11:48.603447-04:00",
+      "updated_at": "2026-09-10T21:11:48.603447-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":95}"
+    },
+    {
+      "id": 554,
+      "change_id": "1bc21471-7b35-4dc2-a4af-a748f1bca896",
+      "node_type": "observation",
+      "title": "Two liveness builders independently proved the same generic lemmas (timers-append group, eraseIdx/findIdx facts) in their own files; git saw no conflict but Lean would have. The integrator hoisted them into SysProps/Fair. Lesson for the protocol: builders should announce generic lemmas in the graph as they add them so siblings reuse instead of re-prove. Also: a resumed run duplicated goals (first-attempt goals imported by sync); link, don't delete",
+      "description": "The usage-limit cutoff cost nothing in the end: resumed builders continued from their worktrees; the integrator merged five branches with only check.sh/Leanactors.lean textual conflicts.",
+      "status": "pending",
+      "created_at": "2026-09-10T21:11:48.655555-04:00",
+      "updated_at": "2026-09-10T21:11:48.655555-04:00",
+      "metadata_json": "{\"branch\":\"main\",\"confidence\":85}"
     }
   ],
   "edges": [
@@ -13058,6 +13080,39 @@
       "weight": 1.0,
       "rationale": "cut off by a usage limit; resumed here",
       "created_at": "2026-09-10T21:00:58.429891-04:00"
+    },
+    {
+      "id": 656,
+      "from_node_id": 441,
+      "to_node_id": 443,
+      "from_change_id": "742c30cd-6574-4c32-b125-98dbe783f1dd",
+      "to_change_id": "a1662de8-fcaf-4608-880c-31fbc4c80df3",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "resume note for the ttl-live piece",
+      "created_at": "2026-09-10T21:11:48.549502-04:00"
+    },
+    {
+      "id": 657,
+      "from_node_id": 436,
+      "to_node_id": 485,
+      "from_change_id": "2b5ab315-b9f6-4868-9fe5-7ce3b2de7f48",
+      "to_change_id": "dc1fc2ae-0dc6-4170-9ed9-0c5a21e3e587",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "workflow finished",
+      "created_at": "2026-09-10T21:11:48.623724-04:00"
+    },
+    {
+      "id": 658,
+      "from_node_id": 485,
+      "to_node_id": 486,
+      "from_change_id": "dc1fc2ae-0dc6-4170-9ed9-0c5a21e3e587",
+      "to_change_id": "ad99dfb7-fd7f-4b1f-950f-1b202f3daecf",
+      "edge_type": "leads_to",
+      "weight": 1.0,
+      "rationale": "what round 5 showed",
+      "created_at": "2026-09-10T21:11:48.675962-04:00"
     }
   ]
 }

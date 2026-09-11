@@ -1,0 +1,10 @@
+{
+  "author": "Bobby Grayson",
+  "created_at": "2026-09-10T21:11:48.549502-04:00",
+  "edge_id": "f7fd5347de946778c65d",
+  "edge_type": "leads_to",
+  "from_change_id": "742c30cd-6574-4c32-b125-98dbe783f1dd",
+  "rationale": "resume note for the ttl-live piece",
+  "to_change_id": "a1662de8-fcaf-4608-880c-31fbc4c80df3",
+  "weight": 1.0
+}

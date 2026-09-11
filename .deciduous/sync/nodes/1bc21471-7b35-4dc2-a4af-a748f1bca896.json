@@ -1,0 +1,14 @@
+{
+  "author": "Bobby Grayson",
+  "change_id": "1bc21471-7b35-4dc2-a4af-a748f1bca896",
+  "created_at": "2026-09-10T21:11:48.655555-04:00",
+  "description": "The usage-limit cutoff cost nothing in the end: resumed builders continued from their worktrees; the integrator merged five branches with only check.sh/Leanactors.lean textual conflicts.",
+  "metadata": {
+    "branch": "main",
+    "confidence": 85
+  },
+  "node_type": "observation",
+  "status": "pending",
+  "title": "Two liveness builders independently proved the same generic lemmas (timers-append group, eraseIdx/findIdx facts) in their own files; git saw no conflict but Lean would have. The integrator hoisted them into SysProps/Fair. Lesson for the protocol: builders should announce generic lemmas in the graph as they add them so siblings reuse instead of re-prove. Also: a resumed run duplicated goals (first-attempt goals imported by sync); link, don't delete",
+  "updated_at": "2026-09-10T21:11:48.655555-04:00"
+}

@@ -1,2 +1,3 @@
 .lake/
 _build/
+.claude/scheduled_tasks.lock
