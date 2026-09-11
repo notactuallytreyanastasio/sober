@@ -14,8 +14,9 @@
 #   @type reply :: (optional) the reply type; becomes Msg constructor `reply`
 #   handle_cast/2, handle_info/2, handle_call/3 clauses, optional `when`
 #   guard, body = zero or more send/2 or GenServer.cast/2 calls followed by
-#   {:noreply, e} or (handle_call only) {:reply, r, e}; `if`/`case` are
-#   allowed around whole bodies. The other GenServer return forms:
+#   {:noreply, e} or (handle_call only) {:reply, r, e}; `if`/`case`/`cond`
+#   are allowed around whole bodies, and are expressions everywhere else
+#   (see Control flow and expressions). The other GenServer return forms:
 #   {:noreply, e, t} and {:reply, r, e, t} with a timeout t arm the
 #   self-timer for :timeout after the reply (t = :hibernate is no timeout);
 #   {:stop, reason, e} exits; {:stop, reason, r, e} (handle_call) sends the
@@ -163,9 +164,10 @@
 #   `x :: rest` and `{:empty, q}` is `[]` with q aliased to it.
 #   A local binding `v = e` is a Lean `let` wrapped around the clause's
 #   result. Statements may be followed by an if/case body, in which case the
-#   bindings wrap the whole branch; a statement with an effect of its own
-#   (a send, a spawn) there is an error, because it would have to be pushed
-#   into every branch.
+#   bindings wrap the whole branch (so the condition sees them) and a
+#   statement with an effect of its own (a send, a spawn) is pushed into
+#   every branch: its effect is prepended to the effects of whichever leaf
+#   runs, which is once in the text per leaf and exactly once in any run.
 #   A module attribute holding a literal (`@max 3`) is substituted into
 #   every later read of it in the module body, so a defstruct default, a
 #   guard or a state expression may name one.
@@ -202,6 +204,53 @@
 #   second. (On the BEAM a stored `nil` would take the first arm too; the
 #   model's values are never nil.)
 #
+# Control flow and expressions. The pure fragment is compiled as a language,
+#   not as a body shape: any sub-expression may itself be a control form.
+#     * `a |> f(b)` is `f(a, b)`. Pipes, `cond` and `unless` are rewritten
+#       over the whole module body before anything else looks at it
+#       (`desugar/1`), so nothing downstream ever sees one.
+#     * `if c, do: a, else: b` is `(if c then a else b)`, each branch
+#       compiled at the expected type (so `some`/`none` is inserted per
+#       branch, not around the whole `if`). An `if` with no `else` is nil on
+#       the BEAM, which the model has only at an Option type: anywhere else
+#       it is an error.
+#     * `cond` is nested `if`s. Its last clause must be `true ->`: falling
+#       off the end raises CondClauseError, and an expression cannot raise.
+#     * `case e do p -> b; .. end` is `(match e with | p => b | ..)`, the
+#       arms using the same type-directed pattern machinery as a clause head
+#       (`case_arm_pat`, shared with the body compiler). Inside an expression
+#       there is nothing to fall through to, so an arm pattern that would
+#       need a guard, and a map pattern, are errors; `case Map.pop(m, k)`
+#       and `case :queue.out(q)` stay whole-body forms.
+#     * A block `(a; b; c)` is nested `let`s with the last statement as the
+#       value. Its other statements must be bindings: an effect belongs to
+#       the clause body, where the model can order it.
+#     * A binding `x = e` is `let x := e` (a variable simply shadows; Lean's
+#       `let` is not recursive, so the right-hand side still reads the old
+#       one). A pattern binding `{a, b} = e` is `let (a, b) := e`, and a
+#       struct pattern `%Mod{f: p} = e` the anonymous constructor. Only a
+#       pattern that is total at its type may be bound (`irrefutable?`):
+#       a variable, `_`, a pair at a product type, a struct pattern,
+#       `%{}`. `{:ok, v} = Map.fetch(m, k)` and `%{k => v} = m` can fail and
+#       have nothing to fall through to, so they are errors -- match on them.
+#   Kernel guards and functions. A type test is decided statically, because
+#   a value of the model has exactly one type: `is_pid` on a `pid()` is
+#   `true`, `is_list` on a `[T]` is `true` and `is_map` on it is `false`; at
+#   a `T | nil`, `is_nil` is `isNone` and the others are `isSome` or `false`.
+#   `is_nil`, `is_pid`, `is_list`, `is_map`, `is_integer`, `is_atom`,
+#   `is_boolean`, `is_number`, `is_float`, `is_tuple` and `is_binary` (a
+#   binary is a Lean `String`) are supported this way; a test at an opaque
+#   `Term`, or at a tagged union (whose alternatives are both atoms and
+#   tuples), is not decidable and is an error.
+#   `elem/2` and `tuple_size/1` read the pair of a map entry, the one tuple
+#   the model has as a value (the fields of a tagged tuple are reached by
+#   matching). `abs/1` is `Int.natAbs`, `min`/`max` are Lean's, and
+#   `div`/`rem` are `/` and `%` on non_neg_integer() only: Elixir's `div`
+#   truncates toward zero and Lean's integer division does not, so an Int
+#   operand is an error rather than a silent difference. `x in l` is list
+#   membership. `&&`, `||` and `!` are `and`, `or` and `not` (a non-boolean
+#   operand is Elixir truthiness, which no value of the model has), `===`
+#   and `!==` are `==` and `!=`, and `*` is multiplication.
 # Untyped mode. A module that declares none of @type msg/cast/info/call
 #   has its message unions inferred from its own source, and a file with no
 #   @type reply and a module with no @type state likewise (`infer_types/1`
@@ -564,7 +613,7 @@ defmodule ToLean do
     {:ok, ast} = src |> File.read!() |> Code.string_to_quoted(columns: false)
     # a module `Loom.Teams.TableRegistry` is known by its last segment
     mods = for {:defmodule, _, [{:__aliases__, _, segs}, [do: body]]} <- top(ast),
-               do: {List.last(segs), strip_resource_noops(List.last(segs), subst_attrs(stmts(body)))}
+               do: {List.last(segs), strip_resource_noops(List.last(segs), desugar(subst_attrs(stmts(body))))}
     # registered names: the --pid flags if any are given, else derived from
     # the source (name: __MODULE__ in start_link/start, Process.register/2)
     pids = if map_size(pids) == 0, do: register_names(mods), else: pids
@@ -1741,6 +1790,45 @@ defmodule ToLean do
       end)
     Enum.reverse(rev)
   end
+
+  # ---------- desugaring ----------
+
+  # Purely syntactic rewrites of the whole module body, done once before
+  # anything else looks at it, so nothing downstream ever sees a `|>`, a
+  # `cond` or an `unless`:
+  #
+  #   a |> f(b)               ->  f(a, b)
+  #   cond do c -> b; .. end  ->  nested `if`s (the last clause must be `true`)
+  #   unless c, do: a         ->  if c, do: nil, else: a
+  #
+  # Chains fold left to right: `Macro.prewalk` rewrites the outermost pipe
+  # first and then descends into the result.
+  defp desugar(ast) do
+    Macro.prewalk(ast, fn
+      {:|>, _, [l, r]} -> pipe_into(l, r)
+      {:cond, _, [[do: arms]]} -> cond_to_if(arms)
+      {:unless, m, [c, blocks]} when is_list(blocks) ->
+        {:if, m, [c, [do: Keyword.get(blocks, :else), else: Keyword.get(blocks, :do)]]}
+      n -> n
+    end)
+  end
+
+  # `cond` is nested `if`s. Its last clause must be an unconditional
+  # `true ->`: a `cond` that falls off the end raises CondClauseError, and an
+  # expression in the model cannot raise.
+  defp cond_to_if([{:->, _, [[c], b]}]) do
+    c in [true, :otherwise] || fail("the last clause of a `cond` must be `true ->`, got #{Macro.to_string(c)}")
+    b
+  end
+  defp cond_to_if([{:->, m, [[c], b]} | rest]), do: {:if, m, [c, [do: b, else: cond_to_if(rest)]]}
+  defp cond_to_if(arms), do: fail("unsupported `cond` clauses #{Macro.to_string(arms)}")
+
+  @unpipeable [:fn, :__block__, :__aliases__, :%{}, :%, :{}, :<<>>, :&, :^, :when, :"::"]
+  defp pipe_into(l, {f, _, _} = r) when f in @unpipeable,
+    do: fail("cannot pipe #{Macro.to_string(l)} into #{Macro.to_string(r)}")
+  defp pipe_into(l, {f, m, args}) when is_list(args), do: {f, m, [l | args]}
+  defp pipe_into(l, {f, m, nil}) when is_atom(f), do: {f, m, [l]}
+  defp pipe_into(l, r), do: fail("cannot pipe #{Macro.to_string(l)} into #{Macro.to_string(r)}")
 
   defp literal?(x) when is_atom(x) or is_integer(x) or is_binary(x), do: true
   defp literal?(xs) when is_list(xs), do: Enum.all?(xs, &literal?/1)
@@ -3546,6 +3634,162 @@ defmodule ToLean do
   defp guard_to_lean(_env, {:map_eq, m, k, v}), do: "AssocList.get? #{m} #{paren_or(k)} = some #{paren_or(v)}"
   defp guard_to_lean(env, g), do: expr(env, g, nil)
 
+  # ---------- the pure expression compiler ----------
+  #
+  # An expression of the pure fragment may itself be a control form. Each is
+  # compiled at the expected type, so `some`/`none` insertion and the
+  # type-directed pattern machinery work inside a branch exactly as they do at
+  # body level:
+  #
+  #   if c, do: a, else: b     ->  (if c then a else b)
+  #   if c, do: a              ->  (if c then some a else none): an `if` with
+  #                                no `else` is nil, so only at an Option type
+  #   case e do p -> b; .. end ->  (match e with | p => b | ..), the arms using
+  #                                the same `pat` as a clause head
+  #   (a; b; c)                ->  nested `let`s, the last statement the value
+  #   x = e   (in a block)     ->  let x := e
+  #   {a, b} = e               ->  let (a, b) := e  (irrefutable patterns only)
+  #
+  # `cond` and `unless` never reach here: `desugar/1` rewrote them.
+  #
+  # `pat` consults only `ctx.pid_vars`, the clause-head narrowing of an
+  # `Option Pid` a body sends to, which does not apply to a pattern inside an
+  # expression: an empty context is exactly "no narrowing".
+  defp expr_ctx(), do: %Ctx{}
+
+  defp ctl_expr(env, {:if, _, [c, blocks]}, t) when is_list(blocks), do: if_expr(env, c, blocks, t)
+
+  defp ctl_expr(_env, {:case, _, [{{:., _, [:queue, :out]}, _, _}, _]} = e, _t),
+    do: fail("`case :queue.out(q)` is only supported as a whole clause body, not inside an expression: #{Macro.to_string(e)}")
+  defp ctl_expr(_env, {:case, _, [{{:., _, [{:__aliases__, _, [:Map]}, :pop]}, _, _}, _]} = e, _t),
+    do: fail("`case Map.pop(m, k)` is only supported as a whole clause body, not inside an expression: #{Macro.to_string(e)}")
+  defp ctl_expr(env, {:case, _, [scrut, [do: arms]]} = e, t) do
+    st = guess_type(env, scrut)
+    {arm_strs, _} =
+      Enum.map_reduce(arms, false, fn
+        {:->, _, [[p], b]}, saw_nil ->
+          {ps, env2, gs} = case_arm_pat(expr_ctx(), p, b, st, env, saw_nil)
+          gs == [] ||
+            fail("a `case` arm pattern that needs a guard is not supported inside an expression (there is nothing to fall through to): #{Macro.to_string(p)}")
+          env2[:__mapbinds__] == env[:__mapbinds__] ||
+            fail("a map pattern is not supported in a `case` arm inside an expression (it needs a fallthrough): #{Macro.to_string(p)}")
+          {"| #{ps} => #{expr(env2, b, t)}", saw_nil or p == nil}
+        other, _ -> fail("unsupported `case` clause #{Macro.to_string(other)} in #{Macro.to_string(e)}")
+      end)
+    "(match #{expr(env, scrut, nil)} with " <> Enum.join(arm_strs, " ") <> ")"
+  end
+
+  # a block `(a; b; c)` as an expression: nested `let`s, the last statement
+  # the value. An empty block has no value.
+  defp ctl_expr(env, {:__block__, _, [last]}, t), do: expr(env, last, t)
+  defp ctl_expr(env, {:__block__, _, stmts}, t) when stmts != [] do
+    {pre, [last]} = Enum.split(stmts, -1)
+    {lets, env2} = Enum.map_reduce(pre, env, &block_let/2)
+    "(" <> Enum.map_join(lets, "", &(&1 <> "; ")) <> expr(env2, last, t) <> ")"
+  end
+  defp ctl_expr(_env, {:__block__, _, []}, _t), do: fail("an empty block has no value")
+
+  defp ctl_expr(_env, {:=, _, [lhs, rhs]}, _t),
+    do: fail("a binding is only supported as a statement or inside a block: #{Macro.to_string(lhs)} = #{Macro.to_string(rhs)}")
+
+  defp if_expr(env, c, blocks, t) do
+    a = Keyword.get(blocks, :do)
+    b =
+      case Keyword.fetch(blocks, :else) do
+        {:ok, e} -> e
+        # `if c, do: a` is nil when c is false, and nil is `none`
+        :error ->
+          (t != nil and String.starts_with?(t, "Option ")) ||
+            fail("an `if` with no `else` is nil at #{t || "an unknown type"}, which the model has no value for; give it an `else`")
+          nil
+      end
+    "(if #{expr(env, c, nil)} then #{expr(env, a, t)} else #{expr(env, b, t)})"
+  end
+
+  # One statement of a block expression: a binding, and nothing else. An
+  # effect (a send, a spawn) is a statement of the clause body, where the
+  # model can order it; inside an expression there is no order to put it in.
+  defp block_let(s, env) do
+    case s do
+      {:=, _, [lhs, rhs]} -> bind_pat_let(env, lhs, rhs)
+      other -> fail("only bindings are supported inside a block expression, got #{Macro.to_string(other)}")
+    end
+  end
+
+  # `x = e` and `{a, b} = e` as a Lean `let`. Returns {"let p := e", env}.
+  # A variable simply shadows (Lean's `let` is not recursive, so the
+  # right-hand side still reads the old one); any other pattern must be
+  # irrefutable at its type, because a `let` has nothing to fall through to.
+  defp bind_pat_let(env, lhs, rhs) do
+    t = type_of(env, rhs) || expr_type(env, rhs)
+    struct_state_of_type(t) &&
+      fail("#{Macro.to_string(lhs)} = #{Macro.to_string(rhs)}: a whole state value cannot be bound; bind its fields or return it")
+    s = expr(env, rhs, t)
+    case lhs do
+      {v, _, nil} when is_atom(v) ->
+        name = lean_ident(Atom.to_string(v))
+        env = Map.delete(env, {:alias, Atom.to_string(v)})
+        env = if t, do: Map.put(env, name, t), else: Map.delete(env, name)
+        {"let #{name} := #{s}", env}
+      _ ->
+        t || fail("#{Macro.to_string(lhs)} = #{Macro.to_string(rhs)}: the type of the right-hand side is not known")
+        irrefutable?(lhs, t) ||
+          fail("#{Macro.to_string(lhs)} = #{Macro.to_string(rhs)}: the pattern is not total at #{t}, so the binding could fail and there is nothing to fall through to")
+        {ps, env2, gs} = pat(expr_ctx(), lhs, t, env, [])
+        gs == [] || fail("#{Macro.to_string(lhs)} = #{Macro.to_string(rhs)}: a pattern that needs a guard cannot be bound")
+        env2[:__mapbinds__] == env[:__mapbinds__] ||
+          fail("#{Macro.to_string(lhs)} = #{Macro.to_string(rhs)}: a map pattern cannot be bound (the key may be absent)")
+        {"let #{ps} := #{s}", env2}
+    end
+  end
+
+  # Is a pattern total at its type? A variable and `_` are; a tuple at a
+  # product type (the model's one tuple value, a map entry) and a struct
+  # pattern are, field by field, because each has one constructor; `%{}`
+  # matches any map. Everything else -- a literal, a list pattern, one
+  # alternative of a union, a map pattern with keys -- can fail.
+  defp irrefutable?({:_, _, nil}, _t), do: true
+  defp irrefutable?({v, _, nil}, _t) when is_atom(v), do: true
+  defp irrefutable?({:=, _, [p, {v, _, nil}]}, t) when is_atom(v), do: irrefutable?(p, t)
+  defp irrefutable?({:%, _, [_, {:%{}, _, kvs}]}, t), do: struct_fields(t) != nil and struct_irrefutable?(kvs, t)
+  defp irrefutable?({:%{}, _, kvs}, t) do
+    if struct_fields(t) != nil, do: struct_irrefutable?(kvs, t), else: kvs == []
+  end
+  defp irrefutable?(p, t) when is_tuple(p) and (tuple_size(p) == 2 or elem(p, 0) == :{}) do
+    case {prod_type(t), tuple_parts(p)} do
+      {{kt, vt}, [a, b]} -> irrefutable?(a, kt) and irrefutable?(b, vt)
+      _ -> false
+    end
+  end
+  defp irrefutable?(_p, _t), do: false
+
+  defp struct_irrefutable?(kvs, t) do
+    Enum.all?(kvs, fn
+      {k, p} when is_atom(k) -> irrefutable?(p, field_type(t, k))
+      _ -> false
+    end)
+  end
+
+  # One `case` arm pattern, shared by the body-level and the expression-level
+  # compilers: `[]` for the alias of the `:queue.out` empty arm, `some v` for
+  # a variable arm that follows a `nil` arm over an Option (`case Map.get(m,
+  # k) do nil -> ..; v -> .. end`), otherwise the type-directed `pat`.
+  defp case_arm_pat(ctx, p, b, st, env, saw_nil) do
+    case {p, st} do
+      {{:__queue_empty__, _, [v]}, "List " <> _} ->
+        name = lean_ident(Atom.to_string(v))
+        env2 = if String.starts_with?(name, "_"), do: env, else: env |> Map.put(name, st) |> Map.put({:alias, Atom.to_string(v)}, "[]")
+        {"[]", env2, []}
+      # after a `nil` arm, a variable arm over an Option binds the value itself
+      {{v, _, nil}, "Option " <> inner} when is_atom(v) and saw_nil ->
+        name = lean_ident(Atom.to_string(v))
+        if String.starts_with?(name, "_") or Map.has_key?(env, name),
+          do: pat(ctx, p, st, env, []),
+          else: {"(some #{name})", Map.put(env, name, unparen(inner)), []}
+      _ -> pat(ctx, prune_arm_vars(p, b, env), st, env, [])
+    end
+  end
+
   # ---------- bodies ----------
 
   # body -> "(state, [sends])" string; may be an if/case over whole bodies
@@ -3606,20 +3850,7 @@ defmodule ToLean do
     st = guess_type(env, scrut)
     {arm_strs, {ctx, _}} =
       Enum.map_reduce(arms, {ctx, false}, fn {:->, _, [[p], b]}, {c, saw_nil} ->
-        {pstr, env2, []} =
-          case {p, st} do
-            {{:__queue_empty__, _, [v]}, "List " <> _} ->
-              name = lean_ident(Atom.to_string(v))
-              env2 = if String.starts_with?(name, "_"), do: env, else: env |> Map.put(name, st) |> Map.put({:alias, Atom.to_string(v)}, "[]")
-              {"[]", env2, []}
-            # after a `nil` arm, a variable arm over an Option binds the value itself
-            {{v, _, nil}, "Option " <> inner} when is_atom(v) and saw_nil ->
-              name = lean_ident(Atom.to_string(v))
-              if String.starts_with?(name, "_") or Map.has_key?(env, name),
-                do: pat(c, p, st, env, []),
-                else: {"(some #{name})", Map.put(env, name, unparen(inner)), []}
-            _ -> pat(c, prune_arm_vars(p, b, env), st, env, [])
-          end
+        {pstr, env2, []} = case_arm_pat(c, p, b, st, env, saw_nil)
         {bs, c} = body(c, mod, env2, b)
         {"| #{pstr} => #{bs}", {c, saw_nil or p == nil}}
       end)
@@ -3642,18 +3873,21 @@ defmodule ToLean do
   # the rest of a body after a blocking call may be a single `if`/`case`
   defp body_stmts(ctx, mod, env, [{:if, _, _} = e]), do: body(ctx, mod, env, e)
   defp body_stmts(ctx, mod, env, [{:case, _, _} = e]), do: body(ctx, mod, env, e)
-  # Bindings followed by an `if`/`case` body: the bindings become `let`s
-  # around the whole branch. A statement with an effect of its own cannot be
-  # lifted like that (it would have to be pushed into every branch), so it is
-  # an error here.
+  # Statements followed by an `if`/`case` body. The bindings become `let`s
+  # around the whole branch, so the condition and every branch see them. A
+  # statement with an effect of its own cannot be lifted like that, because
+  # the branch is what produces the effect list: it is carried in the
+  # environment as `:__pre_effects__` and prepended to the effects of
+  # whichever leaf runs -- which is pushing it into every branch, once per
+  # leaf in the text and exactly once in any run. The spawn and ETS counters
+  # advance in `env2`, so a leaf that spawns continues the numbering.
   defp body_stmts(ctx, mod, env, stmts)
        when length(stmts) > 1 do
     {pre, [last]} = Enum.split(stmts, -1)
     if match?({tag, _, _} when tag in [:if, :case], last) and not Enum.any?(stmts, &blocking_call?/1) do
       {effs, ctx, env2} = sends(ctx, env, pre)
-      effs == [] ||
-        fail("#{mod}: a statement with an effect before an `if`/`case` body is not supported: #{Macro.to_string(hd(pre))}")
-      {s, ctx} = body(ctx, mod, Map.delete(env2, :__lets__), last)
+      env3 = if effs == [], do: env2, else: Map.update(env2, :__pre_effects__, effs, &(&1 ++ effs))
+      {s, ctx} = body(ctx, mod, Map.delete(env3, :__lets__), last)
       {wrap_lets(env2, s), ctx}
     else
       split_body(ctx, mod, env, stmts)
@@ -3705,8 +3939,9 @@ defmodule ToLean do
     {^tag, [_ | ts]} = List.keyfind(ctx.msg_ctors, tag, 0) || fail("call #{tag} not declared in @type call")
     parts = Enum.zip(args, ts) |> Enum.map(fn {a, t} -> paren_or(expr(env, a, t)) end)
     req = send_str(ctx, const, ".#{tag} me" <> Enum.map_join(parts, "", &(" " <> &1)))
+    pre_effs = Map.get(env, :__pre_effects__, [])
     {send_strs, ctx, env_after} = sends(ctx, Map.put(env, :__mod__, mod), before)
-    this = wrap_lets(env_after, "(.#{await}#{cap_str}, [#{Enum.join(send_strs ++ [req], ", ")}])")
+    this = wrap_lets(env_after, "(.#{await}#{cap_str}, [#{Enum.join(pre_effs ++ send_strs ++ [req], ", ")}])")
     # the continuation, in an environment with the captured vars, v : reply, and me
     env2 = Map.new(captured) |> Map.put(:__self__, true)
     env2 = if lhs_var, do: Map.put(env2, lhs_var, ctx.reply_type), else: env2
@@ -3811,6 +4046,15 @@ defmodule ToLean do
             else
               {nil, {c, let_bind(e, v, expr(e, rhs, t), t)}}
             end
+          # A pattern binding `{a, b} = e`, `%Mod{f: p} = e`: the Lean
+          # `let <pattern> := e` of `bind_pat_let`, wrapped around the clause
+          # result like any other let. Only a pattern that is total at its
+          # type can be bound (there is nothing to fall through to). An atom
+          # on the left is not a binding but a match on a result, as in
+          # `:ok = Phoenix.PubSub.subscribe(..)`, and falls through below.
+          {:=, _, [lhs, rhs]} when not is_atom(lhs) ->
+            {ls, e} = bind_pat_let(e, lhs, rhs)
+            {nil, {c, Map.update(e, :__lets__, [ls], &(&1 ++ [ls]))}}
           other ->
             case pubsub_call(c, Map.get(e, :__mod__), other) do
               {:subscribe, topic, nil} -> {".subscribe me #{topic}", {c, e}}
@@ -3868,7 +4112,10 @@ defmodule ToLean do
   defp plain_body(ctx, mod, env, stmts) do
     {sends, [last]} = Enum.split(stmts, -1)
     {ctor, fields} = List.keyfind(ctx.st_ctors, ctor_name(mod), 0)
+    # the effects of the statements that ran before the enclosing if/case
+    pre_effs = Map.get(env, :__pre_effects__, [])
     {send_strs, ctx, env} = sends(ctx, Map.put(env, :__mod__, mod), sends)
+    send_strs = pre_effs ++ send_strs
     # a continuing state of a loop with `after` re-enters the receive at the
     # next generation (an exit, raise or throw keeps the whole state instead)
     next_state = fn e -> state_expr(ctx, env, e, ctor, visible_fields(ctx, mod, fields)) <> hidden_next(ctx, mod, env) end
@@ -4087,11 +4334,19 @@ defmodule ToLean do
     if parts == [], do: ".#{tag}", else: ".#{tag} " <> Enum.join(parts, " ")
   end
 
+  # the Kernel type tests the model can decide (see `type_test`)
+  @type_tests [:is_nil, :is_pid, :is_list, :is_map, :is_integer, :is_atom,
+               :is_boolean, :is_number, :is_float, :is_tuple, :is_binary]
+
   # expression -> Lean, with an expected type used only to insert some/none
   defp expr(_env, nil, "Option " <> _), do: "none"
   defp expr(_env, nil, nil), do: "none"
   # a call to a function defined in the same module (see "module-local functions")
   defp expr(env, {:__local_call__, _, [id | args]}, t), do: local_call_str(env, id, args, t)
+  # ---- control forms: an if/case/block is an expression (see `ctl_expr`) ----
+  # These come before the Option clause so that each branch is wrapped in
+  # `some`/`none` on its own, rather than the whole `if`.
+  defp expr(env, {f, _, _} = e, t) when f in [:if, :case, :__block__, :=], do: ctl_expr(env, e, t)
   defp expr(env, e, "Option " <> inner) do
     case e do
       {v, _, nil} when is_atom(v) ->
@@ -4231,6 +4486,80 @@ defmodule ToLean do
       else: "[" <> Enum.map_join(xs, ", ", &expr(env, &1, elem_type(t))) <> "]"
   end
   defp expr(env, {v, _, nil}, _t) when is_atom(v), do: Map.get(env, {:alias, Atom.to_string(v)}, lean_ident(Atom.to_string(v)))
+  # ---- Kernel guards and functions, on the types the model has ----
+  # A type test is decided statically: a value of the model has exactly one
+  # type, so `is_pid(p)` on a `Pid` is `true` and `is_list(p)` on it is
+  # `false`. The tests that cannot be decided are errors rather than guesses:
+  # an opaque `Term` holds a value whose BEAM type the model does not know,
+  # a tagged union has both atom and tuple alternatives, and there are no
+  # binaries.
+  defp expr(env, {f, _, [a]}, _t) when f in @type_tests, do: type_test(env, f, a)
+  # `elem/2` and `tuple_size/1` on the one tuple the model has as a value, the
+  # pair of a map entry (`K × V`); a tagged tuple is a constructor, whose
+  # fields are reached by matching, not by index.
+  defp expr(env, {:elem, _, [tup, i]}, _t) when is_integer(i) do
+    t = type_of(env, tup) || fail("elem/2: the type of #{Macro.to_string(tup)} is not known")
+    prod_type(t) || fail("elem/2 at #{t}: only a pair (a map entry) is indexable; match a tagged tuple instead")
+    i in [0, 1] || fail("elem/2: a pair has no element #{i}")
+    "#{paren_or(expr(env, tup, t))}.#{i + 1}"
+  end
+  defp expr(env, {:tuple_size, _, [tup]}, _t) do
+    t = type_of(env, tup) || fail("tuple_size/1: the type of #{Macro.to_string(tup)} is not known")
+    prod_type(t) || fail("tuple_size/1 at #{t}: only a pair (a map entry) is a tuple value in the model")
+    "2"
+  end
+  # `abs/1` through `Int.natAbs`; `min`/`max` are Lean's. `div`/`rem` are `/`
+  # and `%` on Nat only: Elixir's `div` truncates toward zero, which Lean's
+  # integer division does not, so an Int operand is an error rather than a
+  # silent difference.
+  defp expr(env, {:abs, _, [a]}, t) do
+    case type_of(env, a) || t do
+      "Nat" -> paren_or(expr(env, a, "Nat"))
+      "Int" -> "(Int.ofNat #{paren_or(expr(env, a, "Int"))}.natAbs)"
+      other -> fail("abs/1 at #{other || "an unknown type"}: only integer() and non_neg_integer()")
+    end
+  end
+  defp expr(env, {f, _, [a, b]}, t) when f in [:min, :max] do
+    at = type_of(env, a) || type_of(env, b) || t
+    at in ["Nat", "Int"] || fail("#{f}/2 at #{at || "an unknown type"}: only integer() and non_neg_integer()")
+    "(#{f} #{paren_or(expr(env, a, at))} #{paren_or(expr(env, b, at))})"
+  end
+  defp expr(env, {f, _, [a, b]}, t) when f in [:div, :rem] do
+    at = type_of(env, a) || type_of(env, b) || t
+    at == "Nat" ||
+      fail("#{f}/2 at #{at || "an unknown type"}: only non_neg_integer() (Elixir's div truncates toward zero, Lean's integer division does not)")
+    "(#{expr(env, a, "Nat")} #{if f == :div, do: "/", else: "%"} #{expr(env, b, "Nat")})"
+  end
+  # `x in list` is list membership
+  defp expr(env, {:in, _, [x, l]}, _t) do
+    lt = type_of(env, l) || list_of(type_of(env, x))
+    "(#{expr(env, x, elem_type(lt))} ∈ #{paren_or(expr(env, l, lt))})"
+  end
+  # ---- the boolean and comparison operators Elixir spells differently ----
+  # `&&`/`||` are the `and`/`or` of the model: a non-boolean operand is
+  # Elixir truthiness, which no value of the model has.
+  defp expr(env, {op, _, [a, b]}, _t) when op in [:&&, :||] do
+    for x <- [a, b], xt = type_of(env, x), xt != "Bool",
+      do: fail("`#{op}` with the non-boolean operand #{Macro.to_string(x)} : #{xt} is not supported (Elixir truthiness has no value in the model)")
+    "(#{expr(env, a, "Bool")} #{if op == :&&, do: "∧", else: "∨"} #{expr(env, b, "Bool")})"
+  end
+  # `===`/`!==` are `==`/`!=`: the modelled types have no boxed-value identity
+  defp expr(env, {op, _, [a, b]}, t) when op in [:*, :===, :!==] do
+    lop = case op do
+      :* -> "*"
+      :=== -> "="
+      :!== -> "≠"
+    end
+    at = if op == :*, do: t, else: nil
+    "(#{expr(env, a, at)} #{lop} #{expr(env, b, at)})"
+  end
+  defp expr(env, {:!, _, [a]}, _t), do: "(¬ #{expr(env, a, nil)})"
+  defp expr(env, {:-, _, [a]}, t) do
+    at = type_of(env, a) || t
+    at in [nil, "Int"] || fail("unary `-` at #{at}: only integer()")
+    "(-#{paren_or(expr(env, a, at))})"
+  end
+  defp expr(env, {:+, _, [a]}, t), do: expr(env, a, t)
   defp expr(env, {op, _, [a, b]} = e, t) when op in [:+, :-, :++, :<=, :>=, :<, :>, :==, :!=, :and, :or] do
     # an Instant has equality and nothing else: refuse an order or an
     # arithmetic on one here rather than let Lean fail on a missing instance
@@ -4260,6 +4589,51 @@ defmodule ToLean do
     end
   end
   defp expr(_env, e, _t), do: fail("unsupported expression #{Macro.to_string(e)}")
+
+  # A Kernel type test, decided from the modelled type of its argument. At an
+  # Option type the value is the argument or nil, so the test is `isNone` for
+  # `is_nil` and `isSome` (or `false`) for the others.
+  defp type_test(env, f, a) do
+    t = type_of(env, a) || fail("#{f}/1: the type of #{Macro.to_string(a)} is not known")
+    s = paren_or(expr(env, a, t))
+    case {f, t} do
+      {:is_nil, "Option " <> _} -> "#{s}.isNone"
+      {_, "Option " <> inner} -> if test_of(f, unparen(inner)) == "true", do: "#{s}.isSome", else: "false"
+      _ -> test_of(f, t)
+    end
+  end
+
+  # the value of a type test at a modelled type
+  defp test_of(f, t) do
+    t == "Term" &&
+      fail("#{f}/1 at term(): the model does not know the BEAM type behind an opaque value; declare a @type for it")
+    mixed = fn ->
+      union_ctors(t) == nil ||
+        fail("#{f}/1 at the tagged union #{t}: its alternatives are both atoms and tuples, so the test is not decidable")
+    end
+    v =
+      case f do
+        :is_nil -> false
+        :is_pid -> t == "Pid"
+        :is_integer -> t in ["Int", "Nat"]
+        :is_number -> t in ["Int", "Nat"]
+        :is_float -> false
+        # a binary is a Lean String (Leanactors/Str.lean): the test is
+        # decidable once there is a string type to decide it against
+        :is_binary -> t == "String"
+        :is_boolean -> t == "Bool"
+        # `true` and `false` are atoms on the BEAM, and so is every
+        # alternative of an enum; a struct and the model's map are maps
+        :is_atom -> mixed.() && (t == "Bool" or enum_type?(t))
+        :is_tuple -> mixed.() && prod_type(t) != nil
+        :is_list -> mixed.() && String.starts_with?(t, "List ") and map_type(t) == nil
+        :is_map -> mixed.() && (map_type(t) != nil or struct_fields(t) != nil)
+      end
+    "#{v}"
+  end
+
+  defp list_of(nil), do: nil
+  defp list_of(t), do: "List " <> paren(t)
 
   defp map_lit(env, e, pairs, t) do
     {kt, vt} = map_type(t) || fail("map literal #{Macro.to_string(e)} at #{t || "an unknown type"}: a map type is needed here")
@@ -4690,6 +5064,28 @@ defmodule ToLean do
     end
   end
   defp type_of(env, {op, _, [a, b]}) when op in [:+, :-], do: type_of(env, a) || type_of(env, b)
+  # control forms: the type of a branch (they all have the same one)
+  defp type_of(env, {:if, _, [_, blocks]}) when is_list(blocks),
+    do: Enum.find_value(blocks, fn {_, b} -> type_of(env, b) end)
+  defp type_of(env, {:case, _, [_, [do: arms]]}),
+    do: Enum.find_value(arms, fn {:->, _, [_, b]} -> type_of(env, b) end)
+  defp type_of(env, {:__block__, _, xs}) when xs != [], do: type_of(env, List.last(xs))
+  # the Kernel guards and operators
+  defp type_of(_env, {f, _, [_]}) when f in @type_tests, do: "Bool"
+  defp type_of(_env, {op, _, [_, _]}) when op in [:&&, :||, :in, :===, :!==], do: "Bool"
+  defp type_of(_env, {:!, _, [_]}), do: "Bool"
+  defp type_of(_env, {:tuple_size, _, [_]}), do: "Nat"
+  defp type_of(env, {:abs, _, [a]}), do: type_of(env, a)
+  defp type_of(env, {:-, _, [a]}), do: type_of(env, a)
+  defp type_of(env, {:+, _, [a]}), do: type_of(env, a)
+  defp type_of(env, {op, _, [a, b]}) when op in [:*, :min, :max, :div, :rem], do: type_of(env, a) || type_of(env, b)
+  defp type_of(env, {:elem, _, [tup, i]}) when is_integer(i) do
+    case prod_type(type_of(env, tup)) do
+      {kt, vt} -> if i == 0, do: kt, else: vt
+      nil -> nil
+    end
+  end
+  # ---- values (binaries, the @remote table) ----
   defp type_of(_env, s) when is_binary(s), do: "String"
   defp type_of(_env, {:<<>>, _, _}), do: "String"
   defp type_of(_env, {:<>, _, [_, _]}), do: "String"

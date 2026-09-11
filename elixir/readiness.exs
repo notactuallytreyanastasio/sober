@@ -134,9 +134,30 @@ defmodule Readiness do
     # literals, `[]`, tuples, `self()`, `%{}` and `%{k => v, ..}` literals,
     # these calls and operators, and `if`/`case` at body level only
     map_calls: [get: 2, get: 3, fetch: 2, put: 3, delete: 2, has_key?: 2, keys: 1, values: 1, filter: 2, reject: 2],
+    # Kernel functions and guards. The type tests are decided statically from
+    # the modelled type of the argument (`is_pid` on a `pid()` is `true`,
+    # `is_nil` on a `T | nil` is `isNone`, `is_binary` on a `String.t()` is
+    # `true`); `elem/2` and `tuple_size/1` read the pair of a map entry;
+    # `div`/`rem` are non_neg_integer() only.
     kernel_calls: [self: 0, not: 1, is_map_key: 2, map_size: 1, length: 1, hd: 1, tl: 1,
-                   inspect: 1, inspect: 2, to_string: 1],
-    operators: [:+, :-, :++, :<=, :>=, :<, :>, :==, :!=, :and, :or],
+                   inspect: 1, inspect: 2, to_string: 1,
+                   is_nil: 1, is_pid: 1, is_list: 1, is_map: 1, is_integer: 1, is_atom: 1,
+                   is_boolean: 1, is_number: 1, is_float: 1, is_tuple: 1, is_binary: 1,
+                   elem: 2, tuple_size: 1, abs: 1, min: 2, max: 2, div: 2, rem: 2],
+    operators: [:+, :-, :++, :<=, :>=, :<, :>, :==, :!=, :and, :or, :&&, :||, :*, :===, :!==, :in],
+    unary_operators: [:not, :!, :-, :+],
+    # control flow: `if`, `case`, `cond` and `unless` are expressions, so are
+    # a block `(a; b; c)` (nested `let`s) and a binding `x = e` inside one;
+    # `a |> f(b)` is rewritten to `f(a, b)` before anything else looks at it
+    control_forms: [
+      "if c, do: a, else: b   (no `else` only at an Option type)",
+      "unless c, do: a, else: b",
+      "cond do c -> b; ..; true -> b end   (the last clause must be `true ->`)",
+      "case e do p -> b; .. end",
+      "(a; b; c)  as an expression, its non-final statements bindings",
+      "x = e | {a, b} = e | %Mod{f: p} = e   (patterns total at their type)",
+      "a |> f(b)"
+    ],
     # Enum over lists (the List API), with `fn x -> e end` or a capture
     # `&(&1..)` as the predicate
     enum_calls: [filter: 2, reject: 2, map: 2, any?: 2, all?: 2, count: 1, count: 2, member?: 2,
@@ -241,6 +262,7 @@ defmodule Readiness do
   }
 
   @operators @supported.operators
+  @unary_operators @supported.unary_operators
   @kernel_calls @supported.kernel_calls
   @map_calls @supported.map_calls
   @enum_calls @supported.enum_calls
@@ -1364,7 +1386,11 @@ defmodule Readiness do
     case b do
       {:if, _, [c, [do: a, else: e]]} -> [check_expr(ctx.mod, c, l), check_body(ctx, a, l), check_body(ctx, e, l)]
       {:if, _, [c, [do: a]]} -> [finding(:blocker, l, "if without else", str(c)), check_expr(ctx.mod, c, l), check_body(ctx, a, l)]
-      {:unless, _, [c, blocks]} -> [finding(:blocker, l, "unless", str(c)), check_expr(ctx.mod, c, l), for({_, bb} <- blocks, do: check_body(ctx, bb, l))]
+      # `unless c, do: a, else: b` is `if c, do: b, else: a`; without an
+      # `else` its other branch is nil, which a body has no value for
+      {:unless, _, [c, blocks]} ->
+        [if(Keyword.has_key?(blocks, :else), do: [], else: [finding(:blocker, l, "unless without else", str(c))]),
+         check_expr(ctx.mod, c, l), for({_, bb} <- blocks, do: check_body(ctx, bb, l))]
       {:case, _, [scrut, [do: arms]]} ->
         sfs =
           case scrut do
@@ -1378,8 +1404,11 @@ defmodule Readiness do
             _ -> check_expr(ctx.mod, scrut, l)
           end
         [sfs, for({:->, am, [lhs, ab]} <- arms, do: check_arm(ctx, lhs, ab, ln(am, l)))]
+      # `cond` is nested `if`s; falling off the end raises CondClauseError,
+      # which the model cannot do, so the last clause must be `true ->`
       {:cond, _, [[do: arms]]} ->
-        [finding(:blocker, l, "cond"), for({:->, am, [[c], ab]} <- arms, do: [check_expr(ctx.mod, c, ln(am, l)), check_body(ctx, ab, ln(am, l))])]
+        [cond_total(arms, l, b),
+         for({:->, am, [[c], ab]} <- arms, do: [check_expr(ctx.mod, c, ln(am, l)), check_body(ctx, ab, ln(am, l))])]
       {:with, _, args} ->
         {clauses, blocks} = Enum.split_with(args, &(not Keyword.keyword?(&1) or &1 == []))
         [finding(:blocker, l, "with"), for({:<-, _, [p, e]} <- clauses, do: [check_pattern(ctx.mod, p, l), check_expr(ctx.mod, e, l)]),
@@ -1415,7 +1444,7 @@ defmodule Readiness do
          check_blocking(ctx, call, line_of(call, line))]
       _ ->
         [for(s <- pre, do: check_stmt(ctx, s, line_of(s, line))),
-         check_last(ctx, last, line_of(last, line), Enum.any?(pre, &effectful?/1))]
+         check_last(ctx, last, line_of(last, line))]
     end
   end
 
@@ -1509,8 +1538,20 @@ defmodule Readiness do
       {:=, _, [{v, _, nil}, rhs]} when is_atom(v) -> check_expr(mod, rhs, l)
       # `{_, q} = :queue.out(q0)` drops the oldest element
       {:=, _, [{{:_, _, nil}, {v, _, nil}}, {{:., _, [:queue, :out]}, _, [q]}]} when is_atom(v) -> check_expr(mod, q, l)
-      {:=, _, [lhs, rhs]} -> [finding(:blocker, l, "binding a pattern x = e", str(s)), check_pattern(mod, lhs, l), check_expr(mod, rhs, l)]
-      {:|>, _, _} -> [finding(:blocker, l, "pipe |>", str(s)), pipe_stages(s) |> Enum.flat_map(&check_expr(mod, &1, l))]
+      # a pattern binding `{a, b} = e` is `let (a, b) := e`; only a pattern
+      # that is total at its type can be bound (a `let` has nothing to fall
+      # through to)
+      {:=, _, [lhs, rhs]} ->
+        [if(bindable_pattern?(lhs),
+            do: [],
+            else: [finding(:blocker, l, "binding a pattern that may not match", str(s))]),
+         check_pattern(mod, lhs, l), check_expr(mod, rhs, l)]
+      {:|>, _, _} -> check_piped(fn u -> check_stmt(ctx, u, l) end, mod, s, l)
+      # an `if`/`case` that is not the last statement is evaluated for its
+      # effects, and the model has nowhere to put them: an effect belongs to
+      # the clause body, where the translator can order it
+      {f, _, _} when f in [:if, :unless, :case, :cond] ->
+        [finding(:blocker, l, "if/case as a statement (its value is discarded)", str(s)), check_expr(mod, s, l)]
       _ ->
         cond do
           # `Phoenix.PubSub.subscribe/unsubscribe/broadcast`, optionally `:ok = ..`
@@ -1534,22 +1575,6 @@ defmodule Readiness do
     end
   end
 
-  # a statement with an effect of its own: anything but a pure local binding
-  # (a `let`) or a resource call the translator drops
-  defp effectful?(s) do
-    case s do
-      {:=, _, [{v, _, nil}, rhs]} when is_atom(v) -> ets_call?(rhs) == false and spawn_rhs?(rhs)
-      {:=, _, [{{:_, _, nil}, {v, _, nil}}, {{:., _, [:queue, :out]}, _, [_]}]} when is_atom(v) -> false
-      _ -> not ets_call?(s) and not resource_try?(s)
-    end
-  end
-
-  # a binding whose right-hand side is itself an effect (a spawn, a call)
-  defp spawn_rhs?({f, _, _}) when f in [:spawn, :spawn_link, :spawn_monitor], do: true
-  defp spawn_rhs?({{:., _, [{:__aliases__, _, [:GenServer]}, f]}, _, _}) when f in [:start, :start_link, :call], do: true
-  defp spawn_rhs?({{:., _, [{:__aliases__, _, [:Process]}, :monitor]}, _, _}), do: true
-  defp spawn_rhs?(_), do: false
-
   # `try do <only resource calls> rescue .. end`, dropped before translation
   defp resource_try?({:try, _, [blocks]}) when is_list(blocks) do
     (Keyword.keys(blocks) -- [:do]) == [:rescue] and Enum.all?(stmts(blocks[:do]), &ets_call?/1)
@@ -1568,16 +1593,65 @@ defmodule Readiness do
   defp pipe_stages({:|>, _, [a, b]}), do: pipe_stages(a) ++ [b]
   defp pipe_stages(e), do: [e]
 
+  # `a |> f(b)` is `f(a, b)`: the translator rewrites it before anything else
+  # looks at it, so the walker checks the rewritten form. A pipe into
+  # something that is not a call stays a pipe, and is a blocker.
+  defp check_piped(check, mod, e, l) do
+    case unpipe(e) do
+      {:|>, _, _} -> [finding(:blocker, l, "pipe |> into a form that is not a call", str(e)),
+                      pipe_stages(e) |> Enum.flat_map(&check_expr(mod, &1, l))]
+      u -> check.(u)
+    end
+  end
+
+  defp unpipe({:|>, _, [l, r]}), do: pipe_into(unpipe(l), r)
+  defp unpipe(e), do: e
+
+  @unpipeable [:fn, :__block__, :__aliases__, :%{}, :%, :{}, :<<>>, :&, :^, :when, :"::", :|>]
+  defp pipe_into(l, {f, _, _} = r) when f in @unpipeable, do: {:|>, [], [l, r]}
+  defp pipe_into(l, {f, m, args}) when is_list(args), do: {f, m, [l | args]}
+  defp pipe_into(l, {f, m, nil}) when is_atom(f), do: {f, m, [l]}
+  defp pipe_into(l, r), do: {:|>, [], [l, r]}
+
+  # one statement of a block expression: a binding, and nothing else
+  defp check_block_binding(mod, s, l) do
+    case s do
+      {:=, _, [lhs, rhs]} ->
+        [if(bindable_pattern?(lhs),
+            do: [],
+            else: [finding(:blocker, l, "binding a pattern that may not match", str(s))]),
+         check_pattern(mod, lhs, l), check_expr(mod, rhs, l)]
+      _ -> [finding(:blocker, l, "a statement with an effect inside a block expression", str(s)), check_expr(mod, s, l)]
+    end
+  end
+
+  # a pattern a `let` can bind whatever its type: a variable, `_`, a pair of
+  # those (the model's one tuple value, a map entry), a struct pattern, `%{}`.
+  # A literal, a tagged tuple, a list pattern and a map pattern with keys can
+  # all fail to match, and a `let` has nothing to fall through to.
+  defp bindable_pattern?({:_, _, nil}), do: true
+  defp bindable_pattern?({v, _, nil}) when is_atom(v), do: true
+  defp bindable_pattern?({:%, _, [_, {:%{}, _, kvs}]}), do: Enum.all?(kvs, fn {_, p} -> bindable_pattern?(p) end)
+  defp bindable_pattern?({:%{}, _, kvs}), do: kvs == []
+  defp bindable_pattern?({:=, _, [p, {v, _, nil}]}) when is_atom(v), do: bindable_pattern?(p)
+  defp bindable_pattern?({a, b}), do: bindable_pattern?(a) and bindable_pattern?(b)
+  defp bindable_pattern?(_), do: false
+
+  # the last clause of a `cond` must be an unconditional `true ->`
+  defp cond_total(arms, l, e) do
+    case List.last(arms) do
+      {:->, _, [[c], _]} when c in [true, :otherwise] -> []
+      _ -> [finding(:blocker, l, "cond without a final `true ->` clause", str(e))]
+    end
+  end
+
   # the return form of a callback body
   # an if/case/cond/... is only accepted as the whole body, not after statements
-  defp check_last(ctx, last, l, effects_before?) do
-    control? = match?({f, _, _} when f in [:if, :case, :cond, :with, :try, :unless, :receive], last)
-    [
-      if(effects_before? and control?,
-        do: [finding(:blocker, l, "if/case after a statement with an effect (it would have to be pushed into every branch)", str(last))],
-        else: []),
-      if(ctx.kind == :loop, do: check_loop_last(ctx, last, l), else: check_callback_last(ctx, last, l))
-    ]
+  # A statement with an effect before an `if`/`case` body is pushed into
+  # every branch: its effect is prepended to the effects of whichever leaf
+  # runs, which is exactly once in any run.
+  defp check_last(ctx, last, l) do
+    if ctx.kind == :loop, do: check_loop_last(ctx, last, l), else: check_callback_last(ctx, last, l)
   end
 
   defp check_callback_last(ctx, last, l) do
@@ -1768,22 +1842,32 @@ defmodule Readiness do
           else: [finding(:blocker, l, "call on an expression", str(e))]
       {{:., _, _}, _, _} -> blk.("call on an expression")
       {op, _, [a, b]} when op in @operators -> check_expr(mod, a, l) ++ check_expr(mod, b, l)
-      {:|>, _, _} -> [blk.("pipe |>"), pipe_stages(e) |> Enum.flat_map(&check_expr(mod, &1, l))]
+      {:|>, _, _} -> check_piped(fn u -> check_expr(mod, u, l) end, mod, e, l)
       # `[h | t]` as an expression: the list branch above hands us the cons
       {:|, _, [h, t]} -> [blk.("list cons [h | t] in an expression"), check_expr(mod, h, l), check_expr(mod, t, l)]
       {:<>, _, [a, b]} -> check_expr(mod, a, l) ++ check_expr(mod, b, l)
-      {op, _, [a, b]} when op in [:*, :/, :&&, :||, :in, :"..", :===, :!==, :=~, :"//", :"<-", :"::"] ->
+      {op, _, [a, b]} when op in [:/, :"..", :=~, :"//", :"<-", :"::"] ->
         [blk.("operator #{op}"), check_expr(mod, a, l), check_expr(mod, b, l)]
-      {op, _, [a]} when op in [:!, :-, :+] -> [blk.("operator #{op}"), check_expr(mod, a, l)]
-      {:not, _, [a]} -> check_expr(mod, a, l)
+      {op, _, [a]} when op in @unary_operators -> check_expr(mod, a, l)
+      {op, _, [a]} when op in [:@] -> [blk.("operator #{op}"), check_expr(mod, a, l)]
       {:is_map_key, _, [m, k]} -> check_expr(mod, m, l) ++ check_expr(mod, k, l)
       {:map_size, _, [m]} -> check_expr(mod, m, l)
-      {:__block__, _, xs} -> [blk.("block as a sub-expression"), Enum.flat_map(xs, &check_expr(mod, &1, l))]
-      {:=, _, [_, rhs]} -> [blk.("variable binding x = e"), check_expr(mod, rhs, l)]
-      {:if, _, [c, blocks]} -> [blk.("if/case not at body level"), check_expr(mod, c, l), for({_, b} <- blocks, do: check_expr(mod, b, l))]
-      {:unless, _, [c, blocks]} -> [blk.("unless"), check_expr(mod, c, l), for({_, b} <- blocks, do: check_expr(mod, b, l))]
-      {:case, _, [s, [do: arms]]} -> [blk.("if/case not at body level"), check_expr(mod, s, l), for({:->, _, [_, b]} <- arms, do: check_expr(mod, b, l))]
-      {:cond, _, [[do: arms]]} -> [blk.("cond"), for({:->, _, [[c], b]} <- arms, do: [check_expr(mod, c, l), check_expr(mod, b, l)])]
+      # A block `(a; b; c)` as an expression is nested `let`s: every
+      # statement but the last is a binding, and an effect has no place to go.
+      {:__block__, _, []} -> blk.("empty block")
+      {:__block__, _, xs} ->
+        {pre, [last]} = Enum.split(xs, -1)
+        [for(st <- pre, do: check_block_binding(mod, st, line_of(st, l))), check_expr(mod, last, l)]
+      # a binding outside a block has nowhere to put its `let`
+      {:=, _, [_, rhs]} -> [blk.("binding outside a block"), check_expr(mod, rhs, l)]
+      # `if`/`unless`/`case`/`cond` as sub-expressions
+      {:if, _, [c, blocks]} -> [check_expr(mod, c, l), for({_, b} <- blocks, do: check_expr(mod, b, l))]
+      {:unless, _, [c, blocks]} -> [check_expr(mod, c, l), for({_, b} <- blocks, do: check_expr(mod, b, l))]
+      {:case, _, [s, [do: arms]]} ->
+        [check_expr(mod, s, l),
+         for({:->, am, [lhs, b]} <- arms, do: [Enum.flat_map(lhs, &check_pattern(mod, &1, ln(am, l))), check_expr(mod, b, ln(am, l))])]
+      {:cond, _, [[do: arms]]} ->
+        [cond_total(arms, l, e), for({:->, _, [[c], b]} <- arms, do: [check_expr(mod, c, l), check_expr(mod, b, l)])]
       {:with, _, _} -> blk.("with")
       # `for x <- l, c, .., do: e` is List.map over the filtered list
       {:for, _, args} when is_list(args) and args != [] ->
