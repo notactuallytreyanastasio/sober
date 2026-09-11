@@ -37,3 +37,8 @@ elixir elixir/task.exs | tail -1
 elixir elixir/watchdog.exs | tail -1
 elixir elixir/ttl.exs | tail -1
 elixir elixir/registry.exs | tail -1
+
+echo "== differential fuzz (Lean replay vs BEAM)"
+# lake build above also built .lake/build/bin/replay (a default target).
+# 200 seeded scripts cycling bank, ttl, lock; exits 1 on the first mismatch.
+elixir elixir/fuzz.exs --seed 1 --runs 200

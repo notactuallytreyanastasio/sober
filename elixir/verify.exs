@@ -239,7 +239,8 @@ defmodule V.Run do
     {"supervisor", "elixir/supervisor.exs", []},
     {"task", "elixir/task.exs", []},
     {"watchdog", "elixir/watchdog.exs", []},
-    {"ttl", "elixir/ttl.exs", []}
+    {"ttl", "elixir/ttl.exs", []},
+    {"fuzz", "elixir/fuzz.exs", ["--seed", "1", "--runs", "200"]}
   ]
 
   @stages ["translate", "fixtures", "prove", "run"]
@@ -348,7 +349,7 @@ defmodule V.Run do
   end
 
   defp run_stage("run") do
-    banner("run", "each Elixir/BEAM driver, independently of the Lean side")
+    banner("run", "each Elixir/BEAM driver, then the seeded Lean-vs-BEAM fuzz")
     results =
       Enum.map(@drivers, fn {name, script, args} ->
         {out, status} = System.cmd("elixir", [script | args], cd: @root, stderr_to_stdout: true)

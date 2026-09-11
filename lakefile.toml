@@ -1,6 +1,13 @@
 name = "leanactors"
 version = "0.1.0"
-defaultTargets = ["Leanactors"]
+defaultTargets = ["Leanactors", "replay"]
 
 [[lean_lib]]
 name = "Leanactors"
+
+# Executable interpreter front end for differential testing against the
+# BEAM: `lake build replay`, then `elixir/fuzz.exs` drives
+# .lake/build/bin/replay with a script on stdin. See Leanactors/Replay.lean.
+[[lean_exe]]
+name = "replay"
+root = "Leanactors.Replay"
