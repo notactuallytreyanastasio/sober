@@ -5,6 +5,7 @@ import Leanactors.Sys
 import Leanactors.SysProps
 import Leanactors.Explore
 import Leanactors.Fair
+import Leanactors.AssocList
 import Leanactors.Examples.Bank
 import Leanactors.Examples.Lock
 import Leanactors.Examples.LockProof
@@ -26,3 +27,5 @@ import Leanactors.Examples.SysPropsDemo
 import Leanactors.Gen.Ttl
 import Leanactors.Examples.Ttl
 import Leanactors.Examples.TtlProof
+import Leanactors.Gen.Registry
+import Leanactors.Examples.Registry
